@@ -19,6 +19,7 @@ import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
 import ChatAIAssistant from "./ChatAIAssistant";
 import { useAuth } from "@/lib/auth-context";
+import { usePolling } from "@/lib/use-polling";
 
 interface ChatScreenProps {
   chatId: string;
@@ -75,6 +76,9 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
+
+  // Poll every 3 seconds for new messages
+  usePolling(fetchMessages, 3_000, !loading);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });

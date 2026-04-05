@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, ImageIcon, Sparkles, X, ExternalLink } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import SmartMatchPanel from "./SmartMatchPanel";
 import { useAuth } from "@/lib/auth-context";
+import { usePolling } from "@/lib/use-polling";
 
 interface InboxScreenProps {
   onOpenChat: (chatId: string, contactName?: string) => void;
@@ -53,27 +54,36 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authFetch("/api/messages/inbox");
-        if (res.ok) {
-          const data = await res.json();
-          if (!cancelled) setConversations(data.data ?? []);
-        }
-      } catch {
-        // network error — degrade gracefully
-      } finally {
-        if (!cancelled) setLoading(false);
+  const fetchInbox = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await authFetch("/api/messages/inbox");
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data.data ?? []);
       }
-    })();
-    return () => { cancelled = true; };
+    } catch {
+      // network error — degrade gracefully
+    } finally {
+      setLoading(false);
+    }
   }, [user, authFetch]);
+
+  // Initial load
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    fetchInbox();
+  }, [user, fetchInbox]);
+
+  // Poll every 10 seconds
+  usePolling(fetchInbox, 10_000, !!user);
+
+  // Send presence heartbeat every 30 seconds
+  usePolling(
+    useCallback(() => { authFetch("/api/presence", { method: "POST" }).catch(() => {}); }, [authFetch]),
+    30_000,
+    !!user,
+  );
 
   const filtered = conversations.filter((c) =>
     c.contactName.toLowerCase().includes(search.toLowerCase())
