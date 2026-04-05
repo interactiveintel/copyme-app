@@ -393,7 +393,7 @@ export default function YogiAIScreen() {
   });
 
   // Avatar state — user can upload their own photo or pick from mock profiles
-  const defaultAvatar = MOCK_PROFILES.mock_1.avatarUrl;
+  const defaultAvatar = "/avatars/paul-1.jpg";
   const [yogiAvatarUrl, setYogiAvatarUrl] = useState<string>(defaultAvatar);
   const [yogiName, setYogiName] = useState<string>("Yogi");
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);

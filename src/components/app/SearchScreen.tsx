@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Search, Sparkles, MapPin, Briefcase, GraduationCap, Users } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import { useAuth } from "@/lib/auth-context";
+import { MOCK_PROFILES } from "@/lib/mock-data";
 
 interface SearchResult {
   id: string;
@@ -32,6 +33,19 @@ export default function SearchScreen() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  const suggestedConnections = useMemo(() => {
+    return Object.values(MOCK_PROFILES).map((p) => ({
+      id: p.id,
+      displayName: p.displayName,
+      bio: p.bio,
+      interests: p.interests,
+      location: p.location,
+      avatarUrl: p.avatarUrl,
+      online: p.online,
+      relevanceScore: Math.round(70 + Math.random() * 25),
+    }));
+  }, []);
 
   const toggleFilter = (id: string) => {
     setActiveFilters((prev) =>
@@ -69,7 +83,7 @@ export default function SearchScreen() {
     }
   };
 
-  const formatLocation = (loc: SearchResult["location"]) => {
+  const formatLocation = (loc: { globalArea: string | null; region: string | null; cityZip: string | null } | null) => {
     if (!loc) return null;
     return [loc.globalArea, loc.region, loc.cityZip].filter(Boolean).join(", ");
   };
@@ -153,12 +167,66 @@ export default function SearchScreen() {
             <p className="text-slate-400 text-sm">No users found</p>
             <p className="text-slate-300 text-xs mt-1">Try a different search term</p>
           </div>
-        ) : results.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <Search size={32} className="text-slate-300 mb-3" />
-            <p className="text-slate-400 text-sm">Search for people to connect with</p>
-            <p className="text-slate-300 text-xs mt-1">Find by name, interests, or location</p>
-          </div>
+        ) : results.length === 0 && !searched ? (
+          <>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Suggested Connections
+            </h2>
+            {suggestedConnections.map((user, i) => (
+              <motion.div
+                key={user.id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+              >
+                <GlassCard hover>
+                  <div className="p-4 flex items-center gap-4">
+                    <div className="relative shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.displayName}
+                        className="w-12 h-12 rounded-full object-cover bg-slate-100"
+                      />
+                      {user.online && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">{user.displayName}</p>
+                        <span className="text-[10px] font-medium text-purple-500 bg-purple-50 px-2 py-0.5 rounded-full">
+                          {user.relevanceScore}% match
+                        </span>
+                      </div>
+                      {user.location && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MapPin size={11} className="text-slate-400" />
+                          <p className="text-[11px] text-slate-500">{formatLocation(user.location)}</p>
+                        </div>
+                      )}
+                      {user.bio && (
+                        <p className="text-[11px] text-slate-400 mt-1 truncate">{user.bio}</p>
+                      )}
+                      {user.interests.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {user.interests.slice(0, 4).map((interest) => (
+                            <span
+                              key={interest}
+                              className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-purple-600 border border-purple-500/20"
+                            >
+                              {interest}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <GradientButton size="sm">Connect</GradientButton>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </>
         ) : (
           results.map((user, i) => (
             <motion.div

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Settings, Eye, EyeOff, Edit3, Crown, MapPin, Sparkles, Users, MessageSquare } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import { useAuth } from "@/lib/auth-context";
+import { MOCK_PROFILES } from "@/lib/mock-data";
 
 interface Profile {
   id: string;
@@ -105,18 +106,63 @@ export default function ProfileScreen() {
     );
   }
 
-  const displayName = profile?.displayName || user?.displayName || "User";
-  const tier = profile?.accountTier || "basic";
-  const interests = profile?.interests || [];
-  const desc = profile?.descriptions?.[0];
+  // Demo profile fallback when no real user data is available
+  const isDemo = !profile;
 
-  const locationEntries = profile?.location
+  const demoProfile = useMemo<Profile>(() => ({
+    id: "demo_paul",
+    displayName: "Paul Pereira",
+    profileType: "personal",
+    accountTier: "premium",
+    vapEnabled: true,
+    preferredCurrency: "USD",
+    lastActivityAt: new Date().toISOString(),
+    createdAt: "2024-01-15T00:00:00.000Z",
+    location: {
+      globalArea: "Americas",
+      countryPhoneCode: "United States",
+      region: "Florida",
+      cityZip: "Miami",
+      localDescription: null,
+      locationVisible: true,
+    },
+    interests: [
+      { slotNumber: 1, interestText: "technology" },
+      { slotNumber: 2, interestText: "entrepreneurship" },
+      { slotNumber: 3, interestText: "AI" },
+      { slotNumber: 4, interestText: "photography" },
+      { slotNumber: 5, interestText: "travel" },
+      { slotNumber: 6, interestText: "design" },
+      { slotNumber: 7, interestText: "music" },
+    ],
+    descriptions: [
+      {
+        category: "Business",
+        level: "Executive",
+        location: null,
+        institution: "CopyMe Inc.",
+        typeDescription: "Founder & CEO",
+      },
+    ],
+  }), []);
+
+  const activeProfile = profile ?? demoProfile;
+
+  const displayName = activeProfile.displayName || user?.displayName || "User";
+  const tier = activeProfile.accountTier || "basic";
+  const interests = activeProfile.interests || [];
+  const desc = activeProfile.descriptions?.[0];
+
+  const demoStats = { contacts: 10, groups: 3 };
+  const demoRuleOf7 = { messages: 5, contacts: 7, interests: 7 };
+
+  const locationEntries = activeProfile.location
     ? [
-        { level: "Global", value: profile.location.globalArea },
-        { level: "Country", value: profile.location.countryPhoneCode },
-        { level: "Region", value: profile.location.region },
-        { level: "City", value: profile.location.cityZip },
-        { level: "Local", value: profile.location.localDescription },
+        { level: "Global", value: activeProfile.location.globalArea },
+        { level: "Country", value: activeProfile.location.countryPhoneCode },
+        { level: "Region", value: activeProfile.location.region },
+        { level: "City", value: activeProfile.location.cityZip },
+        { level: "Local", value: activeProfile.location.localDescription },
       ].filter((l) => l.value)
     : [];
 
@@ -137,7 +183,23 @@ export default function ProfileScreen() {
           </div>
 
           <div className="flex flex-col items-center">
-            <Avatar name={displayName} size="xl" online showStatus />
+            {isDemo ? (
+              <div className="relative w-20 h-20">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-[3px]">
+                  <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/avatars/paul-1.jpg"
+                      alt={displayName}
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  </div>
+                </div>
+                <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white" />
+              </div>
+            ) : (
+              <Avatar name={displayName} size="xl" online showStatus />
+            )}
             <h2 className="text-xl font-bold text-slate-900 mt-3">{displayName}</h2>
             <div className="flex items-center gap-1.5 mt-1">
               <Crown size={12} className="text-amber-400" />
@@ -151,8 +213,8 @@ export default function ProfileScreen() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Users, label: "Contacts", value: "—" },
-            { icon: MessageSquare, label: "Groups", value: "—" },
+            { icon: Users, label: "Contacts", value: isDemo ? String(demoStats.contacts) : "—" },
+            { icon: MessageSquare, label: "Groups", value: isDemo ? String(demoStats.groups) : "—" },
             { icon: Crown, label: "Plan", value: tier },
           ].map((stat, i) => (
             <GlassCard key={i}>
@@ -255,19 +317,19 @@ export default function ProfileScreen() {
             </div>
             <div className="flex justify-around">
               <CircularProgress
-                value={0}
+                value={isDemo ? demoRuleOf7.messages : 0}
                 max={7}
                 label="Messages"
                 color="gradMsg"
               />
               <CircularProgress
-                value={0}
+                value={isDemo ? demoRuleOf7.contacts : 0}
                 max={7}
                 label="Contacts"
                 color="gradCon"
               />
               <CircularProgress
-                value={interests.length}
+                value={isDemo ? demoRuleOf7.interests : interests.length}
                 max={7}
                 label="Interests"
                 color="gradInt"

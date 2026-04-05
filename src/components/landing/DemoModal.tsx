@@ -17,6 +17,7 @@ import {
   SkipForward,
   SkipBack,
   Volume2,
+  VolumeX,
 } from "lucide-react";
 
 interface DemoModalProps {
@@ -125,6 +126,25 @@ const scenes = [
   {
     id: 5,
     chapter: "05",
+    title: "Meet Yogi",
+    narration: [
+      "Meet Yogi — your personal AI that learns YOU.",
+      "Upload your photo and Yogi becomes your animated avatar companion.",
+      "Talk, video chat, or text. Yogi adapts to your personality over time.",
+    ],
+    icon: Sparkles,
+    color: "from-violet-500 to-purple-600",
+    phone: {
+      type: "yogi" as const,
+      avatarUrl: "/avatars/paul-1.jpg",
+      name: "Paul",
+      traits: ["Friendly", "Creative", "Direct"],
+      stats: { chats: 47, learned: 12, adapted: 8 },
+    },
+  },
+  {
+    id: 6,
+    chapter: "06",
     title: "AI Smart Match",
     narration: [
       "Finding the right people shouldn't be random.",
@@ -144,8 +164,8 @@ const scenes = [
     },
   },
   {
-    id: 6,
-    chapter: "06",
+    id: 7,
+    chapter: "07",
     title: "Your AI Copilot",
     narration: [
       "Stuck on what to say? The AI assistant has your back.",
@@ -169,8 +189,8 @@ const scenes = [
     },
   },
   {
-    id: 7,
-    chapter: "07",
+    id: 8,
+    chapter: "08",
     title: "Your Inner Circle",
     narration: [
       "Seven active contacts. That's it.",
@@ -194,8 +214,8 @@ const scenes = [
     },
   },
   {
-    id: 8,
-    chapter: "08",
+    id: 9,
+    chapter: "09",
     title: "Private by Design",
     narration: [
       "Your conversations are yours. Period.",
@@ -217,7 +237,7 @@ const scenes = [
     },
   },
   {
-    id: 9,
+    id: 10,
     chapter: "",
     title: "Ready to try it?",
     narration: [
@@ -278,6 +298,72 @@ function useTypewriter(lines: string[], active: boolean, speed = 30) {
 }
 
 // ---------------------------------------------------------------------------
+// Voice narration hook — uses Web Speech API (SpeechSynthesis)
+// ---------------------------------------------------------------------------
+
+function useVoiceNarration(
+  lines: string[],
+  active: boolean,
+  enabled: boolean,
+) {
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const lineIndexRef = useRef(0);
+
+  useEffect(() => {
+    if (!active || !enabled || typeof window === "undefined" || !window.speechSynthesis) {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      lineIndexRef.current = 0;
+      return;
+    }
+
+    // Cancel any ongoing speech when lines change
+    window.speechSynthesis.cancel();
+    lineIndexRef.current = 0;
+
+    function speakLine(idx: number) {
+      if (idx >= lines.length) return;
+      const utterance = new SpeechSynthesisUtterance(lines[idx]);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.lang = "en-US";
+
+      // Try to pick a natural English voice
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoice = voices.find(
+        (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("natural"),
+      ) ?? voices.find((v) => v.lang.startsWith("en"));
+      if (englishVoice) utterance.voice = englishVoice;
+
+      utterance.onend = () => {
+        lineIndexRef.current = idx + 1;
+        speakLine(idx + 1);
+      };
+
+      utteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Voices may load asynchronously
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      speakLine(0);
+    } else {
+      const onVoicesChanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        speakLine(0);
+      };
+      window.speechSynthesis.onvoiceschanged = onVoicesChanged;
+    }
+
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, [lines, active, enabled]);
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -285,12 +371,16 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   const [current, setCurrent] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   const scene = scenes[current];
   const progress = ((current + elapsed / SCENE_DURATION) / scenes.length) * 100;
 
   const narrationLines = useTypewriter(scene.narration, open && true, 25);
+
+  // TTS narration
+  useVoiceNarration(scene.narration, open, voiceEnabled);
 
   // Timer tick — drives progress bar and auto-advance
   useEffect(() => {
@@ -327,12 +417,16 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
     setElapsed(0);
   }, [current]);
 
-  // Reset on open
+  // Reset on open/close
   useEffect(() => {
     if (!open) {
       setCurrent(0);
       setElapsed(0);
       setPlaying(true);
+      // Cancel any ongoing speech when modal closes
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
     }
   }, [open]);
 
@@ -500,6 +594,19 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
                       />
                     ))}
                   </div>
+
+                  {/* Voice narration toggle */}
+                  <button
+                    onClick={() => setVoiceEnabled((v) => !v)}
+                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors ml-2"
+                    title={voiceEnabled ? "Mute narration" : "Unmute narration"}
+                  >
+                    {voiceEnabled ? (
+                      <Volume2 size={14} className="text-white/70" />
+                    ) : (
+                      <VolumeX size={14} className="text-white/40" />
+                    )}
+                  </button>
 
                   {/* Time display */}
                   <span className="ml-auto text-[11px] font-mono text-white/40">
@@ -951,6 +1058,97 @@ function PhoneScreen({ scene, elapsed }: { scene: (typeof scenes)[number]; elaps
               </motion.div>
             </motion.div>
           ))}
+
+        {/* ---- Yogi scene ---- */}
+        {scene.phone.type === "yogi" && (
+          <div className="flex flex-col items-center pt-2">
+            {/* Avatar with pulsing gradient border */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: elapsed > 300 ? 1 : 0, scale: elapsed > 300 ? 1 : 0.5 }}
+              transition={{ type: "spring", damping: 12 }}
+              className="relative mb-2"
+            >
+              <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500 animate-pulse" />
+              <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={scene.phone.avatarUrl}
+                  alt={scene.phone.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </motion.div>
+
+            {/* Name label */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: elapsed > 600 ? 1 : 0 }}
+              className="text-sm font-bold text-slate-900 mb-0.5"
+            >
+              Yogi
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: elapsed > 800 ? 1 : 0 }}
+              className="text-[8px] text-slate-400 mb-2"
+            >
+              AI companion for {scene.phone.name}
+            </motion.p>
+
+            {/* Personality traits */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: elapsed > 1200 ? 1 : 0 }}
+              className="flex flex-wrap justify-center gap-1.5 mb-3"
+            >
+              {scene.phone.traits.map((trait: string, i: number) => (
+                <motion.span
+                  key={trait}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{
+                    opacity: elapsed > 1400 + i * 300 ? 1 : 0,
+                    scale: elapsed > 1400 + i * 300 ? 1 : 0.8,
+                  }}
+                  className="px-2.5 py-1 rounded-full text-[9px] font-medium bg-gradient-to-r from-violet-100 to-purple-100 text-violet-700 border border-violet-200"
+                >
+                  {trait}
+                </motion.span>
+              ))}
+            </motion.div>
+
+            {/* Stats grid */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: elapsed > 2500 ? 1 : 0, y: elapsed > 2500 ? 0 : 8 }}
+              className="grid grid-cols-3 gap-2 w-full mb-3"
+            >
+              {[
+                { label: "Chats", value: scene.phone.stats.chats },
+                { label: "Learned", value: scene.phone.stats.learned },
+                { label: "Adapted", value: scene.phone.stats.adapted },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="flex flex-col items-center p-1.5 rounded-lg bg-violet-50 border border-violet-100"
+                >
+                  <span className="text-[11px] font-bold text-violet-600">{stat.value}</span>
+                  <span className="text-[7px] text-violet-400">{stat.label}</span>
+                </div>
+              ))}
+            </motion.div>
+
+            {/* Talk to Yogi button */}
+            <motion.button
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: elapsed > 3500 ? 1 : 0, y: elapsed > 3500 ? 0 : 8 }}
+              className="w-full py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-[10px] font-semibold text-white shadow-lg shadow-purple-500/30 flex items-center justify-center gap-1.5"
+            >
+              <Sparkles size={10} className="text-white" />
+              Talk to Yogi
+            </motion.button>
+          </div>
+        )}
       </div>
     </div>
   );
