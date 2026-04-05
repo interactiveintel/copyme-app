@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, extractBearerToken } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
 // Routes that do NOT require authentication
@@ -9,6 +8,26 @@ const PUBLIC_PREFIXES = ["/api/auth/"];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+// ---------------------------------------------------------------------------
+// Lightweight JWT decode for Edge Runtime (no verification — routes verify)
+// ---------------------------------------------------------------------------
+
+function decodeJwtPayload(token: string): { userId: string; type: string } | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function extractBearerToken(header: string | null): string | null {
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice(7).trim() || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,27 +80,9 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  try {
-    const payload = verifyToken(token);
+  const payload = decodeJwtPayload(token);
 
-    if (payload.type !== "access") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "INVALID_TOKEN_TYPE", message: "Access token required" },
-        },
-        { status: 401 },
-      );
-    }
-
-    // Pass userId downstream via request headers
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-user-id", payload.userId);
-
-    return NextResponse.next({
-      request: { headers: requestHeaders },
-    });
-  } catch {
+  if (!payload || !payload.userId) {
     return NextResponse.json(
       {
         success: false,
@@ -90,6 +91,24 @@ export function middleware(request: NextRequest) {
       { status: 401 },
     );
   }
+
+  if (payload.type !== "access") {
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: "INVALID_TOKEN_TYPE", message: "Access token required" },
+      },
+      { status: 401 },
+    );
+  }
+
+  // Pass userId downstream via request headers
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-user-id", payload.userId);
+
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
 }
 
 // ---------------------------------------------------------------------------
