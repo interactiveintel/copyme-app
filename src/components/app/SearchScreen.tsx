@@ -6,6 +6,16 @@ import { Search, Sparkles, MapPin, Briefcase, GraduationCap, Users } from "lucid
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
+import { useAuth } from "@/lib/auth-context";
+
+interface SearchResult {
+  id: string;
+  displayName: string;
+  profileType: string;
+  location: { globalArea: string | null; region: string | null; cityZip: string | null } | null;
+  interests: string[];
+  relevanceScore: number;
+}
 
 const filters = [
   { id: "near", label: "Near Me", icon: MapPin },
@@ -14,67 +24,54 @@ const filters = [
   { id: "education", label: "Education", icon: GraduationCap },
 ] as const;
 
-const mockResults = [
-  {
-    id: "1",
-    name: "Lena Dubois",
-    location: "North America, US",
-    interests: ["Photography", "AI Tech", "Travel"],
-    online: true,
-  },
-  {
-    id: "2",
-    name: "Emeka Nwankwo",
-    location: "West Africa, NG",
-    interests: ["Fintech", "Music", "Cooking"],
-    online: true,
-  },
-  {
-    id: "3",
-    name: "Mei Ling",
-    location: "East Asia, CN",
-    interests: ["AI Tech", "Reading", "Fitness"],
-    online: false,
-  },
-  {
-    id: "4",
-    name: "Carlos Rivera",
-    location: "South America, BR",
-    interests: ["Travel", "Photography", "Music"],
-    online: true,
-  },
-  {
-    id: "5",
-    name: "Aisha Khan",
-    location: "South Asia, IN",
-    interests: ["Education", "Reading", "Cooking"],
-    online: false,
-  },
-  {
-    id: "6",
-    name: "Noah Schmidt",
-    location: "Europe, DE",
-    interests: ["Business", "Fitness", "AI Tech"],
-    online: true,
-  },
-  {
-    id: "7",
-    name: "Sakura Ito",
-    location: "East Asia, JP",
-    interests: ["Photography", "Music", "Travel"],
-    online: true,
-  },
-];
-
 export default function SearchScreen() {
+  const { authFetch } = useAuth();
   const [query, setQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [aiMode, setAiMode] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   const toggleFilter = (id: string) => {
     setActiveFilters((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     );
+  };
+
+  const handleSearch = async () => {
+    const q = query.trim();
+    if (!q) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const res = await authFetch("/api/search/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: q,
+          filters: {
+            nearMe: activeFilters.includes("near"),
+            sameInterests: activeFilters.includes("interests"),
+            category: activeFilters.includes("business") ? "business" : activeFilters.includes("education") ? "education" : undefined,
+          },
+          aiMode,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data.data?.results ?? []);
+      }
+    } catch {
+      // network error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatLocation = (loc: SearchResult["location"]) => {
+    if (!loc) return null;
+    return [loc.globalArea, loc.region, loc.cityZip].filter(Boolean).join(", ");
   };
 
   return (
@@ -89,12 +86,13 @@ export default function SearchScreen() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
             placeholder="Search for people, interests..."
             className="w-full bg-slate-100 border border-slate-200 rounded-2xl pl-11 pr-12 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 transition-colors"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <button onClick={handleSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
             <Sparkles size={18} className="text-purple-400" />
-          </div>
+          </button>
         </div>
 
         {/* AI Mode toggle */}
@@ -145,59 +143,83 @@ export default function SearchScreen() {
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto px-4 space-y-3">
-        {mockResults.map((user, i) => (
-          <motion.div
-            key={user.id}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-          >
-            <GlassCard hover>
-              <div className="p-4 flex items-center gap-4">
-                <Avatar name={user.name} size="lg" online={user.online} showStatus />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">{user.name}</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <MapPin size={11} className="text-slate-400" />
-                    <p className="text-[11px] text-slate-500">{user.location}</p>
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : results.length === 0 && searched ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Search size={32} className="text-slate-300 mb-3" />
+            <p className="text-slate-400 text-sm">No users found</p>
+            <p className="text-slate-300 text-xs mt-1">Try a different search term</p>
+          </div>
+        ) : results.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Search size={32} className="text-slate-300 mb-3" />
+            <p className="text-slate-400 text-sm">Search for people to connect with</p>
+            <p className="text-slate-300 text-xs mt-1">Find by name, interests, or location</p>
+          </div>
+        ) : (
+          results.map((user, i) => (
+            <motion.div
+              key={user.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+            >
+              <GlassCard hover>
+                <div className="p-4 flex items-center gap-4">
+                  <Avatar name={user.displayName} size="lg" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{user.displayName}</p>
+                    {user.location && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <MapPin size={11} className="text-slate-400" />
+                        <p className="text-[11px] text-slate-500">{formatLocation(user.location)}</p>
+                      </div>
+                    )}
+                    {user.interests.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {user.interests.map((interest) => (
+                          <span
+                            key={interest}
+                            className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-purple-600 border border-purple-500/20"
+                          >
+                            {interest}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {user.interests.map((interest) => (
-                      <span
-                        key={interest}
-                        className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-purple-600 border border-purple-500/20"
-                      >
-                        {interest}
-                      </span>
-                    ))}
-                  </div>
+                  <GradientButton size="sm">Connect</GradientButton>
                 </div>
-                <GradientButton size="sm">Connect</GradientButton>
+              </GlassCard>
+            </motion.div>
+          ))
+        )}
+
+        {/* Upgrade banner */}
+        {results.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-4"
+          >
+            <GlassCard gradient>
+              <div className="p-5 text-center">
+                <Sparkles size={24} className="text-purple-400 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-900 mb-1">See More People</p>
+                <p className="text-xs text-slate-500 mb-3">
+                  Upgrade to Premium for unlimited results and AI-powered matching
+                </p>
+                <GradientButton size="sm" className="mx-auto">
+                  Upgrade Now
+                </GradientButton>
               </div>
             </GlassCard>
           </motion.div>
-        ))}
-
-        {/* Upgrade banner */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-4"
-        >
-          <GlassCard gradient>
-            <div className="p-5 text-center">
-              <Sparkles size={24} className="text-purple-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-900 mb-1">See More People</p>
-              <p className="text-xs text-slate-500 mb-3">
-                Upgrade to Premium for unlimited results and AI-powered matching
-              </p>
-              <GradientButton size="sm" className="mx-auto">
-                Upgrade Now
-              </GradientButton>
-            </div>
-          </GlassCard>
-        </motion.div>
+        )}
       </div>
     </div>
   );
