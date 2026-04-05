@@ -20,6 +20,7 @@ import WordCounter from "../ui/WordCounter";
 import ChatAIAssistant from "./ChatAIAssistant";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
+import { MOCK_CHAT_MESSAGES, MOCK_PROFILES } from "@/lib/mock-data";
 
 interface ChatScreenProps {
   chatId: string;
@@ -56,14 +57,33 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const messagesEnd = useRef<HTMLDivElement>(null);
 
   const displayName = contactName || "Chat";
+  const isMockContact = chatId.startsWith("mock_");
 
-  // Fetch messages
+  // Load mock messages for demo contacts
+  useEffect(() => {
+    if (isMockContact) {
+      const mockMsgs = MOCK_CHAT_MESSAGES[chatId] ?? [];
+      setMessages(mockMsgs.map((m) => ({
+        id: m.id,
+        senderId: m.senderId,
+        receiverId: m.receiverId,
+        type: m.type as ApiMessage["type"],
+        content: m.content,
+        mediaUrls: m.mediaUrls,
+        durationSeconds: m.durationSeconds,
+        createdAt: m.createdAt,
+      })));
+      setLoading(false);
+    }
+  }, [chatId, isMockContact]);
+
+  // Fetch real messages (skip for mock contacts)
   const fetchMessages = useCallback(async () => {
+    if (isMockContact) return;
     try {
       const res = await authFetch(`/api/messages/inbox?contactId=${chatId}`);
       if (res.ok) {
         const data = await res.json();
-        // API returns newest first, reverse for display
         setMessages((data.data ?? []).reverse());
       }
     } catch {
@@ -71,20 +91,20 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     } finally {
       setLoading(false);
     }
-  }, [chatId, authFetch]);
+  }, [chatId, authFetch, isMockContact]);
 
   useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
+    if (!isMockContact) fetchMessages();
+  }, [fetchMessages, isMockContact]);
 
-  // Poll every 3 seconds for new messages
-  usePolling(fetchMessages, 3_000, !loading);
+  // Poll every 3 seconds for new messages (real contacts only)
+  usePolling(fetchMessages, 3_000, !loading && !isMockContact);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sentCount = messages.filter((m) => m.senderId === user?.id).length;
+  const sentCount = messages.filter((m) => m.senderId === user?.id || m.senderId === "me").length;
   const remainingMessages = Math.max(0, 7 - sentCount);
 
   const handleSend = async () => {
@@ -171,7 +191,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
           </div>
         ) : (
           messages.map((msg, i) => {
-            const isSent = msg.senderId === user?.id;
+            const isSent = msg.senderId === user?.id || msg.senderId === "me";
             return (
               <motion.div
                 key={msg.id}

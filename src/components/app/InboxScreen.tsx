@@ -16,18 +16,13 @@ import {
   Briefcase,
   Music,
   Star,
-  Clock,
-  Users as UsersIcon,
-  TrendingUp,
   Zap,
-  Heart,
-  MapPin,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
-import GlassCard from "../ui/GlassCard";
 import SmartMatchPanel from "./SmartMatchPanel";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
+import { MOCK_CONVERSATIONS } from "@/lib/mock-data";
 
 interface InboxScreenProps {
   onOpenChat: (chatId: string, contactName?: string) => void;
@@ -139,62 +134,6 @@ const mockAds = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Mock conversations — shown when no real data exists
-// ---------------------------------------------------------------------------
-
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    contactId: "mock_1",
-    contactName: "Sarah Chen",
-    lastMessage: { id: "m1", type: "text", content: "The Rule of 7 really changed how I think about messaging!", createdAt: new Date(Date.now() - 2 * 60000).toISOString(), direction: "received" },
-  },
-  {
-    contactId: "mock_2",
-    contactName: "Alex Rivera",
-    lastMessage: { id: "m2", type: "text", content: "Let's sync on the design project tomorrow", createdAt: new Date(Date.now() - 15 * 60000).toISOString(), direction: "sent" },
-  },
-  {
-    contactId: "mock_3",
-    contactName: "Mia Zhang",
-    lastMessage: { id: "m3", type: "text", content: "Just got back from Tokyo — so much to share!", createdAt: new Date(Date.now() - 45 * 60000).toISOString(), direction: "received" },
-  },
-  {
-    contactId: "mock_4",
-    contactName: "Jordan Blake",
-    lastMessage: { id: "m4", type: "text", content: "That AI workshop was incredible, thanks for the rec", createdAt: new Date(Date.now() - 2 * 3600000).toISOString(), direction: "received" },
-  },
-  {
-    contactId: "mock_5",
-    contactName: "Priya Sharma",
-    lastMessage: { id: "m5", type: "text", content: "Can you send me the link to that article?", createdAt: new Date(Date.now() - 3 * 3600000).toISOString(), direction: "sent" },
-  },
-  {
-    contactId: "mock_6",
-    contactName: "Marcus Johnson",
-    lastMessage: { id: "m6", type: "text", content: "Great meeting today! Looking forward to next steps", createdAt: new Date(Date.now() - 5 * 3600000).toISOString(), direction: "received" },
-  },
-  {
-    contactId: "mock_7",
-    contactName: "Lena Kowalski",
-    lastMessage: { id: "m7", type: "text", content: "The sunset photos from your hike are stunning", createdAt: new Date(Date.now() - 8 * 3600000).toISOString(), direction: "sent" },
-  },
-  {
-    contactId: "mock_8",
-    contactName: "David Park",
-    lastMessage: { id: "m8", type: "voice", content: null, createdAt: new Date(Date.now() - 12 * 3600000).toISOString(), direction: "received" },
-  },
-  {
-    contactId: "mock_9",
-    contactName: "Amara Okafor",
-    lastMessage: { id: "m9", type: "text", content: "Happy birthday! Hope you have an amazing day", createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), direction: "sent" },
-  },
-  {
-    contactId: "mock_10",
-    contactName: "Kai Nakamura",
-    lastMessage: { id: "m10", type: "text", content: "That new coffee spot on 5th is a must-try", createdAt: new Date(Date.now() - 2 * 24 * 3600000).toISOString(), direction: "received" },
-  },
-];
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -279,24 +218,44 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
           <span className="text-xs text-purple-400">See All</span>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4">
-          {mockAds.map((ad, i) => (
+          {mockAds.map((ad, i) => {
+            const isNew = i < 3;
+            const hasActivity = i < 5;
+            return (
             <motion.button
               key={ad.id}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.05 }}
-              className="shrink-0"
+              className="shrink-0 relative"
               onClick={() => setSelectedAd(ad)}
             >
-              <div className="relative w-20 h-24 rounded-2xl overflow-hidden p-[1px] bg-gradient-to-br from-indigo-500/60 via-purple-500/60 to-pink-500/60">
-                <div className={`w-full h-full rounded-2xl bg-gradient-to-br ${ad.color} flex flex-col items-center justify-center p-2 gap-1`}>
+              {/* Activity pulse ring */}
+              {hasActivity && (
+                <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-60 animate-pulse z-0" />
+              )}
+              <div className="relative w-20 h-24 rounded-2xl overflow-hidden p-[1px] bg-gradient-to-br from-indigo-500/60 via-purple-500/60 to-pink-500/60 z-10">
+                <div className={`w-full h-full rounded-2xl bg-gradient-to-br ${ad.color} flex flex-col items-center justify-center p-2 gap-1 relative overflow-hidden`}>
+                  {/* Shimmer sweep */}
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                   <span className="text-xl leading-none">{ad.emoji}</span>
                   <ad.icon size={16} className="text-white/90" />
                   <p className="text-[8px] text-white/90 font-semibold leading-tight text-center">{ad.title}</p>
                 </div>
               </div>
+              {/* NEW badge */}
+              {isNew && (
+                <span className="absolute -top-1.5 -right-1.5 z-20 px-1.5 py-0.5 rounded-full bg-rose-500 text-[7px] font-bold text-white shadow-sm shadow-rose-500/40 animate-bounce">
+                  NEW
+                </span>
+              )}
+              {/* Unread dot */}
+              {!isNew && hasActivity && (
+                <span className="absolute -top-0.5 -right-0.5 z-20 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white shadow-sm" />
+              )}
             </motion.button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
