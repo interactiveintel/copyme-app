@@ -10,10 +10,11 @@ import InboxScreen from "@/components/app/InboxScreen";
 import ChatScreen from "@/components/app/ChatScreen";
 import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
+import AgentiAIScreen from "@/components/app/AgentiAIScreen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
-type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "contacts" | "ads" | "profile";
-type Tab = "home" | "search" | "contacts" | "ads" | "profile";
+type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "contacts" | "agenti" | "ads" | "profile";
+type Tab = "home" | "search" | "agenti" | "ads" | "profile";
 
 function tabToScreen(tab: Tab): Screen {
   switch (tab) {
@@ -21,8 +22,8 @@ function tabToScreen(tab: Tab): Screen {
       return "inbox";
     case "search":
       return "search";
-    case "contacts":
-      return "contacts";
+    case "agenti":
+      return "agenti";
     case "ads":
       return "ads";
     case "profile":
@@ -37,8 +38,9 @@ function screenToTab(screen: Screen): Tab {
       return "home";
     case "search":
       return "search";
+    case "agenti":
+      return "agenti";
     case "contacts":
-      return "contacts";
     case "ads":
       return "ads";
     case "profile":
@@ -138,22 +140,10 @@ function AppContent() {
 
           {screen === "search" && <SearchScreen />}
 
+          {screen === "agenti" && <AgentiAIScreen />}
+
           {screen === "contacts" && (
             <div className="flex flex-col items-center justify-center h-full pb-20">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-4">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                  className="text-purple-400/40"
-                >
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </motion.div>
-              </div>
               <p className="text-slate-400 text-sm">Contacts coming soon</p>
             </div>
           )}

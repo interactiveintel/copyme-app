@@ -4,12 +4,12 @@ import { motion } from "framer-motion";
 import {
   MessageSquare,
   Search,
-  Users,
+  Sparkles,
   Megaphone,
   User,
 } from "lucide-react";
 
-type Tab = "home" | "search" | "contacts" | "ads" | "profile";
+type Tab = "home" | "search" | "agenti" | "ads" | "profile";
 
 interface BottomNavProps {
   activeTab: Tab;
@@ -20,7 +20,7 @@ interface BottomNavProps {
 const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: "home", label: "Home", icon: MessageSquare },
   { id: "search", label: "Search", icon: Search },
-  { id: "contacts", label: "Contacts", icon: Users },
+  { id: "agenti", label: "Agenti", icon: Sparkles },
   { id: "ads", label: "Ads", icon: Megaphone },
   { id: "profile", label: "Profile", icon: User },
 ];
