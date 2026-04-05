@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, ImageIcon, Sparkles } from "lucide-react";
+import { Search, Plus, ImageIcon, Sparkles, X, ExternalLink } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import SmartMatchPanel from "./SmartMatchPanel";
@@ -12,13 +12,13 @@ interface InboxScreenProps {
 }
 
 const mockAds = [
-  { id: "ad1", title: "Learn AI Today", color: "from-indigo-500 to-blue-500" },
-  { id: "ad2", title: "Travel Deals", color: "from-emerald-500 to-teal-500" },
-  { id: "ad3", title: "New Gadgets", color: "from-purple-500 to-pink-500" },
-  { id: "ad4", title: "Fitness App", color: "from-amber-500 to-orange-500" },
-  { id: "ad5", title: "Cook Like Pro", color: "from-rose-500 to-red-500" },
-  { id: "ad6", title: "Job Openings", color: "from-cyan-500 to-blue-500" },
-  { id: "ad7", title: "Music Events", color: "from-violet-500 to-purple-500" },
+  { id: "ad1", title: "Learn AI Today", color: "from-indigo-500 to-blue-500", description: "Master the fundamentals of AI and machine learning with hands-on courses designed for all levels.", cta: "Start Learning" },
+  { id: "ad2", title: "Travel Deals", color: "from-emerald-500 to-teal-500", description: "Exclusive flight and hotel deals up to 60% off. Book your dream vacation today.", cta: "Browse Deals" },
+  { id: "ad3", title: "New Gadgets", color: "from-purple-500 to-pink-500", description: "Discover the latest tech gadgets and accessories trending right now.", cta: "Shop Now" },
+  { id: "ad4", title: "Fitness App", color: "from-amber-500 to-orange-500", description: "Personalized workout plans and nutrition tracking powered by AI. Get fit your way.", cta: "Try Free" },
+  { id: "ad5", title: "Cook Like Pro", color: "from-rose-500 to-red-500", description: "Step-by-step recipes from world-class chefs. Elevate your cooking game.", cta: "Explore Recipes" },
+  { id: "ad6", title: "Job Openings", color: "from-cyan-500 to-blue-500", description: "Top companies are hiring. Find your next role in tech, design, and more.", cta: "View Jobs" },
+  { id: "ad7", title: "Music Events", color: "from-violet-500 to-purple-500", description: "Live concerts, festivals, and DJ sets near you. Don't miss out.", cta: "Get Tickets" },
 ];
 
 const mockConversations = [
@@ -83,6 +83,7 @@ const mockConversations = [
 export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const [search, setSearch] = useState("");
   const [showSmartMatch, setShowSmartMatch] = useState(false);
+  const [selectedAd, setSelectedAd] = useState<typeof mockAds[number] | null>(null);
 
   const filtered = mockConversations.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
@@ -115,12 +116,13 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4">
           {mockAds.map((ad, i) => (
-            <motion.div
+            <motion.button
               key={ad.id}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.05 }}
               className="shrink-0"
+              onClick={() => setSelectedAd(ad)}
             >
               <div className="relative w-20 h-24 rounded-2xl overflow-hidden p-[1px] bg-gradient-to-br from-indigo-500/60 via-purple-500/60 to-pink-500/60">
                 <div className={`w-full h-full rounded-2xl bg-gradient-to-br ${ad.color} flex items-center justify-center p-2`}>
@@ -130,7 +132,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </motion.button>
           ))}
         </div>
       </div>
@@ -209,6 +211,48 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
       >
         <Plus size={24} className="text-white" />
       </motion.button>
+
+      {/* Ad Detail Modal */}
+      <AnimatePresence>
+        {selectedAd && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center"
+            onClick={() => setSelectedAd(null)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white rounded-t-3xl p-6 pb-10"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-8 h-1 rounded-full bg-slate-200 mx-auto absolute left-1/2 -translate-x-1/2 top-3" />
+                <button onClick={() => setSelectedAd(null)} className="ml-auto p-1">
+                  <X size={20} className="text-slate-400" />
+                </button>
+              </div>
+              <div className={`w-full h-40 rounded-2xl bg-gradient-to-br ${selectedAd.color} flex items-center justify-center mb-4`}>
+                <ImageIcon size={48} className="text-white/60" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">{selectedAd.title}</h3>
+              <p className="text-sm text-slate-500 mb-1">Sponsored</p>
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">{selectedAd.description}</p>
+              <button
+                onClick={() => setSelectedAd(null)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white text-sm font-semibold shadow-lg shadow-purple-500/25"
+              >
+                {selectedAd.cta}
+                <ExternalLink size={14} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Smart Match Panel */}
       <AnimatePresence>
