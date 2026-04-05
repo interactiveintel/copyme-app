@@ -1,0 +1,287 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ProfileType {
+  personal
+  social
+  legal_entity
+}
+
+enum AccountTier {
+  basic
+  business_3
+  business_7
+  business_50
+  ecommerce
+}
+
+enum Currency {
+  USD
+  EUR
+}
+
+enum DescriptionCategory {
+  education
+  business
+  religion
+  other
+}
+
+enum PlanType {
+  basic
+  business_3
+  business_7
+  business_50
+  ecommerce
+}
+
+enum PeriodType {
+  monthly
+  quarterly
+  annual
+}
+
+enum MessageType {
+  text
+  image
+  voice
+  video
+}
+
+enum VapTransactionType {
+  transfer
+  payment
+  deposit
+  withdrawal
+  fee
+  refund
+}
+
+enum VapTransactionStatus {
+  pending
+  completed
+  failed
+  reversed
+}
+
+enum VapTier {
+  standard
+  premium
+  merchant
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id                String      @id @default(uuid()) @db.Uuid
+  displayName       String      @map("display_name") @db.VarChar(45)
+  profileType       ProfileType @default(personal) @map("profile_type")
+  phoneHash         String?     @unique @map("phone_hash")
+  emailHash         String?     @unique @map("email_hash")
+  phoneEncrypted    Bytes?      @map("phone_encrypted")
+  emailEncrypted    Bytes?      @map("email_encrypted")
+  accountTier       AccountTier @default(basic) @map("account_tier")
+  vapEnabled        Boolean     @default(false) @map("vap_enabled")
+  preferredCurrency Currency    @default(USD) @map("preferred_currency")
+  passwordHash      String      @map("password_hash")
+  lastActivityAt    DateTime?   @map("last_activity_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  location        UserLocation?
+  interests       UserInterest[]
+  descriptions    UserDescription[]
+  subscriptions   Subscription[]
+  sentMessages    Message[]       @relation("SentMessages")
+  receivedMessages Message[]      @relation("ReceivedMessages")
+  ownedGroups     Group[]         @relation("GroupOwner")
+  groupMemberships GroupMember[]
+  contacts        Contact[]       @relation("UserContacts")
+  contactOf       Contact[]       @relation("ContactOf")
+  vapAccount      VapAccount?
+  sentTransactions     VapTransaction[] @relation("TransactionSender")
+  receivedTransactions VapTransaction[] @relation("TransactionReceiver")
+
+  @@index([accountTier])
+  @@index([lastActivityAt])
+  @@map("users")
+}
+
+model UserLocation {
+  userId            String   @id @map("user_id") @db.Uuid
+  globalArea        String?  @map("global_area") @db.VarChar(100)
+  countryPhoneCode  String?  @map("country_phone_code") @db.VarChar(10)
+  region            String?  @db.VarChar(100)
+  cityZip           String?  @map("city_zip") @db.VarChar(100)
+  localDescription  String?  @map("local_description") @db.VarChar(255)
+  locationVerified  Boolean  @default(false) @map("location_verified")
+  locationVisible   Boolean  @default(true) @map("location_visible")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([globalArea, region])
+  @@index([countryPhoneCode])
+  @@map("user_locations")
+}
+
+model UserInterest {
+  userId       String @map("user_id") @db.Uuid
+  slotNumber   Int    @map("slot_number") @db.SmallInt
+  interestText String @map("interest_text") @db.VarChar(45)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, slotNumber])
+  @@map("user_interests")
+}
+
+model UserDescription {
+  id              String              @id @default(uuid()) @db.Uuid
+  userId          String              @map("user_id") @db.Uuid
+  category        DescriptionCategory
+  level           String?             @db.VarChar(100)
+  location        String?             @db.VarChar(255)
+  institution     String?             @db.VarChar(255)
+  typeDescription String?             @map("type_description") @db.VarChar(255)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
+  @@map("user_descriptions")
+}
+
+model Subscription {
+  id                   String     @id @default(uuid()) @db.Uuid
+  userId               String     @map("user_id") @db.Uuid
+  plan                 PlanType   @default(basic)
+  periodType           PeriodType @default(monthly) @map("period_type")
+  autoRenew            Boolean    @default(true) @map("auto_renew")
+  maxSearchResults     Int        @default(7) @map("max_search_results")
+  maxContactsAtOnce    Int        @default(7) @map("max_contacts_at_once")
+  maxContactsPerPeriod Int        @default(7) @map("max_contacts_per_period")
+  maxSurveyParticipants Int       @default(7) @map("max_survey_participants")
+  maxGroupSize         Int        @default(7) @map("max_group_size")
+  startsAt             DateTime   @map("starts_at")
+  expiresAt            DateTime   @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("subscriptions")
+}
+
+model Message {
+  id                  String      @id @default(uuid()) @db.Uuid
+  senderId            String      @map("sender_id") @db.Uuid
+  receiverId          String      @map("receiver_id") @db.Uuid
+  groupId             String?     @map("group_id") @db.Uuid
+  type                MessageType @default(text)
+  content             String?
+  mediaUrls           Json?       @map("media_urls")
+  durationSeconds     Int?        @map("duration_seconds")
+  languageOriginal    String?     @map("language_original") @db.VarChar(10)
+  languageTranslated  String?     @map("language_translated") @db.VarChar(10)
+  translatedText      String?     @map("translated_text")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  expiresFromInboxAt  DateTime?   @map("expires_from_inbox_at")
+
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  group    Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@index([groupId, createdAt])
+  @@index([expiresFromInboxAt])
+  @@map("messages")
+}
+
+model Group {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar(100)
+  ownerId    String   @map("owner_id") @db.Uuid
+  maxMembers Int      @default(7) @map("max_members")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  owner    User          @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members  GroupMember[]
+  messages Message[]
+
+  @@index([ownerId])
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId  String   @map("group_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model Contact {
+  userId    String   @map("user_id") @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User @relation("UserContacts", fields: [userId], references: [id], onDelete: Cascade)
+  contact User @relation("ContactOf", fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([userId, contactId])
+  @@index([contactId])
+  @@map("contacts")
+}
+
+model VapAccount {
+  userId              String   @id @map("user_id") @db.Uuid
+  balance             Decimal  @default(0) @db.Decimal(12, 2)
+  currency            Currency @default(USD)
+  weeklyTransferTotal Decimal  @default(0) @map("weekly_transfer_total") @db.Decimal(12, 2)
+  annualTransferTotal Decimal  @default(0) @map("annual_transfer_total") @db.Decimal(12, 2)
+  tier                VapTier  @default(standard)
+  taxRegistrationId   String?  @map("tax_registration_id") @db.VarChar(50)
+  lastTransactionAt   DateTime? @map("last_transaction_at")
+  virtualCardCount    Int      @default(0) @map("virtual_card_count")
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vap_accounts")
+}
+
+model VapTransaction {
+  id         String               @id @default(uuid()) @db.Uuid
+  senderId   String               @map("sender_id") @db.Uuid
+  receiverId String?              @map("receiver_id") @db.Uuid
+  type       VapTransactionType
+  amount     Decimal              @db.Decimal(12, 2)
+  currency   Currency             @default(USD)
+  feeAmount  Decimal              @default(0) @map("fee_amount") @db.Decimal(12, 2)
+  status     VapTransactionStatus @default(pending)
+  createdAt  DateTime             @default(now()) @map("created_at")
+
+  sender   User  @relation("TransactionSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User? @relation("TransactionReceiver", fields: [receiverId], references: [id], onDelete: SetNull)
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@index([status])
+  @@map("vap_transactions")
+}

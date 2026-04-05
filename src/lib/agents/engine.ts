@@ -1,0 +1,329 @@
+// ---------------------------------------------------------------------------
+// Agent Execution Engine — CopyMe Multi-Agent Framework
+// ---------------------------------------------------------------------------
+
+import type {
+  AgentAction,
+  AgentConfig,
+  AgentEvent,
+  AgentEventHandler,
+  AgentMessage,
+  AgentResult,
+  AgentTool,
+  LLMProvider,
+  LLMResponse,
+} from "./types";
+import { ClaudeLLMProvider } from "./claude-provider";
+
+/**
+ * Creates the best available LLM provider:
+ * - If ANTHROPIC_API_KEY is set → ClaudeLLMProvider (real AI)
+ * - Otherwise → MockLLMProvider (pattern-matching demo)
+ */
+export function createProvider(): LLMProvider {
+  if (process.env.ANTHROPIC_API_KEY) {
+    return new ClaudeLLMProvider();
+  }
+  return new MockLLMProvider();
+}
+
+// ---------------------------------------------------------------------------
+// Mock LLM Provider — sophisticated pattern-matching engine
+// ---------------------------------------------------------------------------
+
+/**
+ * MockLLMProvider simulates an intelligent LLM using pattern matching,
+ * keyword extraction, and heuristic tool selection. Designed to produce
+ * realistic agent behaviour without requiring an API key.
+ */
+export class MockLLMProvider implements LLMProvider {
+  private callCount = 0;
+
+  async complete(
+    messages: AgentMessage[],
+    tools: AgentTool[],
+    _temperature: number,
+  ): Promise<LLMResponse> {
+    this.callCount++;
+
+    // Gather the full conversation into a single searchable string
+    const conversation = messages.map((m) => m.content).join("\n");
+    const lastUserMessage =
+      [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const lastAssistantMessage =
+      [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+
+    // On second+ call (after a tool result was appended), produce a text summary
+    if (this.callCount > 1 && lastAssistantMessage.length > 0) {
+      return { type: "text", content: lastAssistantMessage };
+    }
+
+    // Attempt to match the user intent to an available tool
+    const toolMatch = this.selectTool(lastUserMessage, conversation, tools);
+    if (toolMatch) {
+      return {
+        type: "tool_call",
+        toolName: toolMatch.name,
+        arguments: toolMatch.args,
+      };
+    }
+
+    // Fallback: produce a helpful text response
+    return {
+      type: "text",
+      content: this.generateFallbackResponse(lastUserMessage, messages),
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Tool selection heuristics
+  // -------------------------------------------------------------------------
+
+  private selectTool(
+    userMessage: string,
+    _conversation: string,
+    tools: AgentTool[],
+  ): { name: string; args: Record<string, unknown> } | null {
+    const msg = userMessage.toLowerCase();
+
+    const toolMap = new Map(tools.map((t) => [t.name, t]));
+
+    // Smart Match agent tools
+    if (toolMap.has("search_users") && this.matchesAny(msg, ["find", "search", "discover", "look for", "who", "people", "users", "connect"])) {
+      return { name: "search_users", args: { query: userMessage, limit: 7 } };
+    }
+    if (toolMap.has("analyze_compatibility") && this.matchesAny(msg, ["compatible", "match", "fit", "score", "compatibility"])) {
+      return { name: "analyze_compatibility", args: { query: userMessage } };
+    }
+    if (toolMap.has("suggest_interests") && this.matchesAny(msg, ["interest", "hobby", "suggest", "recommend"])) {
+      return { name: "suggest_interests", args: { query: userMessage } };
+    }
+    if (toolMap.has("find_nearby") && this.matchesAny(msg, ["near", "nearby", "close", "local", "around", "location"])) {
+      return { name: "find_nearby", args: { query: userMessage } };
+    }
+    if (toolMap.has("generate_icebreaker") && this.matchesAny(msg, ["icebreaker", "conversation starter", "start talking", "say hi", "intro"])) {
+      return { name: "generate_icebreaker", args: { query: userMessage } };
+    }
+
+    // Chat Assistant agent tools
+    if (toolMap.has("suggest_reply") && this.matchesAny(msg, ["reply", "respond", "suggest", "what should i say", "help me write"])) {
+      return { name: "suggest_reply", args: { context: userMessage } };
+    }
+    if (toolMap.has("condense_message") && this.matchesAny(msg, ["condense", "shorten", "shorter", "too long", "trim", "reduce"])) {
+      return { name: "condense_message", args: { text: userMessage } };
+    }
+    if (toolMap.has("detect_language") && this.matchesAny(msg, ["what language", "detect language", "which language"])) {
+      return { name: "detect_language", args: { text: userMessage } };
+    }
+    if (toolMap.has("translate_message") && this.matchesAny(msg, ["translate", "translation", "in spanish", "in french", "in german", "in portuguese"])) {
+      const targetLang = this.extractTargetLanguage(msg);
+      return { name: "translate_message", args: { text: userMessage, targetLanguage: targetLang } };
+    }
+    if (toolMap.has("analyze_tone") && this.matchesAny(msg, ["tone", "feeling", "mood", "emotion", "sentiment"])) {
+      return { name: "analyze_tone", args: { text: userMessage } };
+    }
+    if (toolMap.has("suggest_emoji") && this.matchesAny(msg, ["emoji", "emojis", "emoticon"])) {
+      return { name: "suggest_emoji", args: { text: userMessage } };
+    }
+
+    // Onboarding agent tools
+    if (toolMap.has("improve_description") && this.matchesAny(msg, ["improve", "rewrite", "better description", "polish"])) {
+      return { name: "improve_description", args: { text: userMessage } };
+    }
+    if (toolMap.has("validate_profile") && this.matchesAny(msg, ["validate", "check profile", "completeness", "review profile"])) {
+      return { name: "validate_profile", args: { query: userMessage } };
+    }
+    if (toolMap.has("suggest_location_description") && this.matchesAny(msg, ["location", "where", "describe location"])) {
+      return { name: "suggest_location_description", args: { text: userMessage } };
+    }
+    if (toolMap.has("generate_bio") && this.matchesAny(msg, ["bio", "about me", "profile text", "describe myself"])) {
+      return { name: "generate_bio", args: { query: userMessage } };
+    }
+
+    // Moderation agent tools
+    if (toolMap.has("check_content") && this.matchesAny(msg, ["check", "safe", "appropriate", "review", "moderate"])) {
+      return { name: "check_content", args: { text: userMessage } };
+    }
+    if (toolMap.has("enforce_rule_of_7") && this.matchesAny(msg, ["rule of 7", "word limit", "constraint", "enforce"])) {
+      return { name: "enforce_rule_of_7", args: { text: userMessage } };
+    }
+    if (toolMap.has("flag_content") && this.matchesAny(msg, ["flag", "report", "inappropriate"])) {
+      return { name: "flag_content", args: { text: userMessage } };
+    }
+    if (toolMap.has("suggest_revision") && this.matchesAny(msg, ["revise", "fix", "alternative", "rephrase"])) {
+      return { name: "suggest_revision", args: { text: userMessage } };
+    }
+    if (toolMap.has("check_media") && this.matchesAny(msg, ["media", "image", "video", "audio", "file size"])) {
+      return { name: "check_media", args: { query: userMessage } };
+    }
+
+    return null;
+  }
+
+  private matchesAny(text: string, keywords: string[]): boolean {
+    return keywords.some((kw) => text.includes(kw));
+  }
+
+  private extractTargetLanguage(msg: string): string {
+    const langs: Record<string, string> = {
+      spanish: "es", french: "fr", german: "de", portuguese: "pt",
+      italian: "it", japanese: "ja", chinese: "zh", korean: "ko",
+      arabic: "ar", hindi: "hi", russian: "ru", dutch: "nl",
+    };
+    for (const [name, code] of Object.entries(langs)) {
+      if (msg.includes(name)) return code;
+    }
+    return "es";
+  }
+
+  private generateFallbackResponse(
+    userMessage: string,
+    messages: AgentMessage[],
+  ): string {
+    const systemPrompt = messages.find((m) => m.role === "system")?.content ?? "";
+
+    if (systemPrompt.includes("Smart Match")) {
+      return `Based on your request, I'd recommend exploring users who share similar interests. Try being more specific about what you're looking for — mention interests, location, or the kind of connection you want to make.`;
+    }
+    if (systemPrompt.includes("Chat Assistant")) {
+      return `I can help you communicate more effectively! I can suggest replies, condense messages to fit the Rule of 7 word limits, translate messages, or analyze the tone of a conversation. What would you like help with?`;
+    }
+    if (systemPrompt.includes("Onboarding")) {
+      return `Welcome to CopyMe! I can help you set up a great profile. I can suggest interests, improve your descriptions, or generate a bio that will help others discover you. What would you like to start with?`;
+    }
+    if (systemPrompt.includes("Content Guardian")) {
+      return `Content has been reviewed and appears to be within acceptable guidelines. All Rule of 7 constraints are satisfied.`;
+    }
+
+    return `I've analyzed your request: "${userMessage.slice(0, 50)}${userMessage.length > 50 ? "..." : ""}". How can I help you further?`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent Engine — the agentic loop
+// ---------------------------------------------------------------------------
+
+export class AgentEngine {
+  private provider: LLMProvider;
+
+  constructor(provider?: LLMProvider) {
+    this.provider = provider ?? createProvider();
+  }
+
+  /**
+   * Execute an agent with the given config and messages.
+   * Runs the think-act-observe loop up to `config.maxSteps` iterations.
+   */
+  async run(
+    config: AgentConfig,
+    messages: AgentMessage[],
+    onEvent?: AgentEventHandler,
+  ): Promise<AgentResult> {
+    const actions: AgentAction[] = [];
+    const toolMap = new Map(config.tools.map((t) => [t.name, t]));
+
+    // Build the working message history with the system prompt
+    const history: AgentMessage[] = [
+      { role: "system", content: config.systemPrompt },
+      ...messages,
+    ];
+
+    let steps = 0;
+
+    while (steps < config.maxSteps) {
+      steps++;
+
+      // Emit thinking event
+      onEvent?.({ type: "thinking", data: { text: `Step ${steps}: reasoning...` } });
+
+      let response: LLMResponse;
+      try {
+        response = await this.provider.complete(
+          history,
+          config.tools,
+          config.temperature,
+        );
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Unknown LLM error";
+        onEvent?.({ type: "error", data: { message: errorMsg } });
+        return {
+          success: false,
+          response: `Agent encountered an error: ${errorMsg}`,
+          actions,
+          metadata: { steps, error: errorMsg },
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // Text response — agent is done
+      // -----------------------------------------------------------------------
+      if (response.type === "text") {
+        onEvent?.({ type: "response", data: { text: response.content } });
+        return {
+          success: true,
+          response: response.content,
+          actions,
+          metadata: { steps, agent: config.name },
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // Tool call — execute and loop
+      // -----------------------------------------------------------------------
+      const tool = toolMap.get(response.toolName);
+      if (!tool) {
+        const errMsg = `Unknown tool: ${response.toolName}`;
+        onEvent?.({ type: "error", data: { message: errMsg } });
+        // Push an error observation and let the agent recover
+        history.push({
+          role: "assistant",
+          content: `Error: tool "${response.toolName}" not found. Available tools: ${config.tools.map((t) => t.name).join(", ")}`,
+        });
+        continue;
+      }
+
+      onEvent?.({
+        type: "tool_call",
+        data: { tool: response.toolName, input: response.arguments },
+      });
+
+      let output: unknown;
+      try {
+        output = await tool.execute(response.arguments);
+      } catch (err) {
+        output = { error: err instanceof Error ? err.message : "Tool execution failed" };
+      }
+
+      const action: AgentAction = {
+        tool: response.toolName,
+        input: response.arguments,
+        output,
+        timestamp: new Date(),
+      };
+      actions.push(action);
+
+      onEvent?.({ type: "tool_result", data: { tool: response.toolName, output } });
+
+      // Append the tool result as an assistant message so the LLM sees it
+      history.push({
+        role: "assistant",
+        content: JSON.stringify({ tool: response.toolName, result: output }),
+      });
+    }
+
+    // Max steps exhausted — return what we have
+    const lastAction = actions[actions.length - 1];
+    const summaryResponse = lastAction
+      ? `Completed ${actions.length} action(s). Last result: ${JSON.stringify(lastAction.output).slice(0, 500)}`
+      : "Agent reached maximum steps without producing a final response.";
+
+    onEvent?.({ type: "response", data: { text: summaryResponse } });
+
+    return {
+      success: actions.length > 0,
+      response: summaryResponse,
+      actions,
+      metadata: { steps, agent: config.name, maxStepsReached: true },
+    };
+  }
+}
