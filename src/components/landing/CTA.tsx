@@ -9,7 +9,9 @@ export default function CTA() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -18,17 +20,27 @@ export default function CTA() {
       return;
     }
 
-    // Store in localStorage as a simple waitlist (no backend needed)
-    const waitlist = JSON.parse(localStorage.getItem("copyme_waitlist") || "[]");
-    if (waitlist.includes(email)) {
-      setError("You're already on the waitlist!");
-      return;
-    }
-    waitlist.push(email);
-    localStorage.setItem("copyme_waitlist", JSON.stringify(waitlist));
+    setLoading(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    setSubmitted(true);
-    setEmail("");
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Something went wrong. Try again.");
+        return;
+      }
+
+      setSubmitted(true);
+      setEmail("");
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -92,10 +104,11 @@ export default function CTA() {
                 </div>
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] whitespace-nowrap"
+                  disabled={loading}
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] whitespace-nowrap disabled:opacity-70"
                 >
-                  Join Waitlist
-                  <ArrowRight size={16} />
+                  {loading ? "Joining..." : "Join Waitlist"}
+                  {!loading && <ArrowRight size={16} />}
                 </button>
               </motion.form>
             )}
