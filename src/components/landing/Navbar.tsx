@@ -25,7 +25,7 @@ export default function Navbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-0.5">
+          <a href="/" className="flex items-center gap-0.5">
             <span className="text-2xl font-bold text-slate-900">Copy</span>
             <span className="text-2xl font-bold gradient-text">Me</span>
           </a>

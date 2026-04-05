@@ -1,9 +1,36 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, Check } from "lucide-react";
 
 export default function CTA() {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    // Store in localStorage as a simple waitlist (no backend needed)
+    const waitlist = JSON.parse(localStorage.getItem("copyme_waitlist") || "[]");
+    if (waitlist.includes(email)) {
+      setError("You're already on the waitlist!");
+      return;
+    }
+    waitlist.push(email);
+    localStorage.setItem("copyme_waitlist", JSON.stringify(waitlist));
+
+    setSubmitted(true);
+    setEmail("");
+  };
+
   return (
     <section id="cta" className="relative py-24 sm:py-32 overflow-hidden">
       {/* Background gradient mesh */}
@@ -29,17 +56,50 @@ export default function CTA() {
           </p>
 
           {/* Email Capture */}
-          <div className="mt-10 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="flex-1 rounded-full px-6 py-3.5 text-sm text-slate-900 bg-white border border-slate-200 placeholder-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-            />
-            <button className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] whitespace-nowrap">
-              Join Waitlist
-              <ArrowRight size={16} />
-            </button>
-          </div>
+          <AnimatePresence mode="wait">
+            {submitted ? (
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mt-10 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white border border-accent-emerald/30 shadow-sm max-w-md mx-auto"
+              >
+                <div className="w-10 h-10 rounded-full bg-accent-emerald/10 flex items-center justify-center">
+                  <Check size={20} className="text-accent-emerald" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-slate-900">You&apos;re on the list!</p>
+                  <p className="text-xs text-slate-500">We&apos;ll notify you when CopyMe launches.</p>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.form
+                key="form"
+                onSubmit={handleSubmit}
+                className="mt-10 flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+              >
+                <div className="flex-1">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                    placeholder="Enter your email"
+                    className="w-full rounded-full px-6 py-3.5 text-sm text-slate-900 bg-white border border-slate-200 placeholder-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                  />
+                  {error && (
+                    <p className="mt-1.5 text-xs text-red-500 text-left pl-4">{error}</p>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] whitespace-nowrap"
+                >
+                  Join Waitlist
+                  <ArrowRight size={16} />
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
 
           {/* Social Proof */}
           <div className="mt-8 flex items-center justify-center gap-3">

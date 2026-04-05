@@ -88,11 +88,11 @@ export default function Hero() {
                 />
               </a>
               <a
-                href="#features"
+                href="/app"
                 className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-slate-700 border border-slate-200 bg-white transition-all hover:bg-slate-50 shadow-sm"
               >
                 <Play size={18} className="text-accent-pink" />
-                Watch Demo
+                Try the App
               </a>
               <DownloadButton variant="hero" />
             </motion.div>
