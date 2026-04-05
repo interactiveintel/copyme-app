@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap } from "lucide-react";
+import { Zap, LogOut } from "lucide-react";
 import BottomNav from "@/components/ui/BottomNav";
 import AuthScreen from "@/components/app/AuthScreen";
 import OnboardingScreen from "@/components/app/OnboardingScreen";
@@ -10,6 +10,7 @@ import InboxScreen from "@/components/app/InboxScreen";
 import ChatScreen from "@/components/app/ChatScreen";
 import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "contacts" | "ads" | "profile";
 type Tab = "home" | "search" | "contacts" | "ads" | "profile";
@@ -47,9 +48,17 @@ function screenToTab(screen: Screen): Tab {
   }
 }
 
-export default function AppPage() {
+function AppContent() {
+  const { user, loading, logout } = useAuth();
   const [screen, setScreen] = useState<Screen>("auth");
   const [chatId, setChatId] = useState<string | null>(null);
+
+  // Restore session — if user is already logged in, skip auth
+  useEffect(() => {
+    if (!loading && user) {
+      setScreen("inbox");
+    }
+  }, [loading, user]);
 
   const showNav = !["auth", "onboarding", "chat"].includes(screen);
 
@@ -61,6 +70,26 @@ export default function AppPage() {
     setChatId(id);
     setScreen("chat");
   };
+
+  const handleLogout = () => {
+    logout();
+    setScreen("auth");
+  };
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <h1 className="text-3xl font-black tracking-tight mb-2">
+            <span className="text-slate-900">Copy</span>
+            <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Me</span>
+          </h1>
+          <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col relative overflow-hidden bg-white">
@@ -151,6 +180,25 @@ export default function AppPage() {
           unreadCount={11}
         />
       )}
+
+      {/* Logout button (shown when authenticated) */}
+      {showNav && user && (
+        <button
+          onClick={handleLogout}
+          className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-400 text-xs hover:text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+        >
+          <LogOut size={12} />
+          Sign Out
+        </button>
+      )}
     </div>
+  );
+}
+
+export default function AppPage() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

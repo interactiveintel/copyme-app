@@ -6,6 +6,7 @@ import { Eye, EyeOff, Phone, Mail, Lock, UserRound } from "lucide-react";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import WordCounter from "../ui/WordCounter";
+import { useAuth } from "@/lib/auth-context";
 
 interface AuthScreenProps {
   onLogin: () => void;
@@ -26,10 +27,12 @@ const countryCodes = [
 ];
 
 export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
+  const { login, register } = useAuth();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [countryCode, setCountryCode] = useState("+1");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
 
   // Login form
   const [loginPhone, setLoginPhone] = useState("");
@@ -41,7 +44,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const errs: Record<string, string> = {};
     if (!loginPhone) errs.loginPhone = "Phone number required";
     if (!loginPassword) errs.loginPassword = "Password required";
@@ -50,23 +53,44 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
       return;
     }
     setErrors({});
-    onLogin();
+    setLoading(true);
+    try {
+      await login(countryCode + loginPhone, loginPassword);
+      onLogin();
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : "Login failed" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     const errs: Record<string, string> = {};
     if (!regName) errs.regName = "Display name required";
     if (regName.trim().split(/\s+/).length > 7) errs.regName = "Max 7 words";
     if (!regPhone) errs.regPhone = "Phone number required";
     if (!regEmail) errs.regEmail = "Email required";
     if (!regPassword) errs.regPassword = "Password required";
-    if (regPassword.length < 6) errs.regPassword = "Min 6 characters";
+    if (regPassword.length < 8) errs.regPassword = "Min 8 characters";
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
     }
     setErrors({});
-    onRegister();
+    setLoading(true);
+    try {
+      await register({
+        displayName: regName.trim(),
+        phone: countryCode + regPhone,
+        email: regEmail,
+        password: regPassword,
+      });
+      onRegister();
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : "Registration failed" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -121,6 +145,20 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                 </button>
               ))}
             </div>
+
+            {/* Form-level error */}
+            <AnimatePresence>
+              {errors.form && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200"
+                >
+                  <p className="text-rose-600 text-xs text-center">{errors.form}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <AnimatePresence mode="wait">
               {tab === "login" ? (
@@ -211,8 +249,8 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     </button>
                   </div>
 
-                  <GradientButton onClick={handleLogin} className="w-full" size="lg">
-                    Sign In
+                  <GradientButton onClick={handleLogin} className="w-full" size="lg" disabled={loading}>
+                    {loading ? "Signing In..." : "Sign In"}
                   </GradientButton>
                 </motion.div>
               ) : (
@@ -315,7 +353,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                         type={showPassword ? "text" : "password"}
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="Min 6 characters"
+                        placeholder="Min 8 characters"
                         className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-12 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                       <button
@@ -333,8 +371,8 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     </AnimatePresence>
                   </div>
 
-                  <GradientButton onClick={handleRegister} className="w-full" size="lg">
-                    Create Account
+                  <GradientButton onClick={handleRegister} className="w-full" size="lg" disabled={loading}>
+                    {loading ? "Creating Account..." : "Create Account"}
                   </GradientButton>
                 </motion.div>
               )}
