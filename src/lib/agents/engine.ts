@@ -157,6 +157,23 @@ export class MockLLMProvider implements LLMProvider {
       return { name: "check_media", args: { query: userMessage } };
     }
 
+    // Agenti AI agent tools
+    if (toolMap.has("learn_about_user") && this.matchesAny(msg, ["i like", "i love", "i'm into", "my favorite", "i prefer", "i enjoy", "i work", "i am"])) {
+      const fact = userMessage.slice(0, 100);
+      return { name: "learn_about_user", args: { fact, category: "preference" } };
+    }
+    if (toolMap.has("analyze_personality") && this.matchesAny(msg, ["how do i communicate", "my style", "analyze me", "personality"])) {
+      return { name: "analyze_personality", args: { messages: userMessage } };
+    }
+    if (toolMap.has("suggest_topic") && this.matchesAny(msg, ["what should we talk about", "topic", "bored", "suggest something", "conversation starter"])) {
+      return { name: "suggest_topic", args: { currentMood: "neutral" } };
+    }
+    if (toolMap.has("adapt_style") && this.matchesAny(msg, ["be more", "be less", "talk like", "more casual", "more formal", "funnier", "serious"])) {
+      const aspect = msg.includes("formal") || msg.includes("casual") ? "tone" : msg.includes("funny") || msg.includes("humor") ? "humor" : "tone";
+      const direction = msg.includes("more") ? "increase" : "decrease";
+      return { name: "adapt_style", args: { aspect, direction } };
+    }
+
     return null;
   }
 
@@ -193,6 +210,16 @@ export class MockLLMProvider implements LLMProvider {
     }
     if (systemPrompt.includes("Content Guardian")) {
       return `Content has been reviewed and appears to be within acceptable guidelines. All Rule of 7 constraints are satisfied.`;
+    }
+    if (systemPrompt.includes("Agenti")) {
+      const responses = [
+        `That's interesting! I'm getting to know your communication style better with each message. Tell me more about what matters to you.`,
+        `I appreciate you sharing that. The more we chat, the better I understand how to be most helpful. What else is on your mind?`,
+        `Great question! I'm always learning from our conversations. Each interaction helps me adapt to your unique style.`,
+        `I hear you. As your AI companion, I'm here whenever you need to think through ideas, get creative, or just chat. What's next?`,
+        `Thanks for that! I've noted your communication preferences. I'll keep adapting to match your style over time.`,
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
     }
 
     return `I've analyzed your request: "${userMessage.slice(0, 50)}${userMessage.length > 50 ? "..." : ""}". How can I help you further?`;

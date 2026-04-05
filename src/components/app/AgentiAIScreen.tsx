@@ -7,7 +7,6 @@ import {
   MicOff,
   Video,
   VideoOff,
-  Phone,
   PhoneOff,
   Send,
   Sparkles,
@@ -16,10 +15,6 @@ import {
   ThumbsDown,
   Volume2,
   VolumeX,
-  Settings,
-  ChevronDown,
-  Zap,
-  Heart,
   MessageCircle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
