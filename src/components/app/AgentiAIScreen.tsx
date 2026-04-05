@@ -371,7 +371,7 @@ export default function YogiAIScreen() {
       id: "welcome",
       role: "yogi",
       content:
-        "Hey! I'm Yogi — your personal AI companion. I learn your communication style and adapt to you over time. You can type, talk, or even video chat with me. What's on your mind?",
+        "Hey! I'm Yogi — your personal AI companion. Pick an avatar above to give me a face, or upload your own photo! I learn your communication style and adapt to you over time. You can type, talk, or video chat with me. What's on your mind?",
       timestamp: new Date(),
       mode: "text",
     },
@@ -396,7 +396,7 @@ export default function YogiAIScreen() {
   const defaultAvatar = "/avatars/paul-1.jpg";
   const [yogiAvatarUrl, setYogiAvatarUrl] = useState<string>(defaultAvatar);
   const [yogiName, setYogiName] = useState<string>("Yogi");
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(true);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);

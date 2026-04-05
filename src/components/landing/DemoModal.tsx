@@ -371,7 +371,7 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   const [current, setCurrent] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [elapsed, setElapsed] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   const scene = scenes[current];
@@ -598,13 +598,13 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
                   {/* Voice narration toggle */}
                   <button
                     onClick={() => setVoiceEnabled((v) => !v)}
-                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors ml-2"
+                    className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors ml-2 border border-white/20"
                     title={voiceEnabled ? "Mute narration" : "Unmute narration"}
                   >
                     {voiceEnabled ? (
-                      <Volume2 size={14} className="text-white/70" />
+                      <Volume2 size={18} className="text-white" />
                     ) : (
-                      <VolumeX size={14} className="text-white/40" />
+                      <VolumeX size={18} className="text-white/50" />
                     )}
                   </button>
 

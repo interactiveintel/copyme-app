@@ -22,7 +22,7 @@ import Avatar from "../ui/Avatar";
 import SmartMatchPanel from "./SmartMatchPanel";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
-import { MOCK_CONVERSATIONS } from "@/lib/mock-data";
+import { MOCK_CONVERSATIONS, MOCK_PROFILES } from "@/lib/mock-data";
 
 interface InboxScreenProps {
   onOpenChat: (chatId: string, contactName?: string) => void;
@@ -284,7 +284,15 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                 onClick={() => onOpenChat(conv.contactId, conv.contactName)}
                 className="w-full flex items-center gap-3 p-3 rounded-2xl transition-all hover:bg-slate-50 active:bg-slate-100 relative"
               >
-                <Avatar name={conv.contactName} size="lg" />
+                {MOCK_PROFILES[conv.contactId]?.avatarUrl ? (
+                  <img
+                    src={MOCK_PROFILES[conv.contactId].avatarUrl}
+                    alt={conv.contactName}
+                    className="w-12 h-12 rounded-full object-cover bg-slate-100"
+                  />
+                ) : (
+                  <Avatar name={conv.contactName} size="lg" />
+                )}
 
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center justify-between">
