@@ -30,7 +30,8 @@ export default function CTA() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Something went wrong. Try again.");
+        const msg = typeof data.error === "string" ? data.error : data.error?.message || "Something went wrong. Try again.";
+        setError(msg);
         return;
       }
 

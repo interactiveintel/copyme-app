@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Routes that do NOT require authentication
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PREFIXES = ["/api/auth/"];
+const PUBLIC_PREFIXES = ["/api/auth/", "/api/waitlist"];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
