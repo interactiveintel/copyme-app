@@ -18,6 +18,7 @@ import {
 import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
 import ChatAIAssistant from "./ChatAIAssistant";
+import ContactProfileSheet from "./ContactProfileSheet";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
 import { MOCK_CHAT_MESSAGES, MOCK_PROFILES } from "@/lib/mock-data";
@@ -51,6 +52,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const [isRecording, setIsRecording] = useState(false);
   const [translateOn, setTranslateOn] = useState(false);
   const [showAIAssist, setShowAIAssist] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -152,11 +154,18 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             >
               <ArrowLeft size={18} className="text-slate-600" />
             </motion.button>
-            <Avatar name={displayName} size="md" online showStatus />
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-              <p className="text-[11px] text-emerald-500">online</p>
-            </div>
+            <button
+              onClick={() => isMockContact && setShowProfile(true)}
+              className="flex items-center gap-3"
+            >
+              <Avatar name={displayName} size="md" online showStatus />
+              <div className="text-left">
+                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                <p className="text-[11px] text-emerald-500">
+                  {isMockContact ? "Tap to view profile" : "online"}
+                </p>
+              </div>
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
@@ -358,6 +367,18 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
           )}
         </div>
       </div>
+
+      {/* Contact Profile Sheet */}
+      <AnimatePresence>
+        {showProfile && isMockContact && MOCK_PROFILES[chatId] && (
+          <ContactProfileSheet
+            profile={MOCK_PROFILES[chatId]}
+            messagesRemaining={remainingMessages}
+            onClose={() => setShowProfile(false)}
+            onMessage={() => setShowProfile(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

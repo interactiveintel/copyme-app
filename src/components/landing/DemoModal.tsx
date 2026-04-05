@@ -100,6 +100,31 @@ const scenes = [
   {
     id: 4,
     chapter: "04",
+    title: "Value Connections",
+    narration: [
+      "Tap any contact to see what connects you.",
+      "Shared interests, value match scores, and mutual passions — all at a glance.",
+      "CopyMe doesn't just link people. It reveals why they belong together.",
+    ],
+    icon: Heart,
+    color: "from-pink-500 to-rose-500",
+    phone: {
+      type: "profile" as const,
+      header: "Sarah Chen",
+      profile: {
+        name: "Sarah Chen",
+        bio: "UX researcher & street photographer",
+        location: "San Francisco",
+        matchScore: 92,
+        sharedInterests: ["photography", "hiking", "coffee culture"],
+        theirInterests: ["UX research", "urban sketching", "documentary films", "mindfulness"],
+        messagesLeft: 4,
+      },
+    },
+  },
+  {
+    id: 5,
+    chapter: "05",
     title: "AI Smart Match",
     narration: [
       "Finding the right people shouldn't be random.",
@@ -119,8 +144,8 @@ const scenes = [
     },
   },
   {
-    id: 5,
-    chapter: "05",
+    id: 6,
+    chapter: "06",
     title: "Your AI Copilot",
     narration: [
       "Stuck on what to say? The AI assistant has your back.",
@@ -144,8 +169,8 @@ const scenes = [
     },
   },
   {
-    id: 6,
-    chapter: "06",
+    id: 7,
+    chapter: "07",
     title: "Your Inner Circle",
     narration: [
       "Seven active contacts. That's it.",
@@ -169,8 +194,8 @@ const scenes = [
     },
   },
   {
-    id: 7,
-    chapter: "07",
+    id: 8,
+    chapter: "08",
     title: "Private by Design",
     narration: [
       "Your conversations are yours. Period.",
@@ -192,7 +217,7 @@ const scenes = [
     },
   },
   {
-    id: 8,
+    id: 9,
     chapter: "",
     title: "Ready to try it?",
     narration: [
@@ -674,6 +699,104 @@ function PhoneScreen({ scene, elapsed }: { scene: (typeof scenes)[number]; elaps
               </span>
             </motion.div>
           </>
+        )}
+
+        {/* ---- Profile / Value Connections scene ---- */}
+        {scene.phone.type === "profile" && "profile" in scene.phone && (
+          <div className="flex flex-col items-center">
+            {/* Avatar + name */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: elapsed > 300 ? 1 : 0, scale: elapsed > 300 ? 1 : 0.8 }}
+              transition={{ duration: 0.4 }}
+              className="flex flex-col items-center mb-2"
+            >
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${color} flex items-center justify-center mb-1`}>
+                <span className="text-[9px] font-bold text-white">SC</span>
+              </div>
+              <p className="text-[10px] font-semibold text-slate-900">{scene.phone.profile.name}</p>
+              <p className="text-[8px] text-slate-400">{scene.phone.profile.location}</p>
+            </motion.div>
+
+            {/* Match score */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: elapsed > 800 ? 1 : 0, y: elapsed > 800 ? 0 : 8 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 border border-pink-200 mb-2.5"
+            >
+              <Heart size={9} className="text-pink-500" />
+              <span className="text-[10px] font-bold text-pink-600">{scene.phone.profile.matchScore}% Value Match</span>
+            </motion.div>
+
+            {/* Shared interests */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: elapsed > 1500 ? 1 : 0 }}
+              className="w-full mb-2"
+            >
+              <div className="flex items-center gap-1 mb-1">
+                <Sparkles size={8} className="text-purple-500" />
+                <span className="text-[8px] font-semibold text-slate-600">Shared Interests</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {scene.phone.profile.sharedInterests.map((interest: string, i: number) => (
+                  <motion.span
+                    key={interest}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{
+                      opacity: elapsed > 1800 + i * 300 ? 1 : 0,
+                      scale: elapsed > 1800 + i * 300 ? 1 : 0.8,
+                    }}
+                    className="px-2 py-0.5 rounded-full text-[8px] font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border border-purple-200"
+                  >
+                    {interest}
+                  </motion.span>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Their interests */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: elapsed > 3000 ? 1 : 0 }}
+              className="w-full mb-2"
+            >
+              <span className="text-[8px] font-semibold text-slate-600 mb-1 block">Their Interests</span>
+              <div className="flex flex-wrap gap-1">
+                {scene.phone.profile.theirInterests.map((interest: string, i: number) => (
+                  <motion.span
+                    key={interest}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: elapsed > 3300 + i * 200 ? 1 : 0 }}
+                    className="px-2 py-0.5 rounded-full text-[8px] font-medium bg-slate-100 text-slate-500"
+                  >
+                    {interest}
+                  </motion.span>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Messages remaining dots */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: elapsed > 4500 ? 1 : 0 }}
+              className="flex items-center gap-1.5 mt-1"
+            >
+              <span className="text-[7px] text-slate-400">Messages left</span>
+              <div className="flex gap-0.5">
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${
+                      i < scene.phone.profile.messagesLeft
+                        ? "bg-gradient-to-br from-indigo-500 to-purple-500"
+                        : "bg-slate-200"
+                    }`}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          </div>
         )}
 
         {/* ---- Match scene ---- */}
