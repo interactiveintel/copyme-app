@@ -93,7 +93,15 @@ export default function Hero() {
                 />
               </a>
               <button
-                onClick={() => setShowDemo(true)}
+                onClick={() => {
+                  // Unlock browser speech synthesis with user gesture
+                  if (typeof window !== "undefined" && window.speechSynthesis) {
+                    const silent = new SpeechSynthesisUtterance("");
+                    silent.volume = 0;
+                    window.speechSynthesis.speak(silent);
+                  }
+                  setShowDemo(true);
+                }}
                 className="group inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-slate-700 border border-slate-200 bg-white transition-all hover:bg-slate-50 hover:border-purple-200 shadow-sm"
               >
                 <span className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center shadow-sm shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">

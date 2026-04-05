@@ -308,6 +308,31 @@ function useVoiceNarration(
 ) {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const lineIndexRef = useRef(0);
+  const unlockedRef = useRef(false);
+
+  // Unlock speech synthesis on first user interaction (click/touch)
+  // Browsers require a user gesture before speechSynthesis.speak() works.
+  useEffect(() => {
+    if (unlockedRef.current || typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const unlock = () => {
+      if (unlockedRef.current) return;
+      const silent = new SpeechSynthesisUtterance("");
+      silent.volume = 0;
+      window.speechSynthesis.speak(silent);
+      unlockedRef.current = true;
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("touchstart", unlock);
+    };
+
+    document.addEventListener("click", unlock, { once: true });
+    document.addEventListener("touchstart", unlock, { once: true });
+
+    return () => {
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("touchstart", unlock);
+    };
+  }, []);
 
   useEffect(() => {
     if (!active || !enabled || typeof window === "undefined" || !window.speechSynthesis) {
@@ -325,13 +350,15 @@ function useVoiceNarration(
     function speakLine(idx: number) {
       if (idx >= lines.length) return;
       const utterance = new SpeechSynthesisUtterance(lines[idx]);
-      utterance.rate = 1;
+      utterance.rate = 0.95;
       utterance.pitch = 1;
       utterance.lang = "en-US";
 
       // Try to pick a natural English voice
       const voices = window.speechSynthesis.getVoices();
       const englishVoice = voices.find(
+        (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("samantha"),
+      ) ?? voices.find(
         (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("natural"),
       ) ?? voices.find((v) => v.lang.startsWith("en"));
       if (englishVoice) utterance.voice = englishVoice;
@@ -344,6 +371,14 @@ function useVoiceNarration(
       utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     }
+
+    // Chrome has a bug where speech pauses after ~15s — keep-alive workaround
+    const keepAlive = setInterval(() => {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
 
     // Voices may load asynchronously
     const voices = window.speechSynthesis.getVoices();
@@ -358,6 +393,7 @@ function useVoiceNarration(
     }
 
     return () => {
+      clearInterval(keepAlive);
       window.speechSynthesis.cancel();
     };
   }, [lines, active, enabled]);
