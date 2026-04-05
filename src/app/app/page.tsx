@@ -10,7 +10,7 @@ import InboxScreen from "@/components/app/InboxScreen";
 import ChatScreen from "@/components/app/ChatScreen";
 import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
-import AgentiAIScreen from "@/components/app/AgentiAIScreen";
+import YogiAIScreen from "@/components/app/AgentiAIScreen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "contacts" | "agenti" | "ads" | "profile";
@@ -140,7 +140,7 @@ function AppContent() {
 
           {screen === "search" && <SearchScreen />}
 
-          {screen === "agenti" && <AgentiAIScreen />}
+          {screen === "agenti" && <YogiAIScreen />}
 
           {screen === "contacts" && (
             <div className="flex flex-col items-center justify-center h-full pb-20">

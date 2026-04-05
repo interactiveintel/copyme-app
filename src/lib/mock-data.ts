@@ -11,6 +11,8 @@ export interface MockProfile {
   profileType: "personal" | "social" | "legal_entity";
   online: boolean;
   lastSeen: string;
+  avatarUrl: string; // Generated avatar image URL
+  voiceName?: string; // Preferred TTS voice
 }
 
 export interface MockConversation {
@@ -50,6 +52,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: true,
     lastSeen: "now",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=SarahChen&backgroundColor=b6e3f4",
+    voiceName: "Samantha",
   },
   mock_2: {
     id: "mock_2",
@@ -60,6 +64,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: true,
     lastSeen: "now",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=AlexRivera&backgroundColor=c0aede",
+    voiceName: "Daniel",
   },
   mock_3: {
     id: "mock_3",
@@ -70,6 +76,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: false,
     lastSeen: "30m ago",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=MiaZhang&backgroundColor=ffd5dc",
+    voiceName: "Karen",
   },
   mock_4: {
     id: "mock_4",
@@ -80,6 +88,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: false,
     lastSeen: "1h ago",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=JordanBlake&backgroundColor=d1d4f9",
+    voiceName: "Alex",
   },
   mock_5: {
     id: "mock_5",
@@ -90,6 +100,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "social",
     online: true,
     lastSeen: "now",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=PriyaSharma&backgroundColor=ffdfbf",
+    voiceName: "Veena",
   },
   mock_6: {
     id: "mock_6",
@@ -100,6 +112,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: false,
     lastSeen: "3h ago",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=MarcusJohnson&backgroundColor=c4f0c5",
+    voiceName: "Daniel",
   },
   mock_7: {
     id: "mock_7",
@@ -110,6 +124,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: false,
     lastSeen: "5h ago",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=LenaKowalski&backgroundColor=b6e3f4",
+    voiceName: "Anna",
   },
   mock_8: {
     id: "mock_8",
@@ -120,6 +136,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: true,
     lastSeen: "now",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=DavidPark&backgroundColor=c0aede",
+    voiceName: "Yuna",
   },
   mock_9: {
     id: "mock_9",
@@ -130,6 +148,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "social",
     online: false,
     lastSeen: "1d ago",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=AmaraOkafor&backgroundColor=ffd5dc",
+    voiceName: "Tessa",
   },
   mock_10: {
     id: "mock_10",
@@ -140,6 +160,8 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     profileType: "personal",
     online: false,
     lastSeen: "2d ago",
+    avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=KaiNakamura&backgroundColor=d1d4f9",
+    voiceName: "Kyoko",
   },
 };
 

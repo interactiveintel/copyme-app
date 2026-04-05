@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Agenti AI — Trainable personality-aware conversational agent
+// Yogi AI — Trainable personality-aware conversational agent
 // Each user gets a unique AI personality that learns and adapts
 // ---------------------------------------------------------------------------
 
@@ -153,7 +153,7 @@ function buildPersonalizedPrompt(profile: PersonalityProfile): string {
     ? `\n\nAVOID these patterns the user dislikes:\n${profile.dislikedPatterns.map((p) => `- ${p}`).join("\n")}`
     : "";
 
-  return `You are Agenti — the personal AI companion inside CopyMe. You are unique to each user and you learn their personality over time.
+  return `You are Yogi — the personal AI companion inside CopyMe. You are unique to each user and you learn their personality over time.
 
 PERSONALITY CONFIGURATION:
 - Tone: ${toneGuide[profile.tone]}
@@ -286,7 +286,7 @@ export function createAgentiConfig(personality?: PersonalityProfile): AgentConfi
   };
 
   return {
-    name: "Agenti",
+    name: "Yogi",
     description: "Personal AI companion that learns and adapts to each user's personality",
     systemPrompt: buildPersonalizedPrompt(profile),
     tools: [learnAboutUser, analyzePersonality, suggestTopic, adaptStyle, provideFeedback],

@@ -16,16 +16,19 @@ import {
   Volume2,
   VolumeX,
   MessageCircle,
+  Camera,
+  ImagePlus,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { MOCK_PROFILES } from "@/lib/mock-data";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface AgentiMessage {
+interface YogiMessage {
   id: string;
-  role: "user" | "agenti";
+  role: "user" | "yogi";
   content: string;
   timestamp: Date;
   mode: "text" | "voice" | "video";
@@ -41,110 +44,210 @@ interface PersonalityState {
 }
 
 // ---------------------------------------------------------------------------
-// Animated AI Avatar
+// Photo-based Animated AI Avatar — "Yogi"
+// Shows user's photo with animated lip sync, eye blinks, head movement
 // ---------------------------------------------------------------------------
 
-function AIAvatar({
+function YogiAvatar({
   speaking,
   listening,
   thinking,
   videoMode,
+  avatarUrl,
+  name,
 }: {
   speaking: boolean;
   listening: boolean;
   thinking: boolean;
   videoMode: boolean;
+  avatarUrl?: string;
+  name?: string;
 }) {
+  const size = videoMode ? "w-36 h-36" : "w-32 h-32";
+  const ringColor = speaking
+    ? "from-purple-500 via-pink-500 to-rose-500"
+    : listening
+      ? "from-emerald-400 via-teal-400 to-cyan-400"
+      : thinking
+        ? "from-amber-400 via-orange-400 to-yellow-400"
+        : "from-indigo-400 via-purple-400 to-pink-400";
+
   return (
-    <div className="relative flex items-center justify-center">
+    <div className="relative flex flex-col items-center justify-center">
       {/* Outer pulse rings */}
       {(speaking || listening) && (
         <>
           <motion.div
-            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
+            animate={{ scale: [1, 1.6, 1], opacity: [0.25, 0, 0.25] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className={`absolute w-40 h-40 rounded-full ${
-              speaking
-                ? "bg-purple-500/20"
-                : "bg-emerald-500/20"
+            className={`absolute w-44 h-44 rounded-full ${
+              speaking ? "bg-purple-500/20" : "bg-emerald-500/20"
             }`}
           />
           <motion.div
-            animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0, 0.2] }}
+            animate={{ scale: [1, 1.35, 1], opacity: [0.2, 0, 0.2] }}
             transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-            className={`absolute w-36 h-36 rounded-full ${
-              speaking
-                ? "bg-purple-500/15"
-                : "bg-emerald-500/15"
+            className={`absolute w-40 h-40 rounded-full ${
+              speaking ? "bg-purple-500/10" : "bg-emerald-500/10"
             }`}
           />
         </>
       )}
 
-      {/* Main avatar circle */}
+      {/* Animated ring */}
+      <motion.div
+        animate={
+          speaking
+            ? { rotate: 360 }
+            : listening
+              ? { rotate: -360 }
+              : thinking
+                ? { rotate: [0, 180] }
+                : {}
+        }
+        transition={{
+          duration: speaking || listening ? 4 : 3,
+          repeat: Infinity,
+          ease: "linear",
+        }}
+        className={`absolute ${size} rounded-full bg-gradient-to-tr ${ringColor} p-[3px]`}
+        style={{ filter: speaking || listening ? "blur(0px)" : "blur(0.5px)" }}
+      >
+        <div className="w-full h-full rounded-full bg-white" />
+      </motion.div>
+
+      {/* Photo avatar with head movement */}
       <motion.div
         animate={
           thinking
-            ? { scale: [1, 1.05, 1], rotate: [0, 5, -5, 0] }
+            ? { scale: [1, 1.03, 1], rotateY: [0, 5, -5, 0] }
             : speaking
-              ? { scale: [1, 1.08, 1] }
-              : { scale: 1 }
+              ? {
+                  scale: [1, 1.02, 1],
+                  rotateZ: [0, 1, -1, 0.5, -0.5, 0],
+                  y: [0, -2, 0, -1, 0],
+                }
+              : listening
+                ? { scale: [1, 1.01, 1], rotateZ: [0, 0.5, -0.5, 0] }
+                : { scale: 1 }
         }
-        transition={{ duration: thinking ? 1.5 : 0.8, repeat: Infinity }}
-        className={`relative w-28 h-28 rounded-full flex items-center justify-center shadow-2xl ${
-          videoMode
-            ? "bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600"
-            : "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500"
-        }`}
+        transition={{
+          duration: thinking ? 2 : speaking ? 1.2 : 3,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+        className={`relative ${size} rounded-full overflow-hidden shadow-2xl border-[3px] border-white z-10`}
       >
-        {/* Inner glow */}
-        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-white/20 to-transparent" />
-
-        {/* Icon */}
-        {thinking ? (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          >
-            <Brain size={36} className="text-white" />
-          </motion.div>
-        ) : speaking ? (
-          <Volume2 size={36} className="text-white" />
-        ) : listening ? (
-          <Mic size={36} className="text-white" />
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt={name || "Yogi AI"}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <Sparkles size={36} className="text-white" />
+          <div className="w-full h-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
+            <Sparkles size={40} className="text-white" />
+          </div>
         )}
 
-        {/* Status indicator */}
-        <div
-          className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center ${
-            speaking
-              ? "bg-purple-500"
-              : listening
-                ? "bg-emerald-500"
-                : thinking
-                  ? "bg-amber-500"
-                  : "bg-slate-400"
-          }`}
-        >
-          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-        </div>
+        {/* Speaking overlay — mouth animation simulation */}
+        {speaking && (
+          <div className="absolute inset-0 flex items-end justify-center">
+            <motion.div
+              animate={{
+                scaleY: [0.3, 1, 0.5, 0.8, 0.3, 1, 0.6, 0.3],
+                scaleX: [0.8, 1, 0.9, 1.1, 0.8, 1, 0.95, 0.8],
+              }}
+              transition={{ duration: 0.6, repeat: Infinity }}
+              className="w-8 h-4 mb-[22%] rounded-full bg-gradient-to-b from-red-400/40 to-red-500/50 backdrop-blur-[1px]"
+            />
+          </div>
+        )}
+
+        {/* Eye blink animation — periodic blinks */}
+        <motion.div
+          animate={{ scaleY: [1, 1, 0.1, 1, 1, 1, 1, 1, 0.1, 1] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[30%] left-[20%] w-[16%] h-[6%] rounded-full bg-transparent border-b-2 border-slate-800/20"
+          style={{ transformOrigin: "center" }}
+        />
+        <motion.div
+          animate={{ scaleY: [1, 1, 0.1, 1, 1, 1, 1, 1, 0.1, 1] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.05 }}
+          className="absolute top-[30%] right-[20%] w-[16%] h-[6%] rounded-full bg-transparent border-b-2 border-slate-800/20"
+          style={{ transformOrigin: "center" }}
+        />
+
+        {/* Thinking overlay */}
+        {thinking && (
+          <div className="absolute inset-0 bg-gradient-to-t from-amber-500/20 to-transparent flex items-center justify-center">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
+              <Brain size={28} className="text-white drop-shadow-lg" />
+            </motion.div>
+          </div>
+        )}
+
+        {/* Listening indicator overlay */}
+        {listening && (
+          <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/15 to-transparent" />
+        )}
       </motion.div>
+
+      {/* Status badge */}
+      <motion.div
+        animate={speaking || listening ? { scale: [1, 1.2, 1] } : {}}
+        transition={{ duration: 1.5, repeat: Infinity }}
+        className={`absolute -bottom-1 right-[calc(50%-40px)] z-20 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-lg ${
+          speaking
+            ? "bg-purple-500"
+            : listening
+              ? "bg-emerald-500"
+              : thinking
+                ? "bg-amber-500"
+                : "bg-slate-400"
+        }`}
+      >
+        {speaking ? (
+          <Volume2 size={11} className="text-white" />
+        ) : listening ? (
+          <Mic size={11} className="text-white" />
+        ) : thinking ? (
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+            <Brain size={11} className="text-white" />
+          </motion.div>
+        ) : (
+          <Sparkles size={11} className="text-white" />
+        )}
+      </motion.div>
+
+      {/* Name label */}
+      {name && (
+        <motion.p
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-3 text-sm font-bold text-slate-700 z-20"
+        >
+          {name}
+        </motion.p>
+      )}
 
       {/* Sound wave bars when speaking */}
       {speaking && (
-        <div className="absolute -bottom-8 flex items-end gap-[3px]">
-          {Array.from({ length: 12 }).map((_, i) => (
+        <div className="absolute -bottom-10 flex items-end gap-[3px] z-20">
+          {Array.from({ length: 14 }).map((_, i) => (
             <motion.div
               key={i}
               animate={{
-                height: [4, 8 + Math.random() * 16, 4],
+                height: [3, 6 + Math.random() * 18, 3],
               }}
               transition={{
-                duration: 0.4 + Math.random() * 0.3,
+                duration: 0.35 + Math.random() * 0.3,
                 repeat: Infinity,
-                delay: i * 0.05,
+                delay: i * 0.04,
               }}
               className="w-[3px] rounded-full bg-gradient-to-t from-purple-500 to-pink-400"
             />
@@ -154,12 +257,12 @@ function AIAvatar({
 
       {/* Waveform when listening */}
       {listening && (
-        <div className="absolute -bottom-8 flex items-end gap-[3px]">
-          {Array.from({ length: 12 }).map((_, i) => (
+        <div className="absolute -bottom-10 flex items-end gap-[3px] z-20">
+          {Array.from({ length: 14 }).map((_, i) => (
             <motion.div
               key={i}
               animate={{
-                height: [4, 6 + Math.random() * 12, 4],
+                height: [3, 5 + Math.random() * 12, 3],
               }}
               transition={{
                 duration: 0.3 + Math.random() * 0.4,
@@ -189,7 +292,7 @@ function PersonalityPanel({ personality }: { personality: PersonalityState }) {
     >
       <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
         <Brain size={14} className="text-purple-500" />
-        Agenti Personality Profile
+        Yogi Personality Profile
       </h3>
 
       <div className="space-y-3">
@@ -248,7 +351,7 @@ function PersonalityPanel({ personality }: { personality: PersonalityState }) {
         <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
           <MessageCircle size={12} className="text-slate-400" />
           <span className="text-[11px] text-slate-400">
-            {personality.totalChats} conversations — Agenti learns more each time
+            {personality.totalChats} conversations — Yogi learns more each time
           </span>
         </div>
       </div>
@@ -260,15 +363,15 @@ function PersonalityPanel({ personality }: { personality: PersonalityState }) {
 // Main Component
 // ---------------------------------------------------------------------------
 
-export default function AgentiAIScreen() {
+export default function YogiAIScreen() {
   const { authFetch } = useAuth();
   const [mode, setMode] = useState<"text" | "voice" | "video">("text");
-  const [messages, setMessages] = useState<AgentiMessage[]>([
+  const [messages, setMessages] = useState<YogiMessage[]>([
     {
       id: "welcome",
-      role: "agenti",
+      role: "yogi",
       content:
-        "Hey! I'm Agenti — your personal AI companion. I learn your communication style and adapt to you over time. You can type, talk, or even video chat with me. What's on your mind?",
+        "Hey! I'm Yogi — your personal AI companion. I learn your communication style and adapt to you over time. You can type, talk, or even video chat with me. What's on your mind?",
       timestamp: new Date(),
       mode: "text",
     },
@@ -289,10 +392,29 @@ export default function AgentiAIScreen() {
     totalChats: 0,
   });
 
+  // Avatar state — user can upload their own photo or pick from mock profiles
+  const defaultAvatar = MOCK_PROFILES.mock_1.avatarUrl;
+  const [yogiAvatarUrl, setYogiAvatarUrl] = useState<string>(defaultAvatar);
+  const [yogiName, setYogiName] = useState<string>("Yogi");
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const recognitionRef = useRef<{ stop: () => void; abort: () => void } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Handle photo upload for custom Yogi avatar
+  const handlePhotoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setYogiAvatarUrl(reader.result as string);
+      setShowAvatarPicker(false);
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -300,12 +422,12 @@ export default function AgentiAIScreen() {
   }, [messages]);
 
   // ---------------------------------------------------------------------------
-  // Send message to Agenti API
+  // Send message to Yogi API
   // ---------------------------------------------------------------------------
 
-  const sendToAgenti = useCallback(
+  const sendToYogi = useCallback(
     async (text: string, messageMode: "text" | "voice" | "video") => {
-      const userMsg: AgentiMessage = {
+      const userMsg: YogiMessage = {
         id: `user_${Date.now()}`,
         role: "user",
         content: text,
@@ -319,24 +441,24 @@ export default function AgentiAIScreen() {
       setIsThinking(true);
 
       try {
-        const res = await authFetch("/api/agents/agenti", {
+        const res = await authFetch("/api/agents/yogi", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: text,
             mode: messageMode,
             conversationHistory: messages.slice(-10).map((m) => ({
-              role: m.role === "agenti" ? "assistant" : "user",
+              role: m.role === "yogi" ? "assistant" : "user",
               content: m.content,
             })),
           }),
         });
 
-        let agentiResponse = "I'm having trouble connecting right now. Try again in a moment.";
+        let yogiResponse = "I'm having trouble connecting right now. Try again in a moment.";
 
         if (res.ok) {
           const data = await res.json();
-          agentiResponse = data.data?.response || agentiResponse;
+          yogiResponse = data.data?.response || yogiResponse;
 
           // Update personality from response
           if (data.data?.personality) {
@@ -344,26 +466,26 @@ export default function AgentiAIScreen() {
           }
         }
 
-        const agentiMsg: AgentiMessage = {
-          id: `agenti_${Date.now()}`,
-          role: "agenti",
-          content: agentiResponse,
+        const yogiMsg: YogiMessage = {
+          id: `yogi_${Date.now()}`,
+          role: "yogi",
+          content: yogiResponse,
           timestamp: new Date(),
           mode: messageMode,
         };
 
-        setMessages((prev) => [...prev, agentiMsg]);
+        setMessages((prev) => [...prev, yogiMsg]);
 
         // Speak the response in voice/video mode
         if ((messageMode === "voice" || messageMode === "video") && !isMuted) {
-          speakResponse(agentiResponse);
+          speakResponse(yogiResponse);
         }
       } catch {
         setMessages((prev) => [
           ...prev,
           {
             id: `err_${Date.now()}`,
-            role: "agenti",
+            role: "yogi",
             content: "Connection hiccup — I'm still here though. Try again?",
             timestamp: new Date(),
             mode: messageMode,
@@ -391,7 +513,7 @@ export default function AgentiAIScreen() {
           if (isFinal && text.trim().length > 2) {
             setIsListening(false);
             recognitionRef.current?.stop();
-            sendToAgenti(text.trim(), mode === "video" ? "video" : "voice");
+            sendToYogi(text.trim(), mode === "video" ? "video" : "voice");
           }
         },
         onError: (err) => {
@@ -412,19 +534,24 @@ export default function AgentiAIScreen() {
     } catch (err) {
       console.warn("Voice not supported:", err);
     }
-  }, [mode, sendToAgenti]);
+  }, [mode, sendToYogi]);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
     setIsListening(false);
     if (transcript.trim().length > 2) {
-      sendToAgenti(transcript.trim(), mode === "video" ? "video" : "voice");
+      sendToYogi(transcript.trim(), mode === "video" ? "video" : "voice");
     }
-  }, [transcript, mode, sendToAgenti]);
+  }, [transcript, mode, sendToYogi]);
 
   // ---------------------------------------------------------------------------
   // TTS
   // ---------------------------------------------------------------------------
+
+  // Resolve voice name from current avatar selection
+  const selectedVoice = Object.values(MOCK_PROFILES).find(
+    (p) => p.avatarUrl === yogiAvatarUrl
+  )?.voiceName;
 
   const speakResponse = useCallback(async (text: string) => {
     try {
@@ -432,6 +559,7 @@ export default function AgentiAIScreen() {
       setIsSpeaking(true);
       speakFn({
         text,
+        voice: selectedVoice,
         rate: 1.0,
         pitch: 1.0,
         onEnd: () => setIsSpeaking(false),
@@ -439,7 +567,7 @@ export default function AgentiAIScreen() {
     } catch {
       setIsSpeaking(false);
     }
-  }, []);
+  }, [selectedVoice]);
 
   const stopSpeaking = useCallback(async () => {
     try {
@@ -503,7 +631,7 @@ export default function AgentiAIScreen() {
   const handleTextSend = () => {
     const text = input.trim();
     if (!text || isThinking) return;
-    sendToAgenti(text, "text");
+    sendToYogi(text, "text");
   };
 
   // ---------------------------------------------------------------------------
@@ -518,14 +646,21 @@ export default function AgentiAIScreen() {
       <div className="relative z-10 px-4 pt-12 pb-3 bg-white/90 backdrop-blur-xl border-b border-slate-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Sparkles size={18} className="text-white" />
-            </div>
+            {/* Tappable Yogi avatar — opens avatar picker */}
+            <button
+              onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+              className="relative w-10 h-10 rounded-full overflow-hidden shadow-lg shadow-purple-500/20 border-2 border-purple-400 flex-shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={yogiAvatarUrl} alt="Yogi" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-purple-500/20 to-transparent" />
+              <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border border-white" />
+            </button>
             <div>
               <h1 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-                Agenti AI
+                {yogiName}
                 <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 text-[9px] font-bold">
-                  BETA
+                  AI
                 </span>
               </h1>
               <p className="text-[11px] text-slate-400">
@@ -612,12 +747,14 @@ export default function AgentiAIScreen() {
               </div>
             )}
 
-            {/* AI Avatar */}
-            <AIAvatar
+            {/* Yogi Avatar — photo-based animated face */}
+            <YogiAvatar
               speaking={isSpeaking}
               listening={isListening}
               thinking={isThinking}
               videoMode={mode === "video"}
+              avatarUrl={yogiAvatarUrl}
+              name={yogiName}
             />
 
             {/* Status text */}
@@ -727,13 +864,14 @@ export default function AgentiAIScreen() {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div className={`max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                {/* Avatar for Agenti */}
-                {msg.role === "agenti" && (
+                {/* Avatar for Yogi */}
+                {msg.role === "yogi" && (
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
-                      <Sparkles size={9} className="text-white" />
+                    <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-300 flex-shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={yogiAvatarUrl} alt={yogiName} className="w-full h-full object-cover" />
                     </div>
-                    <span className="text-[10px] font-semibold text-purple-500">Agenti</span>
+                    <span className="text-[10px] font-semibold text-purple-500">{yogiName}</span>
                     {msg.mode !== "text" && (
                       <span className="text-[9px] text-slate-400 flex items-center gap-0.5">
                         {msg.mode === "voice" && <Mic size={8} />}
@@ -755,8 +893,8 @@ export default function AgentiAIScreen() {
                   {msg.content}
                 </div>
 
-                {/* Feedback buttons for Agenti messages */}
-                {msg.role === "agenti" && msg.id !== "welcome" && (
+                {/* Feedback buttons for Yogi messages */}
+                {msg.role === "yogi" && msg.id !== "welcome" && (
                   <div className="flex items-center gap-1.5 mt-1.5 ml-1">
                     <button
                       onClick={() => handleFeedback(msg.id, "liked")}
@@ -814,7 +952,7 @@ export default function AgentiAIScreen() {
                   <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "150ms" }} />
                   <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
-                <span className="text-xs text-slate-400">Agenti is thinking...</span>
+                <span className="text-xs text-slate-400">Yogi is thinking...</span>
               </div>
             </motion.div>
           )}
@@ -826,6 +964,82 @@ export default function AgentiAIScreen() {
       {/* Personality panel overlay */}
       <AnimatePresence>
         {showPersonality && <PersonalityPanel personality={personality} />}
+      </AnimatePresence>
+
+      {/* Avatar picker overlay */}
+      <AnimatePresence>
+        {showAvatarPicker && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-28 left-4 right-4 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200 p-4 z-30"
+          >
+            <h3 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-2">
+              <ImagePlus size={14} className="text-purple-500" />
+              Choose Your Yogi Avatar
+            </h3>
+            <p className="text-[11px] text-slate-400 mb-3">Upload your photo or pick a personality</p>
+
+            {/* Upload photo button */}
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white text-xs font-semibold shadow-md"
+            >
+              <Camera size={14} />
+              Upload Your Photo
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+
+            {/* Pre-made avatars from mock profiles */}
+            <div className="grid grid-cols-5 gap-2">
+              {Object.values(MOCK_PROFILES).map((profile) => (
+                <button
+                  key={profile.id}
+                  onClick={() => {
+                    setYogiAvatarUrl(profile.avatarUrl);
+                    setYogiName(profile.displayName.split(" ")[0]);
+                    setShowAvatarPicker(false);
+                  }}
+                  className={`relative rounded-xl overflow-hidden border-2 transition-all ${
+                    yogiAvatarUrl === profile.avatarUrl
+                      ? "border-purple-500 shadow-md shadow-purple-500/20"
+                      : "border-slate-200"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={profile.avatarUrl}
+                    alt={profile.displayName}
+                    className="w-full aspect-square object-cover"
+                  />
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-1 py-0.5">
+                    <span className="text-[8px] text-white font-medium">{profile.displayName.split(" ")[0]}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Reset to default */}
+            <button
+              onClick={() => {
+                setYogiAvatarUrl(defaultAvatar);
+                setYogiName("Yogi");
+                setShowAvatarPicker(false);
+              }}
+              className="w-full mt-2 py-2 rounded-xl bg-slate-100 text-slate-500 text-xs font-medium"
+            >
+              Reset to Default Yogi
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Text input (always visible) */}
@@ -841,7 +1055,7 @@ export default function AgentiAIScreen() {
                   handleTextSend();
                 }
               }}
-              placeholder="Ask Agenti anything..."
+              placeholder="Ask Yogi anything..."
               rows={1}
               className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 resize-none transition-colors"
             />

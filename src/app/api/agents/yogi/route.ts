@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiRateLimit } from "@/lib/redis";
 import { AgentEngine } from "@/lib/agents/engine";
-import { createAgentiConfig, analyzeMessageStyle, DEFAULT_PERSONALITY } from "@/lib/agents/agenti";
+import { createAgentiConfig, analyzeMessageStyle, DEFAULT_PERSONALITY } from "@/lib/agents/yogi";
 import type { AgentMessage } from "@/lib/agents/types";
-import type { PersonalityProfile } from "@/lib/agents/agenti";
+import type { PersonalityProfile } from "@/lib/agents/yogi";
 
 // ---------------------------------------------------------------------------
-// POST /api/agents/agenti
+// POST /api/agents/yogi
 // Auth required via middleware (x-user-id header set automatically)
 // ---------------------------------------------------------------------------
 
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[agents/agenti] Unhandled error:", error);
+    console.error("[agents/yogi] Unhandled error:", error);
     return NextResponse.json(
       {
         success: false,

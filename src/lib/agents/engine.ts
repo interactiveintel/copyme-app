@@ -157,7 +157,7 @@ export class MockLLMProvider implements LLMProvider {
       return { name: "check_media", args: { query: userMessage } };
     }
 
-    // Agenti AI agent tools
+    // Yogi AI agent tools
     if (toolMap.has("learn_about_user") && this.matchesAny(msg, ["i like", "i love", "i'm into", "my favorite", "i prefer", "i enjoy", "i work", "i am"])) {
       const fact = userMessage.slice(0, 100);
       return { name: "learn_about_user", args: { fact, category: "preference" } };
@@ -211,7 +211,7 @@ export class MockLLMProvider implements LLMProvider {
     if (systemPrompt.includes("Content Guardian")) {
       return `Content has been reviewed and appears to be within acceptable guidelines. All Rule of 7 constraints are satisfied.`;
     }
-    if (systemPrompt.includes("Agenti")) {
+    if (systemPrompt.includes("Yogi")) {
       const responses = [
         `That's interesting! I'm getting to know your communication style better with each message. Tell me more about what matters to you.`,
         `I appreciate you sharing that. The more we chat, the better I understand how to be most helpful. What else is on your mind?`,
