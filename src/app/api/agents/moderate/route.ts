@@ -6,7 +6,7 @@ import type { AgentMessage } from "@/lib/agents/types";
 
 // ---------------------------------------------------------------------------
 // POST /api/agents/moderate
-// No auth required — called internally by other services
+// Auth required via middleware (x-user-id header set automatically)
 // ---------------------------------------------------------------------------
 
 interface ModerateBody {
