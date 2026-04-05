@@ -8,6 +8,14 @@ import {
   MessageCircle,
   Heart,
   Clock,
+  Briefcase,
+  GraduationCap,
+  Globe,
+  Calendar,
+  BadgeCheck,
+  BarChart3,
+  Users,
+  Link as LinkIcon,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import type { MockProfile } from "@/lib/mock-data";
@@ -19,7 +27,6 @@ interface ContactProfileSheetProps {
   onMessage: () => void;
 }
 
-// Simulated "your" interests for computing shared values
 const MY_INTERESTS = [
   "photography",
   "machine learning",
@@ -87,6 +94,20 @@ export default function ContactProfileSheet({
               {profile.online ? "Online now" : `Last seen ${profile.lastSeen}`}
             </span>
           </div>
+
+          {/* Profile completion bar */}
+          <div className="mt-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-white/60">Profile</span>
+              <span className="text-[10px] text-white/80 font-semibold">{profile.profileCompletion}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-white/20">
+              <div
+                className="h-full rounded-full bg-white/80 transition-all"
+                style={{ width: `${profile.profileCompletion}%` }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Avatar overlapping header */}
@@ -108,11 +129,26 @@ export default function ContactProfileSheet({
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 pb-6">
-          {/* Name + location */}
-          <h2 className="text-xl font-bold text-slate-900">
-            {profile.displayName}
-          </h2>
-          <div className="flex items-center gap-1.5 mt-1 mb-3">
+          {/* Name + verified badge + location */}
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-xl font-bold text-slate-900">
+              {profile.displayName}
+            </h2>
+            {profile.verified && (
+              <BadgeCheck size={18} className="text-blue-500 shrink-0" />
+            )}
+            {profile.age && (
+              <span className="text-sm text-slate-400 ml-1">{profile.age}</span>
+            )}
+          </div>
+
+          {/* Occupation + Company */}
+          <p className="text-sm text-slate-600 font-medium mt-0.5">
+            {profile.occupation}
+            {profile.company && <span className="text-slate-400"> at {profile.company}</span>}
+          </p>
+
+          <div className="flex items-center gap-1.5 mt-1.5 mb-3">
             <MapPin size={12} className="text-slate-400" />
             <span className="text-xs text-slate-400">
               {profile.location.cityZip}, {profile.location.region}
@@ -120,12 +156,28 @@ export default function ContactProfileSheet({
           </div>
 
           {/* Bio */}
-          <p className="text-sm text-slate-600 leading-relaxed mb-5">
+          <p className="text-sm text-slate-600 leading-relaxed mb-4">
             {profile.bio}
           </p>
 
+          {/* Quick info row */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="flex flex-col items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-lg font-bold text-slate-800">{profile.stats.contacts}</span>
+              <span className="text-[10px] text-slate-400">Contacts</span>
+            </div>
+            <div className="flex flex-col items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-lg font-bold text-slate-800">{profile.stats.groups}</span>
+              <span className="text-[10px] text-slate-400">Groups</span>
+            </div>
+            <div className="flex flex-col items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-lg font-bold text-slate-800">{profile.stats.messagesSent}</span>
+              <span className="text-[10px] text-slate-400">Messages</span>
+            </div>
+          </div>
+
           {/* Connection score */}
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 mb-5">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 mb-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shrink-0">
               <Heart size={18} className="text-white" />
             </div>
@@ -145,9 +197,40 @@ export default function ContactProfileSheet({
             </div>
           </div>
 
+          {/* Details section */}
+          <div className="space-y-2.5 mb-4">
+            <div className="flex items-center gap-2.5">
+              <GraduationCap size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs text-slate-600">{profile.education}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Globe size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs text-slate-600">{profile.languages.join(", ")}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Calendar size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs text-slate-600">Member since {profile.memberSince}</span>
+            </div>
+            {profile.socialLinks && profile.socialLinks.length > 0 && (
+              <div className="flex items-center gap-2.5">
+                <LinkIcon size={14} className="text-slate-400 shrink-0" />
+                <div className="flex flex-wrap gap-1.5">
+                  {profile.socialLinks.map((link) => (
+                    <span
+                      key={link.label}
+                      className="px-2 py-0.5 rounded-full bg-indigo-50 text-[10px] text-indigo-600 font-medium"
+                    >
+                      {link.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Shared interests */}
           {sharedInterests.length > 0 && (
-            <div className="mb-5">
+            <div className="mb-4">
               <div className="flex items-center gap-2 mb-2.5">
                 <Sparkles size={14} className="text-purple-500" />
                 <h3 className="text-sm font-semibold text-slate-700">
@@ -169,7 +252,7 @@ export default function ContactProfileSheet({
 
           {/* Their other interests */}
           {uniqueInterests.length > 0 && (
-            <div className="mb-5">
+            <div className="mb-4">
               <h3 className="text-sm font-semibold text-slate-700 mb-2.5">
                 Their Interests
               </h3>
@@ -187,6 +270,38 @@ export default function ContactProfileSheet({
           )}
 
           {/* Rule of 7 status */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2.5">
+              <BarChart3 size={14} className="text-purple-500" />
+              <h3 className="text-sm font-semibold text-slate-700">Rule of 7 Status</h3>
+            </div>
+            <div className="space-y-2">
+              {[
+                { label: "Messages", value: profile.stats.ruleOf7.messages },
+                { label: "Contacts", value: profile.stats.ruleOf7.contacts },
+                { label: "Interests", value: profile.stats.ruleOf7.interests },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-3">
+                  <span className="text-[11px] text-slate-500 w-16">{item.label}</span>
+                  <div className="flex gap-1 flex-1">
+                    {Array.from({ length: 7 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 h-2 rounded-full ${
+                          i < item.value
+                            ? "bg-gradient-to-r from-indigo-500 to-purple-500"
+                            : "bg-slate-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-600 w-8 text-right">{item.value}/7</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Messages remaining */}
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
             <div className="flex items-center gap-2">
               <Clock size={14} className="text-slate-400" />

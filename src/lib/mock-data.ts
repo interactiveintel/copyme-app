@@ -11,8 +11,24 @@ export interface MockProfile {
   profileType: "personal" | "social" | "legal_entity";
   online: boolean;
   lastSeen: string;
-  avatarUrl: string; // Generated avatar image URL
-  voiceName?: string; // Preferred TTS voice
+  avatarUrl: string;
+  voiceName?: string;
+  // Enriched profile fields
+  occupation: string;
+  company?: string;
+  education: string;
+  languages: string[];
+  memberSince: string; // e.g. "Jan 2025"
+  verified: boolean;
+  profileCompletion: number; // 0-100
+  stats: {
+    messagesSent: number;
+    contacts: number;
+    groups: number;
+    ruleOf7: { messages: number; contacts: number; interests: number }; // out of 7
+  };
+  socialLinks?: { type: string; label: string }[];
+  age?: number;
 }
 
 export interface MockConversation {
@@ -54,6 +70,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "now",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=SarahChen&backgroundColor=b6e3f4",
     voiceName: "Samantha",
+    occupation: "Senior UX Researcher",
+    company: "Figma",
+    education: "MS Human-Computer Interaction, Carnegie Mellon",
+    languages: ["English", "Mandarin", "French"],
+    memberSince: "Jan 2025",
+    verified: true,
+    profileCompletion: 100,
+    age: 29,
+    stats: { messagesSent: 142, contacts: 7, groups: 3, ruleOf7: { messages: 5, contacts: 7, interests: 7 } },
+    socialLinks: [{ type: "portfolio", label: "sarahchen.design" }, { type: "linkedin", label: "linkedin.com/in/sarahchen" }],
   },
   mock_2: {
     id: "mock_2",
@@ -66,6 +92,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "now",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=AlexRivera&backgroundColor=c0aede",
     voiceName: "Daniel",
+    occupation: "Lead Product Designer",
+    company: "Vercel",
+    education: "BFA Graphic Design, RISD",
+    languages: ["English", "Spanish"],
+    memberSince: "Feb 2025",
+    verified: true,
+    profileCompletion: 95,
+    age: 31,
+    stats: { messagesSent: 89, contacts: 5, groups: 2, ruleOf7: { messages: 7, contacts: 5, interests: 7 } },
+    socialLinks: [{ type: "dribbble", label: "dribbble.com/alexrivera" }],
   },
   mock_3: {
     id: "mock_3",
@@ -78,6 +114,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "30m ago",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=MiaZhang&backgroundColor=ffd5dc",
     voiceName: "Karen",
+    occupation: "Travel Writer & Columnist",
+    company: "Condé Nast Traveler",
+    education: "BA Comparative Literature, NYU",
+    languages: ["English", "Mandarin", "Japanese", "Korean", "French (learning)"],
+    memberSince: "Mar 2025",
+    verified: true,
+    profileCompletion: 100,
+    age: 27,
+    stats: { messagesSent: 203, contacts: 7, groups: 4, ruleOf7: { messages: 4, contacts: 7, interests: 7 } },
+    socialLinks: [{ type: "blog", label: "miawanders.com" }, { type: "instagram", label: "@miawanders" }],
   },
   mock_4: {
     id: "mock_4",
@@ -90,6 +136,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "1h ago",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=JordanBlake&backgroundColor=d1d4f9",
     voiceName: "Alex",
+    occupation: "AI Research Scientist",
+    company: "Anthropic",
+    education: "PhD Machine Learning, MIT",
+    languages: ["English"],
+    memberSince: "Jan 2025",
+    verified: true,
+    profileCompletion: 90,
+    age: 33,
+    stats: { messagesSent: 67, contacts: 4, groups: 1, ruleOf7: { messages: 5, contacts: 4, interests: 7 } },
+    socialLinks: [{ type: "github", label: "github.com/jblake-ml" }, { type: "scholar", label: "Google Scholar" }],
   },
   mock_5: {
     id: "mock_5",
@@ -102,6 +158,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "now",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=PriyaSharma&backgroundColor=ffdfbf",
     voiceName: "Veena",
+    occupation: "Founder & CEO",
+    company: "GreenPulse Analytics",
+    education: "MS Data Science, IIT Delhi",
+    languages: ["English", "Hindi", "Tamil", "Kannada"],
+    memberSince: "Dec 2024",
+    verified: true,
+    profileCompletion: 100,
+    age: 30,
+    stats: { messagesSent: 178, contacts: 7, groups: 5, ruleOf7: { messages: 6, contacts: 7, interests: 7 } },
+    socialLinks: [{ type: "linkedin", label: "linkedin.com/in/priyasharma" }, { type: "website", label: "greenpulse.io" }],
   },
   mock_6: {
     id: "mock_6",
@@ -114,6 +180,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "3h ago",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=MarcusJohnson&backgroundColor=c4f0c5",
     voiceName: "Daniel",
+    occupation: "Creative Director",
+    company: "Pentagram",
+    education: "MA Visual Communication, Royal College of Art",
+    languages: ["English", "French"],
+    memberSince: "Feb 2025",
+    verified: true,
+    profileCompletion: 85,
+    age: 38,
+    stats: { messagesSent: 54, contacts: 3, groups: 2, ruleOf7: { messages: 4, contacts: 3, interests: 7 } },
+    socialLinks: [{ type: "behance", label: "behance.net/marcusj" }],
   },
   mock_7: {
     id: "mock_7",
@@ -126,6 +202,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "5h ago",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=LenaKowalski&backgroundColor=b6e3f4",
     voiceName: "Anna",
+    occupation: "Environmental Research Scientist",
+    company: "Max Planck Institute",
+    education: "PhD Ecology, ETH Zurich",
+    languages: ["German", "English", "Polish"],
+    memberSince: "Mar 2025",
+    verified: true,
+    profileCompletion: 92,
+    age: 34,
+    stats: { messagesSent: 45, contacts: 4, groups: 2, ruleOf7: { messages: 4, contacts: 4, interests: 7 } },
+    socialLinks: [{ type: "researchgate", label: "ResearchGate" }, { type: "instagram", label: "@lena.trails" }],
   },
   mock_8: {
     id: "mock_8",
@@ -138,6 +224,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "now",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=DavidPark&backgroundColor=c0aede",
     voiceName: "Yuna",
+    occupation: "Senior Full-Stack Engineer",
+    company: "Toss (Viva Republica)",
+    education: "BS Computer Science, KAIST",
+    languages: ["Korean", "English", "Japanese"],
+    memberSince: "Jan 2025",
+    verified: true,
+    profileCompletion: 88,
+    age: 28,
+    stats: { messagesSent: 112, contacts: 6, groups: 3, ruleOf7: { messages: 4, contacts: 6, interests: 7 } },
+    socialLinks: [{ type: "github", label: "github.com/dpark-dev" }, { type: "twitter", label: "@davidpark_dev" }],
   },
   mock_9: {
     id: "mock_9",
@@ -150,6 +246,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "1d ago",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=AmaraOkafor&backgroundColor=ffd5dc",
     voiceName: "Tessa",
+    occupation: "Public Health Researcher",
+    company: "WHO West Africa Regional Office",
+    education: "MPH Epidemiology, Johns Hopkins",
+    languages: ["English", "Yoruba", "Igbo", "French"],
+    memberSince: "Feb 2025",
+    verified: true,
+    profileCompletion: 97,
+    age: 32,
+    stats: { messagesSent: 91, contacts: 5, groups: 4, ruleOf7: { messages: 4, contacts: 5, interests: 7 } },
+    socialLinks: [{ type: "linkedin", label: "linkedin.com/in/amaraokafor" }, { type: "orcid", label: "ORCID" }],
   },
   mock_10: {
     id: "mock_10",
@@ -162,6 +268,16 @@ export const MOCK_PROFILES: Record<string, MockProfile> = {
     lastSeen: "2d ago",
     avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=KaiNakamura&backgroundColor=d1d4f9",
     voiceName: "Kyoko",
+    occupation: "Head Roaster & Co-founder",
+    company: "Kaze Coffee Roasters",
+    education: "BA Fine Arts, Kyoto University of Art",
+    languages: ["Japanese", "English"],
+    memberSince: "Mar 2025",
+    verified: false,
+    profileCompletion: 78,
+    age: 26,
+    stats: { messagesSent: 34, contacts: 3, groups: 1, ruleOf7: { messages: 4, contacts: 3, interests: 7 } },
+    socialLinks: [{ type: "instagram", label: "@kazecoffee" }],
   },
 };
 
