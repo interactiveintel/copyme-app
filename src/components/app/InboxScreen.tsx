@@ -139,6 +139,63 @@ const mockAds = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Mock conversations — shown when no real data exists
+// ---------------------------------------------------------------------------
+
+const MOCK_CONVERSATIONS: Conversation[] = [
+  {
+    contactId: "mock_1",
+    contactName: "Sarah Chen",
+    lastMessage: { id: "m1", type: "text", content: "The Rule of 7 really changed how I think about messaging!", createdAt: new Date(Date.now() - 2 * 60000).toISOString(), direction: "received" },
+  },
+  {
+    contactId: "mock_2",
+    contactName: "Alex Rivera",
+    lastMessage: { id: "m2", type: "text", content: "Let's sync on the design project tomorrow", createdAt: new Date(Date.now() - 15 * 60000).toISOString(), direction: "sent" },
+  },
+  {
+    contactId: "mock_3",
+    contactName: "Mia Zhang",
+    lastMessage: { id: "m3", type: "text", content: "Just got back from Tokyo — so much to share!", createdAt: new Date(Date.now() - 45 * 60000).toISOString(), direction: "received" },
+  },
+  {
+    contactId: "mock_4",
+    contactName: "Jordan Blake",
+    lastMessage: { id: "m4", type: "text", content: "That AI workshop was incredible, thanks for the rec", createdAt: new Date(Date.now() - 2 * 3600000).toISOString(), direction: "received" },
+  },
+  {
+    contactId: "mock_5",
+    contactName: "Priya Sharma",
+    lastMessage: { id: "m5", type: "text", content: "Can you send me the link to that article?", createdAt: new Date(Date.now() - 3 * 3600000).toISOString(), direction: "sent" },
+  },
+  {
+    contactId: "mock_6",
+    contactName: "Marcus Johnson",
+    lastMessage: { id: "m6", type: "text", content: "Great meeting today! Looking forward to next steps", createdAt: new Date(Date.now() - 5 * 3600000).toISOString(), direction: "received" },
+  },
+  {
+    contactId: "mock_7",
+    contactName: "Lena Kowalski",
+    lastMessage: { id: "m7", type: "text", content: "The sunset photos from your hike are stunning", createdAt: new Date(Date.now() - 8 * 3600000).toISOString(), direction: "sent" },
+  },
+  {
+    contactId: "mock_8",
+    contactName: "David Park",
+    lastMessage: { id: "m8", type: "voice", content: null, createdAt: new Date(Date.now() - 12 * 3600000).toISOString(), direction: "received" },
+  },
+  {
+    contactId: "mock_9",
+    contactName: "Amara Okafor",
+    lastMessage: { id: "m9", type: "text", content: "Happy birthday! Hope you have an amazing day", createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), direction: "sent" },
+  },
+  {
+    contactId: "mock_10",
+    contactName: "Kai Nakamura",
+    lastMessage: { id: "m10", type: "text", content: "That new coffee spot on 5th is a must-try", createdAt: new Date(Date.now() - 2 * 24 * 3600000).toISOString(), direction: "received" },
+  },
+];
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -189,7 +246,10 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
     !!user,
   );
 
-  const filtered = conversations.filter((c) =>
+  // Use real conversations if available, otherwise show mock data
+  const displayConversations = conversations.length > 0 ? conversations : MOCK_CONVERSATIONS;
+
+  const filtered = displayConversations.filter((c) =>
     c.contactName.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -251,12 +311,8 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-4">
               <Search size={32} className="text-slate-300" />
             </div>
-            <p className="text-slate-400 text-sm">
-              {conversations.length === 0 ? "No messages yet" : "No results found"}
-            </p>
-            <p className="text-slate-300 text-xs mt-1">
-              {conversations.length === 0 ? "Search for users and start a conversation" : "Try a different search term"}
-            </p>
+            <p className="text-slate-400 text-sm">No results found</p>
+            <p className="text-slate-300 text-xs mt-1">Try a different search term</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -319,78 +375,80 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setSelectedAd(null)}
           >
             <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg bg-white rounded-t-3xl p-6 pb-10"
+              className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl max-h-[85vh] flex flex-col"
             >
-              {/* Drag handle */}
-              <div className="w-8 h-1 rounded-full bg-slate-200 mx-auto mb-4" />
-
               {/* Hero banner */}
-              <div className={`relative w-full h-44 rounded-2xl bg-gradient-to-br ${selectedAd.color} flex flex-col items-center justify-center mb-5 overflow-hidden`}>
+              <div className={`relative w-full h-40 bg-gradient-to-br ${selectedAd.color} flex flex-col items-center justify-center shrink-0 overflow-hidden`}>
                 {/* Background decoration */}
                 <div className="absolute inset-0 opacity-10">
                   <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full border-[3px] border-white" />
                   <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-[3px] border-white" />
                 </div>
                 {/* Close button */}
-                <button onClick={() => setSelectedAd(null)} className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/20 flex items-center justify-center">
-                  <X size={14} className="text-white" />
+                <button onClick={() => setSelectedAd(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/20 flex items-center justify-center">
+                  <X size={16} className="text-white" />
                 </button>
-                <span className="text-4xl mb-2">{selectedAd.emoji}</span>
-                <selectedAd.icon size={28} className="text-white/90 mb-1" />
+                <span className="text-4xl mb-1">{selectedAd.emoji}</span>
+                <selectedAd.icon size={24} className="text-white/90 mb-1" />
                 <p className="text-white text-lg font-bold">{selectedAd.title}</p>
                 <p className="text-white/70 text-[11px]">{selectedAd.tagline}</p>
               </div>
 
-              {/* Brand + rating row */}
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">{selectedAd.brand}</h3>
-                  <p className="text-[11px] text-slate-400">Sponsored</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <Star size={13} className="text-amber-400 fill-amber-400" />
-                    <span className="text-sm font-semibold text-slate-700">{selectedAd.stats.rating}</span>
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {/* Brand + rating row */}
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">{selectedAd.brand}</h3>
+                    <p className="text-[11px] text-slate-400">Sponsored</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-slate-700">{selectedAd.stats.users}</p>
-                    <p className="text-[10px] text-slate-400">{selectedAd.stats.label}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Description */}
-              <p className="text-sm text-slate-600 leading-relaxed mb-4">{selectedAd.description}</p>
-
-              {/* Highlights */}
-              <div className="space-y-2 mb-6">
-                {selectedAd.highlights.map((h, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <div className={`w-5 h-5 rounded-md bg-gradient-to-br ${selectedAd.color} flex items-center justify-center shrink-0`}>
-                      <Zap size={10} className="text-white" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Star size={13} className="text-amber-400 fill-amber-400" />
+                      <span className="text-sm font-semibold text-slate-700">{selectedAd.stats.rating}</span>
                     </div>
-                    <span className="text-[13px] text-slate-700">{h}</span>
+                    <div className="text-right">
+                      <p className="text-xs font-semibold text-slate-700">{selectedAd.stats.users}</p>
+                      <p className="text-[10px] text-slate-400">{selectedAd.stats.label}</p>
+                    </div>
                   </div>
-                ))}
+                </div>
+
+                {/* Description */}
+                <p className="text-sm text-slate-600 leading-relaxed mb-4">{selectedAd.description}</p>
+
+                {/* Highlights */}
+                <div className="space-y-2.5 mb-5">
+                  {selectedAd.highlights.map((h, i) => (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <div className={`w-5 h-5 rounded-md bg-gradient-to-br ${selectedAd.color} flex items-center justify-center shrink-0`}>
+                        <Zap size={10} className="text-white" />
+                      </div>
+                      <span className="text-[13px] text-slate-700">{h}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* CTA button */}
-              <button
-                onClick={() => setSelectedAd(null)}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r ${selectedAd.color} text-white text-sm font-semibold shadow-lg`}
-              >
-                {selectedAd.cta}
-                <ExternalLink size={14} />
-              </button>
+              {/* CTA button — fixed at bottom */}
+              <div className="p-5 pt-0 shrink-0">
+                <button
+                  onClick={() => setSelectedAd(null)}
+                  className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r ${selectedAd.color} text-white text-sm font-semibold shadow-lg`}
+                >
+                  {selectedAd.cta}
+                  <ExternalLink size={14} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
