@@ -40,7 +40,36 @@ interface Conversation {
   };
 }
 
-const mockAds = [
+// Dynamic AI-curated ad categories — CopyMe Agent refreshes daily
+interface AdItem {
+  id: string;
+  title: string;
+  brand: string;
+  color: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  emoji: string;
+  tagline: string;
+  description: string;
+  highlights: string[];
+  stats: { rating: number; users: string; label: string };
+  cta: string;
+  category: string;
+  aiReason: string; // Why CopyMe Agent recommends this
+  trending: boolean;
+  expiresLabel: string; // "Refreshes in 6h", "Updated 2h ago"
+  relatedAds?: string[]; // IDs of related ads
+}
+
+const AD_CATEGORIES = [
+  { id: "for-you", label: "For You", emoji: "✨" },
+  { id: "trending", label: "Trending", emoji: "🔥" },
+  { id: "learning", label: "Learning", emoji: "📚" },
+  { id: "lifestyle", label: "Lifestyle", emoji: "🌿" },
+  { id: "career", label: "Career", emoji: "🚀" },
+  { id: "entertainment", label: "Fun", emoji: "🎭" },
+];
+
+const allAds: AdItem[] = [
   {
     id: "ad1",
     title: "Learn AI Today",
@@ -53,6 +82,11 @@ const mockAds = [
     highlights: ["12-week certification program", "Hands-on projects with real data", "1-on-1 mentorship included"],
     stats: { rating: 4.9, users: "52K", label: "students" },
     cta: "Start Learning",
+    category: "learning",
+    aiReason: "Based on your interest in technology and AI conversations",
+    trending: true,
+    expiresLabel: "Updated 2h ago",
+    relatedAds: ["ad3", "ad6"],
   },
   {
     id: "ad2",
@@ -66,6 +100,10 @@ const mockAds = [
     highlights: ["Flights from $49 one-way", "Free cancellation up to 24hrs", "Members-only flash sales"],
     stats: { rating: 4.7, users: "1.2M", label: "trips booked" },
     cta: "Browse Deals",
+    category: "lifestyle",
+    aiReason: "3 of your contacts recently shared travel plans",
+    trending: false,
+    expiresLabel: "Refreshes in 4h",
   },
   {
     id: "ad3",
@@ -79,6 +117,11 @@ const mockAds = [
     highlights: ["Free 2-day shipping", "30-day easy returns", "Exclusive early access drops"],
     stats: { rating: 4.8, users: "890K", label: "happy customers" },
     cta: "Shop Now",
+    category: "trending",
+    aiReason: "Trending among tech-savvy users in your network",
+    trending: true,
+    expiresLabel: "Updated 1h ago",
+    relatedAds: ["ad1"],
   },
   {
     id: "ad4",
@@ -92,6 +135,11 @@ const mockAds = [
     highlights: ["AI-personalized daily plans", "500+ guided video workouts", "Meal planner with macros"],
     stats: { rating: 4.8, users: "3.1M", label: "active users" },
     cta: "Try 7 Days Free",
+    category: "lifestyle",
+    aiReason: "Matches your health & wellness interests",
+    trending: true,
+    expiresLabel: "Refreshes in 6h",
+    relatedAds: ["ad5"],
   },
   {
     id: "ad5",
@@ -105,6 +153,10 @@ const mockAds = [
     highlights: ["10,000+ tested recipes", "Video tutorials for each step", "Smart grocery lists"],
     stats: { rating: 4.9, users: "720K", label: "home chefs" },
     cta: "Explore Recipes",
+    category: "lifestyle",
+    aiReason: "Popular with cooking enthusiasts in your area",
+    trending: false,
+    expiresLabel: "Updated 5h ago",
   },
   {
     id: "ad6",
@@ -118,6 +170,11 @@ const mockAds = [
     highlights: ["AI-powered job matching", "Salary transparency on all posts", "One-click easy apply"],
     stats: { rating: 4.6, users: "2.5M", label: "jobs posted" },
     cta: "View Jobs",
+    category: "career",
+    aiReason: "Your profile matches 12 new openings today",
+    trending: true,
+    expiresLabel: "Updated 30m ago",
+    relatedAds: ["ad1"],
   },
   {
     id: "ad7",
@@ -131,6 +188,10 @@ const mockAds = [
     highlights: ["Early access presale tickets", "VIP meet & greet packages", "Cashback on first order"],
     stats: { rating: 4.7, users: "1.8M", label: "fans" },
     cta: "Get Tickets",
+    category: "entertainment",
+    aiReason: "Based on music interests shared in your chats",
+    trending: false,
+    expiresLabel: "Refreshes in 8h",
   },
 ];
 
@@ -150,7 +211,9 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const { user, authFetch } = useAuth();
   const [search, setSearch] = useState("");
   const [showSmartMatch, setShowSmartMatch] = useState(false);
-  const [selectedAd, setSelectedAd] = useState<typeof mockAds[number] | null>(null);
+  const [selectedAd, setSelectedAd] = useState<AdItem | null>(null);
+  const [adCategory, setAdCategory] = useState("for-you");
+  const [showAdMarketplace, setShowAdMarketplace] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -211,15 +274,26 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
         </div>
       </div>
 
-      {/* AD Inbox */}
+      {/* AD Inbox — AI-Curated Daily */}
       <div className="px-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-500">AD Inbox</h2>
-          <span className="text-xs text-purple-400">See All</span>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-500">AD Inbox</h2>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 text-[9px] font-semibold text-purple-600">
+              <Sparkles size={9} />
+              AI Curated
+            </span>
+          </div>
+          <button
+            onClick={() => setShowAdMarketplace(true)}
+            className="text-xs text-purple-400 font-medium"
+          >
+            Explore All
+          </button>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4">
-          {mockAds.map((ad, i) => {
-            const isNew = i < 3;
+          {allAds.map((ad, i) => {
+            const isNew = ad.trending;
             const hasActivity = i < 5;
             return (
             <motion.button
@@ -243,13 +317,13 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                   <p className="text-[8px] text-white/90 font-semibold leading-tight text-center">{ad.title}</p>
                 </div>
               </div>
-              {/* NEW badge */}
+              {/* Trending badge */}
               {isNew && (
                 <span className="absolute -top-1.5 -right-1.5 z-20 px-1.5 py-0.5 rounded-full bg-rose-500 text-[7px] font-bold text-white shadow-sm shadow-rose-500/40 animate-bounce">
                   NEW
                 </span>
               )}
-              {/* Unread dot */}
+              {/* Activity dot */}
               {!isNew && hasActivity && (
                 <span className="absolute -top-0.5 -right-0.5 z-20 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white shadow-sm" />
               )}
@@ -335,7 +409,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
         <Plus size={24} className="text-white" />
       </motion.button>
 
-      {/* Ad Detail Modal */}
+      {/* Ad Detail Modal — AI-Enhanced */}
       <AnimatePresence>
         {selectedAd && (
           <motion.div
@@ -355,15 +429,20 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             >
               {/* Hero banner */}
               <div className={`relative w-full h-40 bg-gradient-to-br ${selectedAd.color} flex flex-col items-center justify-center shrink-0 overflow-hidden`}>
-                {/* Background decoration */}
                 <div className="absolute inset-0 opacity-10">
                   <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full border-[3px] border-white" />
                   <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-[3px] border-white" />
                 </div>
-                {/* Close button */}
                 <button onClick={() => setSelectedAd(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/20 flex items-center justify-center">
                   <X size={16} className="text-white" />
                 </button>
+                {/* Trending badge */}
+                {selectedAd.trending && (
+                  <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">
+                    <Zap size={10} className="text-yellow-300" />
+                    <span className="text-[9px] font-bold text-white">TRENDING</span>
+                  </div>
+                )}
                 <span className="text-4xl mb-1">{selectedAd.emoji}</span>
                 <selectedAd.icon size={24} className="text-white/90 mb-1" />
                 <p className="text-white text-lg font-bold">{selectedAd.title}</p>
@@ -372,11 +451,24 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
 
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto p-5">
+                {/* AI recommendation reason */}
+                <div className="flex items-start gap-2 p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 mb-4">
+                  <Sparkles size={14} className="text-purple-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-0.5">Why CopyMe Agent picked this</p>
+                    <p className="text-xs text-purple-700/80 leading-relaxed">{selectedAd.aiReason}</p>
+                  </div>
+                </div>
+
                 {/* Brand + rating row */}
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">{selectedAd.brand}</h3>
-                    <p className="text-[11px] text-slate-400">Sponsored</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-slate-400">Sponsored</span>
+                      <span className="text-[10px] text-slate-300">·</span>
+                      <span className="text-[10px] text-purple-400">{selectedAd.expiresLabel}</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1">
@@ -404,9 +496,35 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                     </div>
                   ))}
                 </div>
+
+                {/* Related recommendations */}
+                {selectedAd.relatedAds && selectedAd.relatedAds.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">You might also like</p>
+                    <div className="flex gap-2">
+                      {selectedAd.relatedAds.map((relId) => {
+                        const related = allAds.find((a) => a.id === relId);
+                        if (!related) return null;
+                        return (
+                          <button
+                            key={relId}
+                            onClick={() => setSelectedAd(related)}
+                            className={`flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-gradient-to-r ${related.color} bg-opacity-10 border border-slate-100 hover:border-purple-200 transition-colors`}
+                          >
+                            <span className="text-lg">{related.emoji}</span>
+                            <div className="text-left">
+                              <p className="text-[11px] font-semibold text-white">{related.title}</p>
+                              <p className="text-[9px] text-white/70">{related.brand}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* CTA button — fixed at bottom */}
+              {/* CTA button */}
               <div className="p-5 pt-0 shrink-0">
                 <button
                   onClick={() => setSelectedAd(null)}
@@ -417,6 +535,98 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ad Marketplace — Full Screen */}
+      <AnimatePresence>
+        {showAdMarketplace && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-white z-50 flex flex-col"
+          >
+            {/* Marketplace header */}
+            <div className="px-4 pt-12 pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900">Ad Marketplace</h1>
+                  <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                    <Sparkles size={10} className="text-purple-400" />
+                    Curated daily by CopyMe Agent
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAdMarketplace(false)}
+                  className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"
+                >
+                  <X size={18} className="text-slate-500" />
+                </button>
+              </div>
+
+              {/* Category tabs */}
+              <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 pb-1">
+                {AD_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setAdCategory(cat.id)}
+                    className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all ${
+                      adCategory === cat.id
+                        ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-sm shadow-purple-500/20"
+                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>{cat.emoji}</span>
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Marketplace grid */}
+            <div className="flex-1 overflow-y-auto p-4 pb-20">
+              <div className="grid grid-cols-2 gap-3">
+                {allAds
+                  .filter((ad) => adCategory === "for-you" || ad.category === adCategory || (adCategory === "trending" && ad.trending))
+                  .map((ad, i) => (
+                    <motion.button
+                      key={ad.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      onClick={() => { setSelectedAd(ad); setShowAdMarketplace(false); }}
+                      className="relative text-left rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:border-purple-200 transition-all hover:shadow-md"
+                    >
+                      {/* Card hero */}
+                      <div className={`w-full h-24 bg-gradient-to-br ${ad.color} flex flex-col items-center justify-center relative overflow-hidden`}>
+                        <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+                        {ad.trending && (
+                          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-white/20 text-[8px] font-bold text-white flex items-center gap-0.5">
+                            <Zap size={7} />HOT
+                          </span>
+                        )}
+                        <span className="text-2xl mb-0.5">{ad.emoji}</span>
+                        <ad.icon size={14} className="text-white/80" />
+                      </div>
+                      {/* Card body */}
+                      <div className="p-3">
+                        <p className="text-xs font-bold text-slate-800 mb-0.5">{ad.title}</p>
+                        <p className="text-[10px] text-slate-400 mb-1.5">{ad.brand}</p>
+                        <div className="flex items-center gap-1">
+                          <Star size={9} className="text-amber-400 fill-amber-400" />
+                          <span className="text-[10px] font-semibold text-slate-600">{ad.stats.rating}</span>
+                          <span className="text-[9px] text-slate-300 ml-1">{ad.stats.users} {ad.stats.label}</span>
+                        </div>
+                        <p className="text-[9px] text-purple-400 mt-1.5 flex items-center gap-0.5">
+                          <Sparkles size={8} />{ad.expiresLabel}
+                        </p>
+                      </div>
+                    </motion.button>
+                  ))}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

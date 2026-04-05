@@ -158,7 +158,18 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
               onClick={() => isMockContact && setShowProfile(true)}
               className="flex items-center gap-3"
             >
-              <Avatar name={displayName} size="md" online showStatus />
+              {isMockContact && MOCK_PROFILES[chatId]?.avatarUrl ? (
+                <div className="relative">
+                  <img
+                    src={MOCK_PROFILES[chatId].avatarUrl}
+                    alt={displayName}
+                    className="w-10 h-10 rounded-full object-cover bg-slate-100"
+                  />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
+                </div>
+              ) : (
+                <Avatar name={displayName} size="md" online showStatus />
+              )}
               <div className="text-left">
                 <p className="text-sm font-semibold text-slate-900">{displayName}</p>
                 <p className="text-[11px] text-emerald-500">

@@ -93,7 +93,15 @@ export default function ContactProfileSheet({
         <div className="relative -mt-10 px-6 mb-3">
           <div className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg">
             <div className="w-full h-full rounded-xl overflow-hidden">
-              <Avatar name={profile.displayName} size="xl" />
+              {profile.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={profile.displayName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Avatar name={profile.displayName} size="xl" />
+              )}
             </div>
           </div>
         </div>
