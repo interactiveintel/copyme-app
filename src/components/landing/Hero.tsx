@@ -94,10 +94,12 @@ export default function Hero() {
               </a>
               <button
                 onClick={() => setShowDemo(true)}
-                className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-slate-700 border border-slate-200 bg-white transition-all hover:bg-slate-50 shadow-sm"
+                className="group inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-slate-700 border border-slate-200 bg-white transition-all hover:bg-slate-50 hover:border-purple-200 shadow-sm"
               >
-                <Play size={18} className="text-accent-pink" />
-                Watch Demo
+                <span className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center shadow-sm shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
+                  <Play size={12} className="text-white ml-0.5" />
+                </span>
+                Watch the Demo
               </button>
               <DownloadButton variant="hero" />
             </motion.div>
