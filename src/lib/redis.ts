@@ -141,3 +141,34 @@ export async function rateLimit(
 
   return { allowed: true };
 }
+
+// ---------------------------------------------------------------------------
+// AI agent rate limiting (stricter — 10 requests per minute)
+// ---------------------------------------------------------------------------
+
+const AI_RATE_LIMIT = 10;
+
+function aiRateLimitKey(userId: string): string {
+  return `ai_ratelimit:${userId}`;
+}
+
+/**
+ * Rate-limit AI agent calls: max 10 per minute per user.
+ */
+export async function aiRateLimit(
+  userId: string,
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const key = aiRateLimitKey(userId);
+  const current = await redis.incr(key);
+
+  if (current === 1) {
+    await redis.expire(key, 60);
+  }
+
+  if (current > AI_RATE_LIMIT) {
+    const ttl = await redis.ttl(key);
+    return { allowed: false, retryAfterSeconds: ttl > 0 ? ttl : 60 };
+  }
+
+  return { allowed: true };
+}

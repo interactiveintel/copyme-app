@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
+import { aiRateLimit } from "@/lib/redis";
 import { AgentEngine } from "@/lib/agents/engine";
 import { createSmartMatchConfig } from "@/lib/agents/smart-match";
 import type { AgentMessage } from "@/lib/agents/types";
@@ -22,6 +23,19 @@ export async function POST(request: NextRequest) {
       { success: false, error: { code: "UNAUTHORIZED", message: "Valid access token required" } },
       { status: 401 },
     );
+  }
+
+  // AI rate limiting
+  try {
+    const rl = await aiRateLimit(auth.userId);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: { code: "RATE_LIMITED", message: `AI rate limit exceeded. Retry in ${rl.retryAfterSeconds}s` } },
+        { status: 429 },
+      );
+    }
+  } catch {
+    // Redis unavailable — allow request
   }
 
   try {

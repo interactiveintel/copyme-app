@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { aiRateLimit } from "@/lib/redis";
 import { AgentEngine } from "@/lib/agents/engine";
 import { createModerationConfig } from "@/lib/agents/moderation-agent";
 import type { AgentMessage } from "@/lib/agents/types";
@@ -22,6 +23,22 @@ interface ModerateBody {
 }
 
 export async function POST(request: NextRequest) {
+  // AI rate limiting (use x-user-id header from middleware for internal calls)
+  const callerId = request.headers.get("x-user-id");
+  if (callerId) {
+    try {
+      const rl = await aiRateLimit(callerId);
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { success: false, error: { code: "RATE_LIMITED", message: `AI rate limit exceeded. Retry in ${rl.retryAfterSeconds}s` } },
+          { status: 429 },
+        );
+      }
+    } catch {
+      // Redis unavailable — allow request
+    }
+  }
+
   try {
     const body = (await request.json()) as ModerateBody;
 

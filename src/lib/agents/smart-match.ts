@@ -3,9 +3,10 @@
 // ---------------------------------------------------------------------------
 
 import type { AgentConfig, AgentTool } from "./types";
+import prisma from "@/lib/db";
 
 // ---------------------------------------------------------------------------
-// Mock data — realistic user profiles for demo
+// Mock data — fallback user profiles when DB is empty
 // ---------------------------------------------------------------------------
 
 const MOCK_USERS = [
@@ -124,10 +125,53 @@ const searchUsersTool: AgentTool = {
   },
   execute: async (params) => {
     const query = (params.query as string) ?? "";
-    const interests = (params.interests as string[]) ?? [];
-    const location = (params.location as string) ?? "";
     const limit = Math.min((params.limit as number) ?? 7, 7);
 
+    // Try real database first
+    try {
+      const dbUsers = await prisma.user.findMany({
+        where: {
+          OR: [
+            { displayName: { contains: query, mode: "insensitive" } },
+            { interests: { some: { interestText: { contains: query, mode: "insensitive" } } } },
+            { location: { OR: [
+              { globalArea: { contains: query, mode: "insensitive" } },
+              { region: { contains: query, mode: "insensitive" } },
+            ] } },
+          ],
+        },
+        take: limit,
+        select: {
+          id: true,
+          displayName: true,
+          profileType: true,
+          interests: { select: { interestText: true }, orderBy: { slotNumber: "asc" } },
+          location: { select: { globalArea: true, region: true, cityZip: true } },
+        },
+      });
+
+      if (dbUsers.length > 0) {
+        return {
+          results: dbUsers.map((u, i) => ({
+            id: u.id,
+            displayName: u.displayName,
+            interests: u.interests.map((x) => x.interestText),
+            location: u.location ?? { globalArea: null, region: null, cityZip: null },
+            profileType: u.profileType,
+            score: 80 - i * 10,
+          })),
+          total: dbUsers.length,
+          query,
+          source: "database",
+        };
+      }
+    } catch {
+      // DB unavailable — fall through to mock
+    }
+
+    // Fallback to mock data
+    const interests = (params.interests as string[]) ?? [];
+    const location = (params.location as string) ?? "";
     const scored = MOCK_USERS.map((user) => ({
       ...user,
       score: scoreUserMatch(user, query, interests, location),
@@ -136,7 +180,6 @@ const searchUsersTool: AgentTool = {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
 
-    // If no results, return top 3 as suggestions
     if (scored.length === 0) {
       const suggestions = MOCK_USERS.slice(0, 3).map((u) => ({
         id: u.id,
@@ -146,7 +189,7 @@ const searchUsersTool: AgentTool = {
         score: 25,
         reason: "Suggested based on popularity",
       }));
-      return { results: suggestions, total: suggestions.length, query, noExactMatch: true };
+      return { results: suggestions, total: suggestions.length, query, noExactMatch: true, source: "mock" };
     }
 
     return {
@@ -161,6 +204,7 @@ const searchUsersTool: AgentTool = {
       })),
       total: scored.length,
       query,
+      source: "mock",
     };
   },
 };
@@ -274,6 +318,46 @@ const findNearbyTool: AgentTool = {
   execute: async (params) => {
     const location = ((params.location as string) ?? (params.query as string) ?? "").toLowerCase();
 
+    // Try real database first
+    try {
+      const dbUsers = await prisma.user.findMany({
+        where: {
+          location: {
+            OR: [
+              { globalArea: { contains: location, mode: "insensitive" } },
+              { region: { contains: location, mode: "insensitive" } },
+              { cityZip: { contains: location, mode: "insensitive" } },
+            ],
+          },
+        },
+        take: 7,
+        select: {
+          id: true,
+          displayName: true,
+          interests: { select: { interestText: true }, orderBy: { slotNumber: "asc" }, take: 3 },
+          location: { select: { globalArea: true, region: true, cityZip: true } },
+        },
+      });
+
+      if (dbUsers.length > 0) {
+        return {
+          nearby: dbUsers.map((u) => ({
+            id: u.id,
+            displayName: u.displayName,
+            interests: u.interests.map((x) => x.interestText),
+            location: u.location ?? { globalArea: null, region: null, cityZip: null },
+            distance: u.location?.cityZip?.toLowerCase().includes(location) ? "same city" : "same region",
+          })),
+          total: dbUsers.length,
+          searchedLocation: location,
+          source: "database",
+        };
+      }
+    } catch {
+      // DB unavailable — fall through to mock
+    }
+
+    // Fallback to mock data
     const nearby = MOCK_USERS.filter((u) => {
       const locFields = [u.location.globalArea, u.location.region, u.location.cityZip];
       return locFields.some((f) => f.toLowerCase().includes(location));
@@ -286,7 +370,6 @@ const findNearbyTool: AgentTool = {
     }));
 
     if (nearby.length === 0) {
-      // Return some users from the broadest matching region
       const globalMatches = MOCK_USERS.slice(0, 3).map((u) => ({
         id: u.id,
         displayName: u.displayName,
@@ -294,10 +377,10 @@ const findNearbyTool: AgentTool = {
         location: u.location,
         distance: "global",
       }));
-      return { nearby: globalMatches, total: globalMatches.length, searchedLocation: location, expanded: true };
+      return { nearby: globalMatches, total: globalMatches.length, searchedLocation: location, expanded: true, source: "mock" };
     }
 
-    return { nearby, total: nearby.length, searchedLocation: location };
+    return { nearby, total: nearby.length, searchedLocation: location, source: "mock" };
   },
 };
 
