@@ -18,6 +18,8 @@ import {
   SkipBack,
   Volume2,
   VolumeX,
+  Mic,
+  ChevronDown,
 } from "lucide-react";
 
 interface DemoModalProps {
@@ -301,17 +303,63 @@ function useTypewriter(lines: string[], active: boolean, speed = 30) {
 // Voice narration hook — uses Web Speech API (SpeechSynthesis)
 // ---------------------------------------------------------------------------
 
+// Curated voice presets — soft female English voices preferred
+const VOICE_PRESETS = [
+  { id: "auto", label: "Soft Female (Default)", keywords: ["samantha", "karen", "victoria", "google uk english female", "microsoft zira", "female"] },
+  { id: "male", label: "Deep Male", keywords: ["daniel", "alex", "google uk english male", "microsoft david", "male"] },
+  { id: "british", label: "British Female", keywords: ["kate", "serena", "google uk english female", "martha"] },
+  { id: "warm", label: "Warm & Friendly", keywords: ["samantha", "tessa", "moira", "google us english"] },
+] as const;
+
+type VoicePresetId = typeof VOICE_PRESETS[number]["id"] | "custom";
+
+function resolveVoice(presetId: VoicePresetId, customVoiceName?: string): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !window.speechSynthesis) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) return null;
+
+  if (presetId === "custom" && customVoiceName) {
+    return voices.find((v) => v.name === customVoiceName) ?? null;
+  }
+
+  const preset = VOICE_PRESETS.find((p) => p.id === presetId) ?? VOICE_PRESETS[0];
+  for (const kw of preset.keywords) {
+    const match = voices.find(
+      (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes(kw),
+    );
+    if (match) return match;
+  }
+  // Fallback: any English voice
+  return voices.find((v) => v.lang.startsWith("en")) ?? null;
+}
+
+function useAvailableVoices() {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const load = () => {
+      const v = window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+      setVoices(v);
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
+  return voices;
+}
+
 function useVoiceNarration(
   lines: string[],
   active: boolean,
   enabled: boolean,
+  voicePreset: VoicePresetId,
+  customVoiceName?: string,
 ) {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const lineIndexRef = useRef(0);
   const unlockedRef = useRef(false);
 
   // Unlock speech synthesis on first user interaction (click/touch)
-  // Browsers require a user gesture before speechSynthesis.speak() works.
   useEffect(() => {
     if (unlockedRef.current || typeof window === "undefined" || !window.speechSynthesis) return;
 
@@ -343,25 +391,18 @@ function useVoiceNarration(
       return;
     }
 
-    // Cancel any ongoing speech when lines change
     window.speechSynthesis.cancel();
     lineIndexRef.current = 0;
 
     function speakLine(idx: number) {
       if (idx >= lines.length) return;
       const utterance = new SpeechSynthesisUtterance(lines[idx]);
-      utterance.rate = 0.95;
-      utterance.pitch = 1;
+      utterance.rate = 0.92;
+      utterance.pitch = 1.05;
       utterance.lang = "en-US";
 
-      // Try to pick a natural English voice
-      const voices = window.speechSynthesis.getVoices();
-      const englishVoice = voices.find(
-        (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("samantha"),
-      ) ?? voices.find(
-        (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("natural"),
-      ) ?? voices.find((v) => v.lang.startsWith("en"));
-      if (englishVoice) utterance.voice = englishVoice;
+      const voice = resolveVoice(voicePreset, customVoiceName);
+      if (voice) utterance.voice = voice;
 
       utterance.onend = () => {
         lineIndexRef.current = idx + 1;
@@ -372,7 +413,7 @@ function useVoiceNarration(
       window.speechSynthesis.speak(utterance);
     }
 
-    // Chrome has a bug where speech pauses after ~15s — keep-alive workaround
+    // Chrome 15s pause keepalive
     const keepAlive = setInterval(() => {
       if (window.speechSynthesis.speaking) {
         window.speechSynthesis.pause();
@@ -380,7 +421,6 @@ function useVoiceNarration(
       }
     }, 10000);
 
-    // Voices may load asynchronously
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
       speakLine(0);
@@ -396,7 +436,7 @@ function useVoiceNarration(
       clearInterval(keepAlive);
       window.speechSynthesis.cancel();
     };
-  }, [lines, active, enabled]);
+  }, [lines, active, enabled, voicePreset, customVoiceName]);
 }
 
 // ---------------------------------------------------------------------------
@@ -408,7 +448,15 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   const [playing, setPlaying] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voicePreset, setVoicePreset] = useState<VoicePresetId>("auto");
+  const [customVoiceName, setCustomVoiceName] = useState<string>();
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [voiceSample, setVoiceSample] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  const availableVoices = useAvailableVoices();
 
   const scene = scenes[current];
   const progress = ((current + elapsed / SCENE_DURATION) / scenes.length) * 100;
@@ -416,7 +464,39 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   const narrationLines = useTypewriter(scene.narration, open && true, 25);
 
   // TTS narration
-  useVoiceNarration(scene.narration, open, voiceEnabled);
+  useVoiceNarration(scene.narration, open, voiceEnabled, voicePreset, customVoiceName);
+
+  // Record voice sample for "My Voice" feature
+  const startVoiceRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        setVoiceSample(url);
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecordingVoice(false);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecordingVoice(true);
+      // Auto-stop after 5 seconds
+      setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, 5000);
+    } catch {
+      setIsRecordingVoice(false);
+    }
+  }, []);
+
+  const stopVoiceRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
 
   // Timer tick — drives progress bar and auto-advance
   useEffect(() => {
@@ -631,18 +711,116 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
                     ))}
                   </div>
 
-                  {/* Voice narration toggle */}
-                  <button
-                    onClick={() => setVoiceEnabled((v) => !v)}
-                    className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors ml-2 border border-white/20"
-                    title={voiceEnabled ? "Mute narration" : "Unmute narration"}
-                  >
-                    {voiceEnabled ? (
-                      <Volume2 size={18} className="text-white" />
-                    ) : (
-                      <VolumeX size={18} className="text-white/50" />
-                    )}
-                  </button>
+                  {/* Voice controls */}
+                  <div className="relative ml-2 flex items-center gap-1.5">
+                    {/* Mute / unmute */}
+                    <button
+                      onClick={() => setVoiceEnabled((v) => !v)}
+                      className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors border border-white/20"
+                      title={voiceEnabled ? "Mute narration" : "Unmute narration"}
+                    >
+                      {voiceEnabled ? (
+                        <Volume2 size={16} className="text-white" />
+                      ) : (
+                        <VolumeX size={16} className="text-white/50" />
+                      )}
+                    </button>
+
+                    {/* Voice picker toggle */}
+                    <button
+                      onClick={() => setShowVoicePicker((v) => !v)}
+                      className="h-10 px-3 rounded-full bg-white/15 hover:bg-white/25 flex items-center gap-1.5 transition-colors border border-white/20 text-xs text-white/80"
+                      title="Change voice"
+                    >
+                      <Mic size={13} />
+                      <span className="hidden sm:inline">Voice</span>
+                      <ChevronDown size={12} className={`transition-transform ${showVoicePicker ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Voice picker dropdown */}
+                    <AnimatePresence>
+                      {showVoicePicker && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute bottom-14 right-0 w-72 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-3 z-50"
+                        >
+                          <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold mb-2 px-1">Voice Style</p>
+
+                          {/* Preset voices */}
+                          <div className="space-y-1 mb-3">
+                            {VOICE_PRESETS.map((preset) => (
+                              <button
+                                key={preset.id}
+                                onClick={() => { setVoicePreset(preset.id); setVoiceEnabled(true); }}
+                                className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all flex items-center justify-between ${
+                                  voicePreset === preset.id && voicePreset !== "custom"
+                                    ? "bg-purple-500/30 text-white border border-purple-400/30"
+                                    : "text-white/70 hover:bg-white/10"
+                                }`}
+                              >
+                                <span>{preset.label}</span>
+                                {voicePreset === preset.id && voicePreset !== "custom" && (
+                                  <span className="w-2 h-2 rounded-full bg-purple-400" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* System voices */}
+                          {availableVoices.length > 0 && (
+                            <>
+                              <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold mb-2 px-1">System Voices</p>
+                              <div className="max-h-32 overflow-y-auto space-y-0.5 mb-3 scrollbar-thin">
+                                {availableVoices.map((v) => (
+                                  <button
+                                    key={v.name}
+                                    onClick={() => { setVoicePreset("custom"); setCustomVoiceName(v.name); setVoiceEnabled(true); }}
+                                    className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all truncate ${
+                                      voicePreset === "custom" && customVoiceName === v.name
+                                        ? "bg-purple-500/30 text-white"
+                                        : "text-white/50 hover:bg-white/10 hover:text-white/80"
+                                    }`}
+                                  >
+                                    {v.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+
+                          {/* Record my voice */}
+                          <div className="border-t border-white/10 pt-3">
+                            <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold mb-2 px-1">Clone My Voice</p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                                  isRecordingVoice
+                                    ? "bg-red-500/30 text-red-300 border border-red-400/30 animate-pulse"
+                                    : "bg-white/10 text-white/80 hover:bg-white/15 border border-white/10"
+                                }`}
+                              >
+                                <Mic size={14} />
+                                {isRecordingVoice ? "Recording... Tap to stop" : "Record Voice Sample"}
+                              </button>
+                            </div>
+                            {voiceSample && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <audio src={voiceSample} controls className="h-8 flex-1 opacity-70" />
+                                <span className="text-[10px] text-white/40">Sample saved</span>
+                              </div>
+                            )}
+                            <p className="text-[10px] text-white/30 mt-2 px-1 leading-relaxed">
+                              Voice cloning uses your sample to personalize AI responses. Full cloning available in the app.
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
                   {/* Time display */}
                   <span className="ml-auto text-[11px] font-mono text-white/40">
