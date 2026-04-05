@@ -7,6 +7,7 @@ import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import WordCounter from "../ui/WordCounter";
 import OnboardingAI from "./OnboardingAI";
+import { useAuth } from "@/lib/auth-context";
 
 interface OnboardingScreenProps {
   onComplete: () => void;
@@ -28,7 +29,9 @@ const countryCodes = [
 const descCategories = ["Education", "Business", "Religion", "Other"];
 
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+  const { authFetch } = useAuth();
   const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   // Step 1: Location
   const [globalArea, setGlobalArea] = useState("");
@@ -386,8 +389,39 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               Next <ChevronRight size={18} />
             </GradientButton>
           ) : (
-            <GradientButton onClick={onComplete}>
-              Get Started <ChevronRight size={18} />
+            <GradientButton
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  const filledInterests = interests
+                    .map((text, i) => ({ slotNumber: i + 1, interestText: text.trim() }))
+                    .filter((i) => i.interestText);
+
+                  await authFetch("/api/users/me", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      location: {
+                        globalArea: globalArea || undefined,
+                        countryPhoneCode: countryCode || undefined,
+                        region: region || undefined,
+                        cityZip: cityZip || undefined,
+                        localDescription: localDesc || undefined,
+                        locationVisible,
+                      },
+                      interests: filledInterests.length > 0 ? filledInterests : undefined,
+                    }),
+                  });
+                } catch {
+                  // save failed — continue anyway
+                } finally {
+                  setSaving(false);
+                  onComplete();
+                }
+              }}
+            >
+              {saving ? "Saving..." : "Get Started"} <ChevronRight size={18} />
             </GradientButton>
           )}
         </div>
