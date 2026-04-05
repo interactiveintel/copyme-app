@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -18,45 +18,102 @@ import {
 import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
 import ChatAIAssistant from "./ChatAIAssistant";
+import { useAuth } from "@/lib/auth-context";
 
 interface ChatScreenProps {
   chatId: string;
+  contactName?: string;
   onBack: () => void;
 }
 
-interface Message {
+interface ApiMessage {
   id: string;
-  text: string;
-  sent: boolean;
-  time: string;
-  read: boolean;
-  type: "text" | "image" | "voice";
-  duration?: number;
+  senderId: string;
+  receiverId: string;
+  type: "text" | "image" | "voice" | "video";
+  content: string | null;
+  mediaUrls: string[] | null;
+  durationSeconds: number | null;
+  createdAt: string;
+  sender?: { id: string; displayName: string };
+  receiver?: { id: string; displayName: string };
 }
 
-const mockMessages: Message[] = [
-  { id: "1", text: "Hey! How are you doing?", sent: false, time: "10:30 AM", read: true, type: "text" },
-  { id: "2", text: "Great! Just finished the new UI mockups for CopyMe. They look incredible!", sent: true, time: "10:31 AM", read: true, type: "text" },
-  { id: "3", text: "", sent: false, time: "10:32 AM", read: true, type: "image" },
-  { id: "4", text: "That gradient design is absolutely stunning! The glass morphism effect really pops", sent: false, time: "10:33 AM", read: true, type: "text" },
-  { id: "5", text: "", sent: true, time: "10:34 AM", read: true, type: "voice", duration: 12 },
-  { id: "6", text: "Let me review and share feedback by end of day. The team will love this direction!", sent: false, time: "10:35 AM", read: true, type: "text" },
-  { id: "7", text: "Sounds perfect! Excited for the launch", sent: true, time: "10:36 AM", read: false, type: "text" },
-];
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
-export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
+export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenProps) {
+  const { user, authFetch } = useAuth();
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [translateOn, setTranslateOn] = useState(false);
   const [showAIAssist, setShowAIAssist] = useState(false);
+  const [messages, setMessages] = useState<ApiMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const messagesEnd = useRef<HTMLDivElement>(null);
+
+  const displayName = contactName || "Chat";
+
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await authFetch(`/api/messages/inbox?contactId=${chatId}`);
+      if (res.ok) {
+        const data = await res.json();
+        // API returns newest first, reverse for display
+        setMessages((data.data ?? []).reverse());
+      }
+    } catch {
+      // network error
+    } finally {
+      setLoading(false);
+    }
+  }, [chatId, authFetch]);
+
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [messages]);
 
-  const contactName = "Amara Okafor";
-  const remainingMessages = 7 - mockMessages.filter((m) => m.sent).length;
+  const sentCount = messages.filter((m) => m.senderId === user?.id).length;
+  const remainingMessages = Math.max(0, 7 - sentCount);
+
+  const handleSend = async () => {
+    const text = message.trim();
+    if (!text || sending) return;
+
+    setSending(true);
+    try {
+      const res = await authFetch("/api/messages/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiverId: chatId,
+          type: "text",
+          content: text,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessages((prev) => [...prev, data.data]);
+        setMessage("");
+      } else {
+        const data = await res.json();
+        const msg = typeof data.error === "string" ? data.error : data.error?.message || "Failed to send";
+        alert(msg);
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -71,9 +128,9 @@ export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
             >
               <ArrowLeft size={18} className="text-slate-600" />
             </motion.button>
-            <Avatar name={contactName} size="md" online showStatus />
+            <Avatar name={displayName} size="md" online showStatus />
             <div>
-              <p className="text-sm font-semibold text-slate-900">{contactName}</p>
+              <p className="text-sm font-semibold text-slate-900">{displayName}</p>
               <p className="text-[11px] text-emerald-500">online</p>
             </div>
           </div>
@@ -81,8 +138,8 @@ export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
             <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
               <Video size={17} className="text-slate-500" />
             </motion.button>
-            <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
-              <Phone size={17} className="text-white/60" />
+            <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+              <Phone size={17} className="text-slate-500" />
             </motion.button>
           </div>
         </div>
@@ -94,82 +151,90 @@ export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
         <div className="flex justify-center mb-2">
           <span className="px-4 py-1.5 rounded-full bg-slate-50 text-[11px] text-slate-500 border border-slate-200">
             {remainingMessages > 0
-              ? `${remainingMessages} messages remaining today`
-              : "Daily message limit reached"}
+              ? `${remainingMessages} messages remaining`
+              : "Message limit reached — oldest will cycle out"}
           </span>
         </div>
 
-        {mockMessages.map((msg, i) => (
-          <motion.div
-            key={msg.id}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className={`flex ${msg.sent ? "justify-end" : "justify-start"}`}
-          >
-            <div className={`max-w-[80%] ${msg.sent ? "items-end" : "items-start"}`}>
-              {msg.type === "text" && (
-                <div
-                  className={`px-4 py-2.5 rounded-2xl ${
-                    msg.sent
-                      ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-br-md"
-                      : "bg-slate-100 rounded-bl-md"
-                  }`}
-                >
-                  <p className={`text-sm leading-relaxed ${msg.sent ? "text-white" : "text-slate-800"}`}>
-                    {msg.text}
-                  </p>
-                </div>
-              )}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <p className="text-slate-400 text-sm">No messages yet</p>
+            <p className="text-slate-300 text-xs mt-1">Send the first message!</p>
+          </div>
+        ) : (
+          messages.map((msg, i) => {
+            const isSent = msg.senderId === user?.id;
+            return (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                className={`flex ${isSent ? "justify-end" : "justify-start"}`}
+              >
+                <div className={`max-w-[80%] ${isSent ? "items-end" : "items-start"}`}>
+                  {msg.type === "text" && (
+                    <div
+                      className={`px-4 py-2.5 rounded-2xl ${
+                        isSent
+                          ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-br-md"
+                          : "bg-slate-100 rounded-bl-md"
+                      }`}
+                    >
+                      <p className={`text-sm leading-relaxed ${isSent ? "text-white" : "text-slate-800"}`}>
+                        {msg.content}
+                      </p>
+                    </div>
+                  )}
 
-              {msg.type === "image" && (
-                <div className="rounded-2xl overflow-hidden p-[2px] bg-gradient-to-br from-indigo-500/40 via-purple-500/40 to-pink-500/40">
-                  <div className="w-52 h-36 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-                    <ImageIcon size={32} className="text-white/20" />
+                  {msg.type === "image" && (
+                    <div className="rounded-2xl overflow-hidden p-[2px] bg-gradient-to-br from-indigo-500/40 via-purple-500/40 to-pink-500/40">
+                      <div className="w-52 h-36 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
+                        <ImageIcon size={32} className="text-white/20" />
+                      </div>
+                    </div>
+                  )}
+
+                  {msg.type === "voice" && (
+                    <div
+                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${
+                        isSent
+                          ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-br-md"
+                          : "bg-slate-100 rounded-bl-md"
+                      }`}
+                    >
+                      <button className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                        <Play size={14} className="text-white ml-0.5" />
+                      </button>
+                      <div className="flex items-center gap-[2px]">
+                        {Array.from({ length: 20 }).map((_, j) => (
+                          <div
+                            key={j}
+                            className="w-[3px] rounded-full bg-white/60"
+                            style={{
+                              height: `${8 + Math.sin(j * 0.8) * 10 + Math.random() * 6}px`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-white/60 ml-1">{msg.durationSeconds}s</span>
+                    </div>
+                  )}
+
+                  {/* Timestamp */}
+                  <div className={`flex items-center gap-1 mt-1 ${isSent ? "justify-end" : "justify-start"}`}>
+                    <span className="text-[10px] text-slate-400">{formatTime(msg.createdAt)}</span>
+                    {isSent && <CheckCheck size={13} className="text-purple-400" />}
                   </div>
                 </div>
-              )}
-
-              {msg.type === "voice" && (
-                <div
-                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${
-                    msg.sent
-                      ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-br-md"
-                      : "bg-slate-100 rounded-bl-md"
-                  }`}
-                >
-                  <button className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                    <Play size={14} className="text-white ml-0.5" />
-                  </button>
-                  {/* Waveform */}
-                  <div className="flex items-center gap-[2px]">
-                    {Array.from({ length: 20 }).map((_, j) => (
-                      <div
-                        key={j}
-                        className="w-[3px] rounded-full bg-white/60"
-                        style={{
-                          height: `${8 + Math.sin(j * 0.8) * 10 + Math.random() * 6}px`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-[11px] text-white/60 ml-1">{msg.duration}s</span>
-                </div>
-              )}
-
-              {/* Timestamp + read receipts */}
-              <div className={`flex items-center gap-1 mt-1 ${msg.sent ? "justify-end" : "justify-start"}`}>
-                <span className="text-[10px] text-slate-400">{msg.time}</span>
-                {msg.sent && (
-                  <CheckCheck
-                    size={13}
-                    className={msg.read ? "text-purple-400" : "text-slate-300"}
-                  />
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ))}
+              </motion.div>
+            );
+          })
+        )}
         <div ref={messagesEnd} />
       </div>
 
@@ -180,7 +245,7 @@ export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
           {showAIAssist && (
             <ChatAIAssistant
               currentMessage={message}
-              conversationContext={mockMessages.map((m) => m.text).join(" ")}
+              conversationContext={messages.map((m) => m.content || "").join(" ")}
               onInsertReply={(text) => {
                 setMessage(text);
                 setShowAIAssist(false);
@@ -220,6 +285,12 @@ export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder="Type a message..."
               rows={1}
               className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 pr-10 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 resize-none transition-colors"
@@ -239,7 +310,9 @@ export default function ChatScreen({ chatId, onBack }: ChatScreenProps) {
           {message.trim() ? (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/20"
+              onClick={handleSend}
+              disabled={sending}
+              className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/20 disabled:opacity-50"
             >
               <Send size={17} className="text-white -rotate-45 ml-0.5" />
             </motion.button>

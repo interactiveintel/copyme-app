@@ -1,14 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, ImageIcon, Sparkles, X, ExternalLink } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import SmartMatchPanel from "./SmartMatchPanel";
+import { useAuth } from "@/lib/auth-context";
 
 interface InboxScreenProps {
-  onOpenChat: (chatId: string) => void;
+  onOpenChat: (chatId: string, contactName?: string) => void;
+}
+
+interface Conversation {
+  contactId: string;
+  contactName: string;
+  lastMessage: {
+    id: string;
+    type: string;
+    content: string | null;
+    createdAt: string;
+    direction: "sent" | "received";
+  };
 }
 
 const mockAds = [
@@ -21,72 +34,49 @@ const mockAds = [
   { id: "ad7", title: "Music Events", color: "from-violet-500 to-purple-500", description: "Live concerts, festivals, and DJ sets near you. Don't miss out.", cta: "Get Tickets" },
 ];
 
-const mockConversations = [
-  {
-    id: "1",
-    name: "Amara Okafor",
-    lastMessage: "The project presentation looks amazing! Ready for tomorrow?",
-    time: "2m ago",
-    unread: 3,
-    online: true,
-  },
-  {
-    id: "2",
-    name: "Lucas Chen",
-    lastMessage: "Just sent you the design files",
-    time: "15m ago",
-    unread: 1,
-    online: true,
-  },
-  {
-    id: "3",
-    name: "Sofia Martinez",
-    lastMessage: "Happy birthday! Hope you have a wonderful day filled with joy",
-    time: "1h ago",
-    unread: 0,
-    online: false,
-  },
-  {
-    id: "4",
-    name: "Dev Team",
-    lastMessage: "Kai: Deployed v2.3 to staging environment",
-    time: "2h ago",
-    unread: 7,
-    online: true,
-  },
-  {
-    id: "5",
-    name: "Priya Sharma",
-    lastMessage: "See you at the conference next week!",
-    time: "5h ago",
-    unread: 0,
-    online: true,
-  },
-  {
-    id: "6",
-    name: "James Wilson",
-    lastMessage: "Thanks for the recommendation, really helped!",
-    time: "1d ago",
-    unread: 0,
-    online: false,
-  },
-  {
-    id: "7",
-    name: "Yuki Tanaka",
-    lastMessage: "The photos from Kyoto turned out beautiful",
-    time: "2d ago",
-    unread: 0,
-    online: false,
-  },
-];
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
+  const { user, authFetch } = useAuth();
   const [search, setSearch] = useState("");
   const [showSmartMatch, setShowSmartMatch] = useState(false);
   const [selectedAd, setSelectedAd] = useState<typeof mockAds[number] | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = mockConversations.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authFetch("/api/messages/inbox");
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setConversations(data.data ?? []);
+        }
+      } catch {
+        // network error — degrade gracefully
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, authFetch]);
+
+  const filtered = conversations.filter((c) =>
+    c.contactName.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -139,52 +129,49 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-4">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-4">
               <Search size={32} className="text-slate-300" />
             </div>
-            <p className="text-slate-400 text-sm">No messages yet</p>
-            <p className="text-slate-300 text-xs mt-1">Start a conversation</p>
+            <p className="text-slate-400 text-sm">
+              {conversations.length === 0 ? "No messages yet" : "No results found"}
+            </p>
+            <p className="text-slate-300 text-xs mt-1">
+              {conversations.length === 0 ? "Search for users and start a conversation" : "Try a different search term"}
+            </p>
           </div>
         ) : (
           <div className="space-y-1">
             {filtered.map((conv, i) => (
               <motion.button
-                key={conv.id}
+                key={conv.contactId}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                onClick={() => onOpenChat(conv.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all hover:bg-slate-50 active:bg-slate-100 relative ${
-                  conv.unread > 0 ? "bg-slate-50" : ""
-                }`}
+                onClick={() => onOpenChat(conv.contactId, conv.contactName)}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl transition-all hover:bg-slate-50 active:bg-slate-100 relative"
               >
-                {/* Unread gradient border */}
-                {conv.unread > 0 && (
-                  <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-gradient-to-b from-indigo-500 via-purple-500 to-pink-500" />
-                )}
-
-                <Avatar name={conv.name} size="lg" online={conv.online} showStatus />
+                <Avatar name={conv.contactName} size="lg" />
 
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${conv.unread > 0 ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
-                      {conv.name}
+                    <span className="text-sm font-medium text-slate-700">
+                      {conv.contactName}
                     </span>
-                    <span className={`text-[11px] ${conv.unread > 0 ? "text-purple-500" : "text-slate-400"}`}>
-                      {conv.time}
+                    <span className="text-[11px] text-slate-400">
+                      {timeAgo(conv.lastMessage.createdAt)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className={`text-xs truncate pr-4 ${conv.unread > 0 ? "text-slate-600" : "text-slate-400"}`}>
-                      {conv.lastMessage}
+                    <p className="text-xs truncate pr-4 text-slate-400">
+                      {conv.lastMessage.direction === "sent" ? "You: " : ""}
+                      {conv.lastMessage.content || `[${conv.lastMessage.type}]`}
                     </p>
-                    {conv.unread > 0 && (
-                      <span className="shrink-0 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[10px] font-bold text-white px-1.5">
-                        {conv.unread}
-                      </span>
-                    )}
                   </div>
                 </div>
               </motion.button>

@@ -52,6 +52,7 @@ function AppContent() {
   const { user, loading, logout } = useAuth();
   const [screen, setScreen] = useState<Screen>("auth");
   const [chatId, setChatId] = useState<string | null>(null);
+  const [chatContactName, setChatContactName] = useState<string | undefined>();
 
   // Restore session — if user is already logged in, skip auth
   useEffect(() => {
@@ -66,8 +67,9 @@ function AppContent() {
     setScreen(tabToScreen(tab));
   };
 
-  const handleOpenChat = (id: string) => {
+  const handleOpenChat = (id: string, contactName?: string) => {
     setChatId(id);
+    setChatContactName(contactName);
     setScreen("chat");
   };
 
@@ -131,7 +133,7 @@ function AppContent() {
           )}
 
           {screen === "chat" && chatId && (
-            <ChatScreen chatId={chatId} onBack={() => setScreen("inbox")} />
+            <ChatScreen chatId={chatId} contactName={chatContactName} onBack={() => setScreen("inbox")} />
           )}
 
           {screen === "search" && <SearchScreen />}
