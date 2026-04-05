@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Play, Shield, Sparkles, Zap, Users } from "lucide-react";
 import DownloadButton from "./DownloadButton";
+import DemoModal from "./DemoModal";
 
 const container = {
   hidden: { opacity: 0 },
@@ -25,7 +27,10 @@ const stats = [
 ];
 
 export default function Hero() {
+  const [showDemo, setShowDemo] = useState(false);
+
   return (
+    <>
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
       {/* Floating Gradient Orbs */}
       <div className="orb w-[500px] h-[500px] bg-primary/15 top-[-10%] left-[-10%] animate-float" />
@@ -87,13 +92,13 @@ export default function Hero() {
                   className="transition-transform group-hover:translate-x-1"
                 />
               </a>
-              <a
-                href="/app"
+              <button
+                onClick={() => setShowDemo(true)}
                 className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-slate-700 border border-slate-200 bg-white transition-all hover:bg-slate-50 shadow-sm"
               >
                 <Play size={18} className="text-accent-pink" />
-                Try the App
-              </a>
+                Watch Demo
+              </button>
               <DownloadButton variant="hero" />
             </motion.div>
 
@@ -207,6 +212,9 @@ export default function Hero() {
           </motion.div>
         </div>
       </div>
+
     </section>
+    <DemoModal open={showDemo} onClose={() => setShowDemo(false)} />
+    </>
   );
 }
