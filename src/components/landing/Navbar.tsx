@@ -8,8 +8,8 @@ import DownloadButton from "./DownloadButton";
 const navLinks = [
   { label: "Features", href: "#features" },
   { label: "Rule of 7", href: "#rule-of-7" },
+  { label: "Demo", href: "#cta" },
   { label: "Pricing", href: "#pricing" },
-  { label: "About", href: "#about" },
 ];
 
 export default function Navbar() {
@@ -50,7 +50,7 @@ export default function Navbar() {
               href="/app"
               className="relative inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
             >
-              Try the App
+              Sign Up Free
             </a>
           </div>
 
@@ -91,7 +91,7 @@ export default function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className="block w-full text-center rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated mt-2"
               >
-                Try the App
+                Sign Up Free
               </a>
             </div>
           </motion.div>

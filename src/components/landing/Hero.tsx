@@ -86,7 +86,7 @@ export default function Hero() {
                 href="/app"
                 className="group relative inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
               >
-                Try the App
+                Sign Up Free
                 <ArrowRight
                   size={18}
                   className="transition-transform group-hover:translate-x-1"
