@@ -83,10 +83,10 @@ export default function Hero() {
               className="mt-10 flex flex-wrap gap-4 justify-center lg:justify-start"
             >
               <a
-                href="#cta"
+                href="/app"
                 className="group relative inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
               >
-                Start Free
+                Try the App
                 <ArrowRight
                   size={18}
                   className="transition-transform group-hover:translate-x-1"
