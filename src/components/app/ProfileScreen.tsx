@@ -86,6 +86,10 @@ export default function ProfileScreen() {
   const [editCountry, setEditCountry] = useState("");
   const [editInterests, setEditInterests] = useState<Array<{ slotNumber: number; interestText: string }>>([]);
   const [newInterest, setNewInterest] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editLevel, setEditLevel] = useState("");
+  const [editInstitution, setEditInstitution] = useState("");
+  const [editDetail, setEditDetail] = useState("");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -153,6 +157,11 @@ export default function ProfileScreen() {
     setEditCountry(p.location?.countryPhoneCode || "");
     setEditInterests([...p.interests]);
     setNewInterest("");
+    const d = p.descriptions?.[0];
+    setEditCategory(d?.category || "");
+    setEditLevel(d?.level || "");
+    setEditInstitution(d?.institution || "");
+    setEditDetail(d?.typeDescription || "");
     setEditMode(true);
   };
 
@@ -174,6 +183,13 @@ export default function ProfileScreen() {
         locationVisible: p.location?.locationVisible ?? true,
       },
       interests: editInterests,
+      descriptions: [{
+        category: editCategory.trim() || p.descriptions?.[0]?.category || "Business",
+        level: editLevel.trim() || p.descriptions?.[0]?.level || null,
+        location: p.descriptions?.[0]?.location || null,
+        institution: editInstitution.trim() || p.descriptions?.[0]?.institution || null,
+        typeDescription: editDetail.trim() || p.descriptions?.[0]?.typeDescription || null,
+      }],
     };
     if (profile) {
       setProfile(updated);
@@ -408,7 +424,35 @@ export default function ProfileScreen() {
         </GlassCard>
 
         {/* Description */}
-        {desc && (
+        {editMode ? (
+          <GlassCard>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Edit3 size={14} className="text-purple-400" />
+                <span className="text-sm font-semibold text-slate-900">About</span>
+              </div>
+              <div className="space-y-2.5">
+                {[
+                  { label: "Category", value: editCategory, setter: setEditCategory },
+                  { label: "Level", value: editLevel, setter: setEditLevel },
+                  { label: "Institution", value: editInstitution, setter: setEditInstitution },
+                  { label: "Detail", value: editDetail, setter: setEditDetail },
+                ].map((field) => (
+                  <div key={field.label} className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400 w-16 shrink-0">{field.label}</span>
+                    <input
+                      type="text"
+                      value={field.value}
+                      onChange={(e) => field.setter(e.target.value)}
+                      placeholder={field.label}
+                      className="flex-1 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </GlassCard>
+        ) : desc ? (
           <GlassCard>
             <div className="p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -432,7 +476,7 @@ export default function ProfileScreen() {
               </div>
             </div>
           </GlassCard>
-        )}
+        ) : null}
 
         {/* Rule of 7 Status */}
         <GlassCard gradient>
