@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Zap, LogOut } from "lucide-react";
 import BottomNav from "@/components/ui/BottomNav";
 import AuthScreen from "@/components/app/AuthScreen";
@@ -13,19 +13,18 @@ import ProfileScreen from "@/components/app/ProfileScreen";
 import YogiAIScreen from "@/components/app/AgentiAIScreen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
-type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "contacts" | "agenti" | "ads" | "profile";
+type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "agenti" | "profile";
 type Tab = "home" | "search" | "agenti" | "ads" | "profile";
 
 function tabToScreen(tab: Tab): Screen {
   switch (tab) {
     case "home":
-      return "inbox";
+    case "ads":
+      return "inbox"; // Ads are inside the inbox screen
     case "search":
       return "search";
     case "agenti":
       return "agenti";
-    case "ads":
-      return "ads";
     case "profile":
       return "profile";
   }
@@ -40,9 +39,6 @@ function screenToTab(screen: Screen): Tab {
       return "search";
     case "agenti":
       return "agenti";
-    case "contacts":
-    case "ads":
-      return "ads";
     case "profile":
       return "profile";
     default:
@@ -97,72 +93,46 @@ function AppContent() {
 
   return (
     <div className="h-screen flex flex-col relative overflow-hidden bg-white">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={screen}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex-1 overflow-hidden"
-        >
-          {screen === "auth" && (
-            <div className="relative h-full">
-              <AuthScreen
-                onLogin={() => setScreen("inbox")}
-                onRegister={() => setScreen("onboarding")}
-              />
-              {/* Skip to App button */}
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1 }}
-                onClick={() => setScreen("inbox")}
-                className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white backdrop-blur-xl border border-slate-200 text-slate-400 text-xs hover:bg-slate-50 hover:text-slate-600 transition-all shadow-sm"
-              >
-                <Zap size={14} className="text-purple-400" />
-                Skip to App (Demo)
-              </motion.button>
-            </div>
-          )}
+      {/* Screen content — no AnimatePresence to avoid blank-screen bugs */}
+      <div className="flex-1 overflow-hidden">
+        {screen === "auth" && (
+          <div className="relative h-full">
+            <AuthScreen
+              onLogin={() => setScreen("inbox")}
+              onRegister={() => setScreen("onboarding")}
+            />
+            {/* Skip to App button */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              onClick={() => setScreen("inbox")}
+              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white backdrop-blur-xl border border-slate-200 text-slate-400 text-xs hover:bg-slate-50 hover:text-slate-600 transition-all shadow-sm"
+            >
+              <Zap size={14} className="text-purple-400" />
+              Skip to App (Demo)
+            </motion.button>
+          </div>
+        )}
 
-          {screen === "onboarding" && (
-            <OnboardingScreen onComplete={() => setScreen("inbox")} />
-          )}
+        {screen === "onboarding" && (
+          <OnboardingScreen onComplete={() => setScreen("inbox")} />
+        )}
 
-          {screen === "inbox" && (
-            <InboxScreen onOpenChat={handleOpenChat} />
-          )}
+        {screen === "inbox" && (
+          <InboxScreen onOpenChat={handleOpenChat} />
+        )}
 
-          {screen === "chat" && chatId && (
-            <ChatScreen chatId={chatId} contactName={chatContactName} onBack={() => setScreen("inbox")} />
-          )}
+        {screen === "chat" && chatId && (
+          <ChatScreen chatId={chatId} contactName={chatContactName} onBack={() => setScreen("inbox")} />
+        )}
 
-          {screen === "search" && <SearchScreen />}
+        {screen === "search" && <SearchScreen />}
 
-          {screen === "agenti" && <YogiAIScreen />}
+        {screen === "agenti" && <YogiAIScreen />}
 
-          {screen === "contacts" && (
-            <div className="flex flex-col items-center justify-center h-full pb-20">
-              <p className="text-slate-400 text-sm">Contacts coming soon</p>
-            </div>
-          )}
-
-          {screen === "ads" && (
-            <div className="flex flex-col items-center justify-center h-full pb-20">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mb-4">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-400/40">
-                  <path d="m3 11 18-5v12L3 13v-2z" />
-                  <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-                </svg>
-              </div>
-              <p className="text-slate-400 text-sm">Ad marketplace coming soon</p>
-            </div>
-          )}
-
-          {screen === "profile" && <ProfileScreen />}
-        </motion.div>
-      </AnimatePresence>
+        {screen === "profile" && <ProfileScreen />}
+      </div>
 
       {/* Bottom Nav */}
       {showNav && (
