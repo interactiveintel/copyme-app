@@ -226,7 +226,7 @@ export default function ProfileScreen() {
     : [];
 
   return (
-    <div className="flex flex-col h-full pb-20 overflow-y-auto">
+    <div className="flex flex-col h-full pb-28 overflow-y-auto">
       {/* Header with gradient mesh */}
       <div className="relative pt-12 pb-8 px-4">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50" />

@@ -371,7 +371,7 @@ export default function YogiAIScreen() {
       id: "welcome",
       role: "yogi",
       content:
-        "Hey! I'm Yogi — your personal AI companion. Pick an avatar above to give me a face, or upload your own photo! I learn your communication style and adapt to you over time. You can type, talk, or video chat with me. What's on your mind?",
+        "Hey! I'm Yogi — your personal agentic AI trained to learn your individual habits and assist you. I adapt to your communication style over time, remembering your preferences, interests, and personality. Chat with me by text, voice, or video. What's on your mind?",
       timestamp: new Date(),
       mode: "text",
     },
@@ -392,11 +392,11 @@ export default function YogiAIScreen() {
     totalChats: 0,
   });
 
-  // Avatar state — user can upload their own photo or pick from mock profiles
-  const defaultAvatar = "/avatars/paul-1.jpg";
+  // Avatar state — Yogi has its own distinct DiceBear avatar
+  const defaultAvatar = "https://api.dicebear.com/7.x/bottts/svg?seed=yogi-copyme&backgroundColor=b6e3f4&eyes=bulging&mouth=smile01";
   const [yogiAvatarUrl, setYogiAvatarUrl] = useState<string>(defaultAvatar);
   const [yogiName, setYogiName] = useState<string>("Yogi");
-  const [showAvatarPicker, setShowAvatarPicker] = useState(true);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -740,7 +740,7 @@ export default function YogiAIScreen() {
                     ? "Listening..."
                     : isSpeaking
                       ? "Speaking..."
-                      : "Your personal AI companion"}
+                      : "Agentic AI — learns your habits"}
               </p>
             </div>
           </div>

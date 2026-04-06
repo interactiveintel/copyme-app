@@ -359,18 +359,28 @@ function useVoiceNarration(
   const lineIndexRef = useRef(0);
   const unlockedRef = useRef(false);
 
-  // Unlock speech synthesis on first user interaction (click/touch)
+  // Unlock speech synthesis immediately when hook is active (user already clicked to open modal)
   useEffect(() => {
-    if (unlockedRef.current || typeof window === "undefined" || !window.speechSynthesis) return;
+    if (unlockedRef.current || !active || typeof window === "undefined" || !window.speechSynthesis) return;
 
-    const unlock = () => {
-      if (unlockedRef.current) return;
+    // Immediate unlock — user already clicked "Watch the Demo" button
+    try {
+      window.speechSynthesis.cancel();
       const silent = new SpeechSynthesisUtterance("");
       silent.volume = 0;
       window.speechSynthesis.speak(silent);
       unlockedRef.current = true;
-      document.removeEventListener("click", unlock);
-      document.removeEventListener("touchstart", unlock);
+    } catch { /* ignore */ }
+
+    // Also listen for click/touch as fallback
+    const unlock = () => {
+      if (unlockedRef.current) return;
+      try {
+        const s = new SpeechSynthesisUtterance("");
+        s.volume = 0;
+        window.speechSynthesis.speak(s);
+        unlockedRef.current = true;
+      } catch { /* ignore */ }
     };
 
     document.addEventListener("click", unlock, { once: true });
@@ -380,7 +390,7 @@ function useVoiceNarration(
       document.removeEventListener("click", unlock);
       document.removeEventListener("touchstart", unlock);
     };
-  }, []);
+  }, [active]);
 
   useEffect(() => {
     if (!active || !enabled || typeof window === "undefined" || !window.speechSynthesis) {
@@ -409,6 +419,12 @@ function useVoiceNarration(
         speakLine(idx + 1);
       };
 
+      utterance.onerror = () => {
+        // Skip to next line on error
+        lineIndexRef.current = idx + 1;
+        setTimeout(() => speakLine(idx + 1), 300);
+      };
+
       utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     }
@@ -421,16 +437,27 @@ function useVoiceNarration(
       }
     }, 10000);
 
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      speakLine(0);
-    } else {
-      const onVoicesChanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        speakLine(0);
-      };
-      window.speechSynthesis.onvoiceschanged = onVoicesChanged;
-    }
+    // Small delay to ensure voices are loaded after unlock
+    const startSpeaking = () => {
+      setTimeout(() => {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          speakLine(0);
+        } else {
+          const onVoicesChanged = () => {
+            window.speechSynthesis.onvoiceschanged = null;
+            speakLine(0);
+          };
+          window.speechSynthesis.onvoiceschanged = onVoicesChanged;
+          // Timeout fallback — some browsers never fire onvoiceschanged
+          setTimeout(() => {
+            if (lineIndexRef.current === 0) speakLine(0);
+          }, 1000);
+        }
+      }, 200);
+    };
+
+    startSpeaking();
 
     return () => {
       clearInterval(keepAlive);

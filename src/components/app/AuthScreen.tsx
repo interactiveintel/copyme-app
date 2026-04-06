@@ -385,7 +385,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
               transition={{ delay: 0.5 }}
               className="text-center text-slate-400/60 text-xs mt-6"
             >
-              Join <span className="text-slate-600 font-semibold">10M+</span> users worldwide
+              Join <span className="text-slate-600 font-semibold">50,000+</span> users worldwide
             </motion.p>
           </div>
         </GlassCard>

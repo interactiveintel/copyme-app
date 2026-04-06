@@ -20,7 +20,7 @@ interface BottomNavProps {
 const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: "home", label: "Home", icon: MessageSquare },
   { id: "search", label: "Search", icon: Search },
-  { id: "agenti", label: "Yogi", icon: Sparkles },
+  { id: "agenti", label: "Yogi AI", icon: Sparkles },
   { id: "ads", label: "Ads", icon: Megaphone },
   { id: "profile", label: "Profile", icon: User },
 ];

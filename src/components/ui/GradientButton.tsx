@@ -91,9 +91,9 @@ export default function GradientButton({
       whileHover={!isDisabled ? { scale: 1.02 } : undefined}
       whileTap={!isDisabled ? { scale: 0.98 } : undefined}
     >
-      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl" />
+      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl pointer-events-none" />
       <div
-        className={`relative bg-white rounded-xl flex items-center justify-center gap-2 ${sizeClasses[size]}`}
+        className={`relative bg-white rounded-xl flex items-center justify-center gap-2 pointer-events-none ${sizeClasses[size]}`}
       >
         {loading && <Loader2 size={18} className="animate-spin text-purple-400" />}
         <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
