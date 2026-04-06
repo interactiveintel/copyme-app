@@ -98,17 +98,7 @@ export default function ProfileScreen() {
     })();
   }, [user, authFetch]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   // Demo profile fallback when no real user data is available
-  const isDemo = !profile;
-
   const demoProfile = useMemo<Profile>(() => ({
     id: "demo_paul",
     displayName: "Paul Pereira",
@@ -146,6 +136,15 @@ export default function ProfileScreen() {
     ],
   }), []);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const isDemo = !profile;
   const activeProfile = profile ?? demoProfile;
 
   const displayName = activeProfile.displayName || user?.displayName || "User";
