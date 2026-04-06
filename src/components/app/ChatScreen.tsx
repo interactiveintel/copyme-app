@@ -192,6 +192,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                 <p className="text-[11px] text-emerald-500">
                   {isMockContact ? "Tap to view profile" : "online"}
                 </p>
+                <p className="text-[9px] text-slate-400">Direct Message</p>
               </div>
             </button>
           </div>
@@ -235,9 +236,23 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className={`flex ${isSent ? "justify-end" : "justify-start"}`}
+                className={`flex ${isSent ? "justify-end" : "justify-start"} gap-2`}
               >
-                <div className={`max-w-[80%] ${isSent ? "items-end" : "items-start"}`}>
+                {/* Contact avatar on received messages */}
+                {!isSent && isMockContact && MOCK_PROFILES[chatId]?.avatarUrl && (
+                  <img
+                    src={MOCK_PROFILES[chatId].avatarUrl}
+                    alt={displayName}
+                    className="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0 mt-1"
+                  />
+                )}
+                <div className={`max-w-[75%] ${isSent ? "items-end" : "items-start"}`}>
+                  {/* Sender name on first message or when switching sender */}
+                  {i === 0 || (messages[i - 1] && (messages[i - 1].senderId === user?.id || messages[i - 1].senderId === "me") !== isSent) ? (
+                    <p className={`text-[10px] font-semibold mb-1 ${isSent ? "text-right text-purple-400" : "text-slate-500"}`}>
+                      {isSent ? "You" : displayName}
+                    </p>
+                  ) : null}
                   {msg.type === "text" && (
                     <div
                       className={`px-4 py-2.5 rounded-2xl ${
@@ -292,6 +307,14 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                     {isSent && <CheckCheck size={13} className="text-purple-400" />}
                   </div>
                 </div>
+                {/* User avatar on sent messages */}
+                {isSent && (
+                  <img
+                    src="/avatars/paul-1.jpg"
+                    alt="You"
+                    className="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0 mt-1"
+                  />
+                )}
               </motion.div>
             );
           })
