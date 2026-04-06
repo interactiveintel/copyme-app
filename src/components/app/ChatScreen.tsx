@@ -113,6 +113,23 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     const text = message.trim();
     if (!text || sending) return;
 
+    // Demo mode: add message locally without calling API
+    if (!user || isMockContact) {
+      const demoMsg: ApiMessage = {
+        id: `demo_${Date.now()}`,
+        senderId: "me",
+        receiverId: chatId,
+        type: "text",
+        content: text,
+        mediaUrls: null,
+        durationSeconds: null,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, demoMsg]);
+      setMessage("");
+      return;
+    }
+
     setSending(true);
     try {
       const res = await authFetch("/api/messages/send", {
@@ -130,12 +147,12 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
         setMessages((prev) => [...prev, data.data]);
         setMessage("");
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: "Failed to send" }));
         const msg = typeof data.error === "string" ? data.error : data.error?.message || "Failed to send";
-        alert(msg);
+        console.warn("Send failed:", msg);
       }
     } catch {
-      alert("Network error. Please try again.");
+      console.warn("Network error sending message");
     } finally {
       setSending(false);
     }
