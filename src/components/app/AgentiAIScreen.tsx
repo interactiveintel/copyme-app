@@ -364,7 +364,7 @@ function PersonalityPanel({ personality }: { personality: PersonalityState }) {
 // ---------------------------------------------------------------------------
 
 export default function YogiAIScreen() {
-  const { authFetch } = useAuth();
+  const { user, authFetch } = useAuth();
   const [mode, setMode] = useState<"text" | "voice" | "video">("text");
   const [messages, setMessages] = useState<YogiMessage[]>([
     {
@@ -422,6 +422,63 @@ export default function YogiAIScreen() {
   }, [messages]);
 
   // ---------------------------------------------------------------------------
+  // Demo response system — keyword-matched local responses when no auth
+  // ---------------------------------------------------------------------------
+
+  const demoResponses: Array<{ keywords: string[]; response: string }> = [
+    {
+      keywords: ["hello", "hi", "hey", "sup", "what's up", "howdy", "greetings"],
+      response: "Hey there! Great to hear from you. I'm Yogi, your personal AI companion here on CopyMe. How can I help you today?",
+    },
+    {
+      keywords: ["copyme", "app", "what is", "how does", "feature", "about"],
+      response: "CopyMe is your all-in-one social messaging platform! It combines messaging, AI-curated ad inbox, smart contact matching, and me — Yogi, your personal AI companion. I learn your communication style over time to become more helpful. Pretty cool, right?",
+    },
+    {
+      keywords: ["help", "can you", "what can", "able to", "do you"],
+      response: "I can help with a lot! You can chat with me by text, voice, or video. I can answer questions, brainstorm ideas, help you practice conversations, or just keep you company. I also learn your style over time so my responses feel more natural to you.",
+    },
+    {
+      keywords: ["weather", "temperature", "rain", "sunny", "forecast"],
+      response: "I wish I could check the weather for you in real-time! In the full version of CopyMe, I can connect to live data sources. For now, I'd recommend checking your favorite weather app. Is there anything else I can help with?",
+    },
+    {
+      keywords: ["joke", "funny", "laugh", "humor", "tell me"],
+      response: "Here's one for you: Why do programmers prefer dark mode? Because light attracts bugs! But seriously, I'm always learning what makes you laugh so I can be a better companion. Got any favorite topics?",
+    },
+    {
+      keywords: ["thanks", "thank you", "appreciate", "awesome", "great"],
+      response: "You're welcome! That's what I'm here for. The more we chat, the better I understand your style. Keep the conversations coming!",
+    },
+    {
+      keywords: ["voice", "speak", "talk", "listen", "audio", "call"],
+      response: "Voice mode is awesome! Just switch to the voice tab and tap the mic to start talking to me. I'll listen, understand your speech, and respond both with text and voice. It feels like a real conversation!",
+    },
+    {
+      keywords: ["video", "camera", "see", "face", "visual"],
+      response: "Video mode lets us have a face-to-face chat! Turn on your camera, and I'll show my animated avatar while we talk. The voice recognition works the same way — just speak naturally and I'll respond. Try it out!",
+    },
+    {
+      keywords: ["bye", "goodbye", "see you", "later", "night", "gtg"],
+      response: "See you later! Remember, I'm always here whenever you want to chat. Each conversation helps me understand you better. Take care!",
+    },
+    {
+      keywords: ["name", "who are", "yourself", "your name", "yogi"],
+      response: "I'm Yogi — your personal AI companion on CopyMe! You can customize my avatar, change my name, and the more we chat, the more I adapt to your communication style. I track humor, empathy, and your interests to become a better conversational partner.",
+    },
+  ];
+
+  const getDemoResponse = (text: string): string => {
+    const lower = text.toLowerCase();
+    for (const entry of demoResponses) {
+      if (entry.keywords.some((kw) => lower.includes(kw))) {
+        return entry.response;
+      }
+    }
+    return "That's an interesting thought! I'm still learning about your communication style. In the full version, I'd have access to smarter AI models for deeper conversations. For now, feel free to ask me about CopyMe features, try voice or video mode, or just say hi!";
+  };
+
+  // ---------------------------------------------------------------------------
   // Send message to Yogi API
   // ---------------------------------------------------------------------------
 
@@ -441,28 +498,41 @@ export default function YogiAIScreen() {
       setIsThinking(true);
 
       try {
-        const res = await authFetch("/api/agents/yogi", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: text,
-            mode: messageMode,
-            conversationHistory: messages.slice(-10).map((m) => ({
-              role: m.role === "yogi" ? "assistant" : "user",
-              content: m.content,
-            })),
-          }),
-        });
+        let yogiResponse: string;
 
-        let yogiResponse = "I'm having trouble connecting right now. Try again in a moment.";
+        if (!user) {
+          // Demo mode: generate local response instead of calling API
+          await new Promise((resolve) => setTimeout(resolve, 600 + Math.random() * 800));
+          yogiResponse = getDemoResponse(text);
+          setPersonality((prev) => ({
+            ...prev,
+            totalChats: prev.totalChats + 1,
+            interests: Array.from(new Set([...prev.interests, ...text.split(/\s+/).filter((w) => w.length > 5).slice(0, 2)])).slice(0, 6),
+          }));
+        } else {
+          const res = await authFetch("/api/agents/yogi", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: text,
+              mode: messageMode,
+              conversationHistory: messages.slice(-10).map((m) => ({
+                role: m.role === "yogi" ? "assistant" : "user",
+                content: m.content,
+              })),
+            }),
+          });
 
-        if (res.ok) {
-          const data = await res.json();
-          yogiResponse = data.data?.response || yogiResponse;
+          yogiResponse = "I'm having trouble connecting right now. Try again in a moment.";
 
-          // Update personality from response
-          if (data.data?.personality) {
-            setPersonality((prev) => ({ ...prev, ...data.data.personality }));
+          if (res.ok) {
+            const data = await res.json();
+            yogiResponse = data.data?.response || yogiResponse;
+
+            // Update personality from response
+            if (data.data?.personality) {
+              setPersonality((prev) => ({ ...prev, ...data.data.personality }));
+            }
           }
         }
 
@@ -495,7 +565,7 @@ export default function YogiAIScreen() {
         setIsThinking(false);
       }
     },
-    [authFetch, messages, isMuted]
+    [user, authFetch, messages, isMuted]
   );
 
   // ---------------------------------------------------------------------------

@@ -53,6 +53,7 @@ interface AdItem {
   highlights: string[];
   stats: { rating: number; users: string; label: string };
   cta: string;
+  url: string;
   category: string;
   aiReason: string; // Why CopyMe Agent recommends this
   trending: boolean;
@@ -82,6 +83,7 @@ const allAds: AdItem[] = [
     highlights: ["12-week certification program", "Hands-on projects with real data", "1-on-1 mentorship included"],
     stats: { rating: 4.9, users: "52K", label: "students" },
     cta: "Start Learning",
+    url: "https://www.coursera.org",
     category: "learning",
     aiReason: "Based on your interest in technology and AI conversations",
     trending: true,
@@ -100,6 +102,7 @@ const allAds: AdItem[] = [
     highlights: ["Flights from $49 one-way", "Free cancellation up to 24hrs", "Members-only flash sales"],
     stats: { rating: 4.7, users: "1.2M", label: "trips booked" },
     cta: "Browse Deals",
+    url: "https://www.kayak.com",
     category: "lifestyle",
     aiReason: "3 of your contacts recently shared travel plans",
     trending: false,
@@ -117,6 +120,7 @@ const allAds: AdItem[] = [
     highlights: ["Free 2-day shipping", "30-day easy returns", "Exclusive early access drops"],
     stats: { rating: 4.8, users: "890K", label: "happy customers" },
     cta: "Shop Now",
+    url: "https://www.amazon.com",
     category: "trending",
     aiReason: "Trending among tech-savvy users in your network",
     trending: true,
@@ -135,6 +139,7 @@ const allAds: AdItem[] = [
     highlights: ["AI-personalized daily plans", "500+ guided video workouts", "Meal planner with macros"],
     stats: { rating: 4.8, users: "3.1M", label: "active users" },
     cta: "Try 7 Days Free",
+    url: "https://www.myfitnesspal.com",
     category: "lifestyle",
     aiReason: "Matches your health & wellness interests",
     trending: true,
@@ -153,6 +158,7 @@ const allAds: AdItem[] = [
     highlights: ["10,000+ tested recipes", "Video tutorials for each step", "Smart grocery lists"],
     stats: { rating: 4.9, users: "720K", label: "home chefs" },
     cta: "Explore Recipes",
+    url: "https://www.allrecipes.com",
     category: "lifestyle",
     aiReason: "Popular with cooking enthusiasts in your area",
     trending: false,
@@ -170,6 +176,7 @@ const allAds: AdItem[] = [
     highlights: ["AI-powered job matching", "Salary transparency on all posts", "One-click easy apply"],
     stats: { rating: 4.6, users: "2.5M", label: "jobs posted" },
     cta: "View Jobs",
+    url: "https://www.linkedin.com/jobs",
     category: "career",
     aiReason: "Your profile matches 12 new openings today",
     trending: true,
@@ -188,6 +195,7 @@ const allAds: AdItem[] = [
     highlights: ["Early access presale tickets", "VIP meet & greet packages", "Cashback on first order"],
     stats: { rating: 4.7, users: "1.8M", label: "fans" },
     cta: "Get Tickets",
+    url: "https://www.ticketmaster.com",
     category: "entertainment",
     aiReason: "Based on music interests shared in your chats",
     trending: false,
@@ -452,13 +460,22 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto p-5">
                 {/* AI recommendation reason */}
-                <div className="flex items-start gap-2 p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 mb-4">
+                <div className="flex items-start gap-2 p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 mb-3">
                   <Sparkles size={14} className="text-purple-500 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-0.5">Why CopyMe Agent picked this</p>
                     <p className="text-xs text-purple-700/80 leading-relaxed">{selectedAd.aiReason}</p>
                   </div>
                 </div>
+
+                {/* Visit Website link */}
+                <button
+                  onClick={() => window.open(selectedAd.url, "_blank")}
+                  className="flex items-center gap-1.5 text-xs font-medium text-purple-500 hover:text-purple-700 transition-colors mb-4"
+                >
+                  <ExternalLink size={12} />
+                  Visit Website
+                </button>
 
                 {/* Brand + rating row */}
                 <div className="flex items-center justify-between mb-3">
@@ -527,7 +544,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
               {/* CTA button */}
               <div className="p-5 pt-0 shrink-0">
                 <button
-                  onClick={() => setSelectedAd(null)}
+                  onClick={() => window.open(selectedAd.url, "_blank")}
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r ${selectedAd.color} text-white text-sm font-semibold shadow-lg`}
                 >
                   {selectedAd.cta}

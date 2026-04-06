@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Settings, Eye, EyeOff, Edit3, Crown, MapPin, Sparkles, Users, MessageSquare } from "lucide-react";
+import { Settings, Eye, EyeOff, Edit3, Crown, MapPin, Sparkles, Users, MessageSquare, X, Plus, Save } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
@@ -79,6 +79,13 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationVisible, setLocationVisible] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editRegion, setEditRegion] = useState("");
+  const [editCountry, setEditCountry] = useState("");
+  const [editInterests, setEditInterests] = useState<Array<{ slotNumber: number; interestText: string }>>([]);
+  const [newInterest, setNewInterest] = useState("");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -136,6 +143,59 @@ export default function ProfileScreen() {
     ],
   }), []);
 
+  const [localProfile, setLocalProfile] = useState<Profile | null>(null);
+
+  const startEditing = () => {
+    const p = profile ?? localProfile ?? demoProfile;
+    setEditName(p.displayName);
+    setEditCity(p.location?.cityZip || "");
+    setEditRegion(p.location?.region || "");
+    setEditCountry(p.location?.countryPhoneCode || "");
+    setEditInterests([...p.interests]);
+    setNewInterest("");
+    setEditMode(true);
+  };
+
+  const cancelEditing = () => {
+    setEditMode(false);
+  };
+
+  const saveEditing = () => {
+    const p = profile ?? localProfile ?? demoProfile;
+    const updated: Profile = {
+      ...p,
+      displayName: editName.trim() || p.displayName,
+      location: {
+        globalArea: p.location?.globalArea || null,
+        countryPhoneCode: editCountry.trim() || p.location?.countryPhoneCode || null,
+        region: editRegion.trim() || p.location?.region || null,
+        cityZip: editCity.trim() || p.location?.cityZip || null,
+        localDescription: p.location?.localDescription || null,
+        locationVisible: p.location?.locationVisible ?? true,
+      },
+      interests: editInterests,
+    };
+    if (profile) {
+      setProfile(updated);
+    } else {
+      setLocalProfile(updated);
+    }
+    setEditMode(false);
+  };
+
+  const addInterest = () => {
+    const text = newInterest.trim().toLowerCase();
+    if (!text || editInterests.length >= 7) return;
+    if (editInterests.some((i) => i.interestText === text)) return;
+    const nextSlot = editInterests.length > 0 ? Math.max(...editInterests.map((i) => i.slotNumber)) + 1 : 1;
+    setEditInterests([...editInterests, { slotNumber: nextSlot, interestText: text }]);
+    setNewInterest("");
+  };
+
+  const removeInterest = (slotNumber: number) => {
+    setEditInterests(editInterests.filter((i) => i.slotNumber !== slotNumber));
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -145,7 +205,7 @@ export default function ProfileScreen() {
   }
 
   const isDemo = !profile;
-  const activeProfile = profile ?? demoProfile;
+  const activeProfile = profile ?? localProfile ?? demoProfile;
 
   const displayName = activeProfile.displayName || user?.displayName || "User";
   const tier = activeProfile.accountTier || "basic";
@@ -199,7 +259,16 @@ export default function ProfileScreen() {
             ) : (
               <Avatar name={displayName} size="xl" online showStatus />
             )}
-            <h2 className="text-xl font-bold text-slate-900 mt-3">{displayName}</h2>
+            {editMode ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="text-xl font-bold text-slate-900 mt-3 bg-white/80 border border-purple-300 rounded-xl px-3 py-1 text-center focus:outline-none focus:border-purple-500 transition-colors w-48"
+              />
+            ) : (
+              <h2 className="text-xl font-bold text-slate-900 mt-3">{displayName}</h2>
+            )}
             <div className="flex items-center gap-1.5 mt-1">
               <Crown size={12} className="text-amber-400" />
               <span className="text-xs font-medium text-amber-400 capitalize">{tier} Plan</span>
@@ -227,7 +296,34 @@ export default function ProfileScreen() {
         </div>
 
         {/* Location */}
-        {locationEntries.length > 0 && (
+        {editMode ? (
+          <GlassCard>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin size={14} className="text-purple-400" />
+                <span className="text-sm font-semibold text-slate-900">Location</span>
+              </div>
+              <div className="space-y-2.5">
+                {[
+                  { label: "City", value: editCity, setter: setEditCity },
+                  { label: "Region", value: editRegion, setter: setEditRegion },
+                  { label: "Country", value: editCountry, setter: setEditCountry },
+                ].map((field) => (
+                  <div key={field.label} className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400 w-14 shrink-0">{field.label}</span>
+                    <input
+                      type="text"
+                      value={field.value}
+                      onChange={(e) => field.setter(e.target.value)}
+                      placeholder={field.label}
+                      className="flex-1 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </GlassCard>
+        ) : locationEntries.length > 0 ? (
           <GlassCard>
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
@@ -253,7 +349,7 @@ export default function ProfileScreen() {
               </div>
             </div>
           </GlassCard>
-        )}
+        ) : null}
 
         {/* Interests */}
         <GlassCard>
@@ -261,9 +357,40 @@ export default function ProfileScreen() {
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={14} className="text-purple-400" />
               <span className="text-sm font-semibold text-slate-900">Interests</span>
-              <span className="text-[10px] text-slate-400 ml-auto">{interests.length}/7 slots</span>
+              <span className="text-[10px] text-slate-400 ml-auto">{editMode ? editInterests.length : interests.length}/7 slots</span>
             </div>
-            {interests.length > 0 ? (
+            {editMode ? (
+              <>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {editInterests.map((interest) => (
+                    <span
+                      key={interest.slotNumber}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-gradient-to-r from-indigo-500/15 via-purple-500/15 to-pink-500/15 text-purple-600 border border-purple-500/20 flex items-center gap-1.5"
+                    >
+                      {interest.interestText}
+                      <button onClick={() => removeInterest(interest.slotNumber)} className="hover:text-red-500 transition-colors">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                {editInterests.length < 7 && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newInterest}
+                      onChange={(e) => setNewInterest(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") addInterest(); }}
+                      placeholder="Add interest..."
+                      className="flex-1 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors"
+                    />
+                    <button onClick={addInterest} className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 transition-colors">
+                      <Plus size={14} className="text-purple-600" />
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : interests.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {interests.map((interest) => (
                   <span
@@ -348,9 +475,20 @@ export default function ProfileScreen() {
         </GlassCard>
 
         {/* Edit profile */}
-        <GradientButton variant="outline" className="w-full mb-4">
-          <Edit3 size={16} /> Edit Profile
-        </GradientButton>
+        {editMode ? (
+          <div className="flex gap-3 mb-4">
+            <GradientButton variant="outline" className="flex-1" onClick={cancelEditing}>
+              <X size={16} /> Cancel
+            </GradientButton>
+            <GradientButton className="flex-1" onClick={saveEditing}>
+              <Save size={16} /> Save
+            </GradientButton>
+          </div>
+        ) : (
+          <GradientButton variant="outline" className="w-full mb-4" onClick={startEditing}>
+            <Edit3 size={16} /> Edit Profile
+          </GradientButton>
+        )}
       </div>
     </div>
   );
