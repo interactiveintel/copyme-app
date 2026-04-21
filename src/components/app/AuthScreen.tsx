@@ -34,6 +34,39 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
+  // Forgot-password modal
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    const trimmed = forgotEmail.trim();
+    if (!trimmed) { setForgotError("Enter your email address."); return; }
+    setForgotLoading(true);
+    try {
+      const res = await fetch("/api/auth/password-reset/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      // The endpoint returns a generic success regardless — just reflect it.
+      if (res.ok) {
+        setForgotSent(true);
+      } else {
+        const data = await res.json().catch(() => null);
+        setForgotError(data?.error?.message || "Something went wrong. Try again.");
+      }
+    } catch {
+      setForgotError("Network error. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   // Login form
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -244,7 +277,15 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                   </div>
 
                   <div className="text-right">
-                    <button className="text-xs bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotOpen(true);
+                        setForgotSent(false);
+                        setForgotError("");
+                      }}
+                      className="text-xs bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80"
+                    >
                       Forgot password?
                     </button>
                   </div>
@@ -390,6 +431,76 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
           </div>
         </GlassCard>
       </motion.div>
+
+      {/* Forgot-password modal */}
+      <AnimatePresence>
+        {forgotOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setForgotOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-100 p-6"
+            >
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Forgot password?</h3>
+              <p className="text-xs text-slate-500 mb-5">
+                Enter the email you used to sign up. We&apos;ll send a reset link.
+              </p>
+
+              {forgotSent ? (
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 mb-2">
+                  <p className="text-sm font-semibold text-emerald-900 mb-1">
+                    Check your inbox
+                  </p>
+                  <p className="text-xs text-emerald-700">
+                    If that email is on an account, a reset link is on its way.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotSubmit} className="space-y-3">
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-400"
+                      autoFocus
+                    />
+                  </div>
+                  {forgotError && (
+                    <p className="text-xs text-rose-500">{forgotError}</p>
+                  )}
+                  <GradientButton
+                    type="submit"
+                    className="w-full"
+                    size="md"
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading ? "Sending..." : "Send reset link"}
+                  </GradientButton>
+                </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setForgotOpen(false)}
+                className="w-full mt-3 text-xs text-slate-400 hover:text-slate-600"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

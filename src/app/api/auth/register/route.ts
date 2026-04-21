@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import prisma from "@/lib/db";
 import { hashPassword, generateAccessToken, generateRefreshToken } from "@/lib/auth";
 import { validateDisplayName } from "@/lib/ruleOf7";
+import { issueEmailVerification } from "@/lib/email-verification";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -85,6 +86,15 @@ export async function POST(request: NextRequest) {
         createdAt: true,
       },
     });
+
+    // --- Fire verification email (non-blocking best-effort) ----------------
+    // Only meaningful when an email was supplied. We intentionally don't
+    // await long or fail registration if the mailer is misconfigured.
+    if (body.email) {
+      issueEmailVerification(user.id, body.email).catch((err) => {
+        console.warn("[register] verification email failed:", err);
+      });
+    }
 
     // --- Generate tokens ----------------------------------------------------
     const accessToken = generateAccessToken(user.id);
