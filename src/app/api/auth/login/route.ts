@@ -6,6 +6,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from "@/lib/auth";
+import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/login
@@ -15,6 +16,13 @@ interface LoginBody {
   phone: string;
   password: string;
 }
+
+// Rate-limit windows. These are intentionally tight to blunt brute force
+// without getting in the way of a user who mistyped their password twice.
+const IP_LIMIT = 20; // per IP
+const IP_WINDOW_MS = 15 * 60 * 1000; // 15 min
+const ACCOUNT_LIMIT = 5; // per phone hash
+const ACCOUNT_WINDOW_MS = 15 * 60 * 1000; // 15 min
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,8 +39,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Look up user by phone hash -----------------------------------------
+    // --- Rate limit: per-IP and per-account --------------------------------
+    const ip = clientIpFromRequest(request);
     const phoneHash = createHash("sha256").update(body.phone).digest("hex");
+
+    const ipLimit = rateLimit(`login:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
+    const accountLimit = rateLimit(`login:acct:${phoneHash}`, ACCOUNT_LIMIT, ACCOUNT_WINDOW_MS);
+
+    if (!ipLimit.allowed || !accountLimit.allowed) {
+      const retryAfterSec = Math.ceil(
+        Math.max(ipLimit.retryAfterMs, accountLimit.retryAfterMs) / 1000,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many login attempts. Try again shortly.",
+          },
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(Math.max(retryAfterSec, 1)) },
+        },
+      );
+    }
+
+    // --- Look up user by phone hash -----------------------------------------
 
     const user = await prisma.user.findUnique({
       where: { phoneHash },

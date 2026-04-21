@@ -5,7 +5,32 @@ import bcrypt from "bcryptjs";
 // Config
 // ---------------------------------------------------------------------------
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "copyme-dev-secret";
+// Resolve JWT secret. In production we REQUIRE the env var to be set;
+// otherwise we refuse to sign/verify. In development we fall back to a
+// hardcoded string so `npm run dev` keeps working without a .env file.
+function resolveJwtSecret(): string {
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret && envSecret.length >= 32) return envSecret;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "JWT_SECRET must be set to a string of at least 32 characters in production. " +
+      "Refusing to sign tokens with a weak or missing secret.",
+    );
+  }
+
+  if (envSecret) {
+    // Dev set an env secret but it's too short — warn loudly but continue.
+    console.warn(
+      "[auth] JWT_SECRET is shorter than 32 chars. This is accepted in development only.",
+    );
+    return envSecret;
+  }
+
+  return "copyme-dev-secret-not-for-production-use-32ch";
+}
+
+const JWT_SECRET = resolveJwtSecret();
 const ACCESS_TOKEN_EXPIRY = "15m";
 const REFRESH_TOKEN_EXPIRY = "7d";
 const BCRYPT_ROUNDS = 12;

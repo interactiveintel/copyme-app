@@ -101,17 +101,19 @@ function AppContent() {
               onLogin={() => setScreen("inbox")}
               onRegister={() => setScreen("onboarding")}
             />
-            {/* Skip to App button */}
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              onClick={() => setScreen("inbox")}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white backdrop-blur-xl border border-slate-200 text-slate-400 text-xs hover:bg-slate-50 hover:text-slate-600 transition-all shadow-sm"
-            >
-              <Zap size={14} className="text-purple-400" />
-              Skip to App (Demo)
-            </motion.button>
+            {/* Skip to App button — only rendered when NEXT_PUBLIC_ENABLE_DEMO === "true" */}
+            {process.env.NEXT_PUBLIC_ENABLE_DEMO === "true" && (
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                onClick={() => setScreen("inbox")}
+                className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white backdrop-blur-xl border border-slate-200 text-slate-400 text-xs hover:bg-slate-50 hover:text-slate-600 transition-all shadow-sm"
+              >
+                <Zap size={14} className="text-purple-400" />
+                Skip to App (Demo)
+              </motion.button>
+            )}
           </div>
         )}
 
