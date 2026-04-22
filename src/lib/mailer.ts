@@ -156,6 +156,90 @@ export function passwordResetTemplate(resetUrl: string) {
   return { subject, text, html };
 }
 
+export interface DigestSummary {
+  displayName: string;
+  unreadFromPeers: Array<{ peerName: string; unreadCount: number; lastPreview: string | null }>;
+  totalUnread: number;
+  streakDays: number;
+  appHref: string;
+}
+
+export function digestTemplate(s: DigestSummary) {
+  const greeting = s.displayName.trim()
+    ? `Hey ${s.displayName.split(/\s+/)[0]},`
+    : `Hey,`;
+  const unreadLine =
+    s.totalUnread === 0
+      ? `No unread messages.`
+      : `You have ${s.totalUnread} unread message${s.totalUnread === 1 ? "" : "s"}.`;
+
+  const subject = s.totalUnread
+    ? `${s.totalUnread} unread on CopyMe`
+    : `Your CopyMe daily digest`;
+
+  const peerList = s.unreadFromPeers
+    .slice(0, 7) // Rule of 7 everywhere
+    .map((p) => `  • ${p.peerName} — ${p.unreadCount} unread${p.lastPreview ? `: ${p.lastPreview}` : ""}`)
+    .join("\n");
+
+  const streakLine =
+    s.streakDays > 0
+      ? `You're on a ${s.streakDays}-day streak. Don't break it.`
+      : `Ready to start a streak? Send one message today.`;
+
+  const text = `${greeting}
+
+${unreadLine}
+${peerList ? peerList + "\n" : ""}
+${streakLine}
+
+Open CopyMe: ${s.appHref}
+
+You're getting this because you have an unread message or a streak to keep
+going. You can turn these off in Profile → Settings.`;
+
+  const peerHtml = s.unreadFromPeers
+    .slice(0, 7)
+    .map(
+      (p) =>
+        `<tr>
+           <td style="padding:8px 0; border-bottom:1px solid #f1f5f9;">
+             <strong style="color:#1a1a2e;">${p.peerName}</strong>
+             <span style="color:#999; font-size:12px;">— ${p.unreadCount} unread</span>
+             ${p.lastPreview ? `<br/><span style="color:#666; font-size:13px;">${escapeHtml(p.lastPreview)}</span>` : ""}
+           </td>
+         </tr>`,
+    )
+    .join("");
+
+  const html = wrap(
+    greeting.replace(",", ""),
+    `<p>${unreadLine}</p>
+     ${peerHtml ? `<table style="width:100%; border-collapse: collapse; margin: 16px 0;">${peerHtml}</table>` : ""}
+     <p style="margin:24px 0;">
+       <a href="${s.appHref}"
+          style="display:inline-block; padding:12px 24px; border-radius:999px;
+                 background:#7C3AED; color:white; text-decoration:none;
+                 font-weight:600;">Open CopyMe</a>
+     </p>
+     <p style="color:#555; font-size:13px;">${streakLine}</p>
+     <p style="font-size:11px; color:#999;">
+       You can turn off these digests in Profile → Settings.
+     </p>`,
+  );
+
+  return { subject, text, html };
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function welcomeTemplate(displayName: string, appHref: string) {
   const greeting = displayName.trim() ? `Welcome, ${displayName.split(/\s+/)[0]}!` : `Welcome!`;
   const subject = `${greeting} Let's start communicating with meaning.`;

@@ -9,6 +9,8 @@ import {
 } from "@/lib/ruleOf7";
 import { cacheInbox } from "@/lib/redis";
 import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { bumpStreak } from "@/lib/streak";
+import { sendPush } from "@/lib/push";
 
 // ---------------------------------------------------------------------------
 // POST /api/messages/send
@@ -163,6 +165,62 @@ export async function POST(request: NextRequest) {
         deliveredAt: new Date(),
       },
     });
+
+    // --- Streak: sending a message counts as activity --------------------
+    // Non-blocking; streak errors must never block a send.
+    bumpStreak(auth.userId).catch(() => {});
+
+    // --- Web Push to the recipient --------------------------------------
+    // Fire-and-forget. If VAPID isn't configured, sendPush is a no-op.
+    // We look up the sender's name for the notification title and strip
+    // any too-long content for the preview.
+    void (async () => {
+      try {
+        const [senderRow, subs] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: auth.userId },
+            select: { displayName: true },
+          }),
+          prisma.pushSubscription.findMany({
+            where: { userId: body.receiverId },
+            select: { id: true, endpoint: true, p256dh: true, auth: true },
+          }),
+        ]);
+        if (!subs.length) return;
+
+        const preview =
+          body.type === "text"
+            ? (body.content ?? "").slice(0, 120)
+            : body.type === "image"
+              ? "Sent you an image"
+              : body.type === "voice"
+                ? "Sent you a voice message"
+                : "Sent you a video message";
+
+        const results = await Promise.all(
+          subs.map((s) =>
+            sendPush(
+              { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+              {
+                title: senderRow?.displayName ?? "New message",
+                body: preview,
+                url: "/app",
+                tag: `msg:${auth.userId}:${body.receiverId}`,
+              },
+            ).then((r) => ({ id: s.id, ...r })),
+          ),
+        );
+        // Garbage-collect expired subscriptions so we don't keep trying.
+        const expired = results.filter((r) => r.expired).map((r) => r.id);
+        if (expired.length) {
+          await prisma.pushSubscription
+            .deleteMany({ where: { id: { in: expired } } })
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.warn("[messages/send push] failed:", err instanceof Error ? err.message : err);
+      }
+    })();
 
     // --- Analytics --------------------------------------------------------
     // First ever message for this user → first_message. Exactly once per

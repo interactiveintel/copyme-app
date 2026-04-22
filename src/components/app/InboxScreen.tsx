@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import SmartMatchPanel from "./SmartMatchPanel";
+import HomeNudges from "./HomeNudges";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
 import { MOCK_CONVERSATIONS, MOCK_PROFILES } from "@/lib/mock-data";
@@ -281,6 +282,9 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
           />
         </div>
       </div>
+
+      {/* Streak + push-enable CTA */}
+      <HomeNudges />
 
       {/* AD Inbox — AI-Curated Daily */}
       <div className="px-4 mb-4">

@@ -98,6 +98,8 @@ model User {
   passwordHash      String      @map("password_hash")
   emailVerifiedAt   DateTime?   @map("email_verified_at")
   lastActivityAt    DateTime?   @map("last_activity_at")
+  streakDays        Int         @default(0) @map("streak_days")
+  streakLastDayAt   DateTime?   @map("streak_last_day_at")
   createdAt         DateTime    @default(now()) @map("created_at")
 
   // Relations
@@ -116,6 +118,7 @@ model User {
   receivedTransactions VapTransaction[] @relation("TransactionReceiver")
   passwordResetTokens      PasswordResetToken[]
   emailVerificationTokens  EmailVerificationToken[]
+  pushSubscriptions        PushSubscription[]
 
   @@index([accountTier])
   @@index([lastActivityAt])
@@ -135,6 +138,22 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model EmailVerificationToken {

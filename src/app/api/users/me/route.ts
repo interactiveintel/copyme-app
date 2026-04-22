@@ -27,6 +27,9 @@ export async function GET(request: NextRequest) {
         vapEnabled: true,
         preferredCurrency: true,
         lastActivityAt: true,
+        streakDays: true,
+        streakLastDayAt: true,
+        emailVerifiedAt: true,
         createdAt: true,
         location: true,
         interests: {
@@ -216,6 +219,9 @@ export async function PUT(request: NextRequest) {
         vapEnabled: true,
         preferredCurrency: true,
         lastActivityAt: true,
+        streakDays: true,
+        streakLastDayAt: true,
+        emailVerifiedAt: true,
         createdAt: true,
         location: true,
         interests: {

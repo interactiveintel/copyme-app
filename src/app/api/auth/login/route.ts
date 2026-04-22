@@ -7,6 +7,7 @@ import {
   generateRefreshToken,
 } from "@/lib/auth";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
+import { bumpStreak } from "@/lib/streak";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/login
@@ -99,11 +100,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Update last activity -----------------------------------------------
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastActivityAt: new Date() },
-    });
+    // --- Update last activity + streak --------------------------------------
+    await bumpStreak(user.id);
 
     // --- Generate tokens ----------------------------------------------------
     const accessToken = generateAccessToken(user.id);

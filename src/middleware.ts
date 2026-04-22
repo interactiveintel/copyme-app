@@ -4,7 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 // Routes that do NOT require authentication
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PREFIXES = ["/api/auth/", "/api/waitlist"];
+const PUBLIC_PREFIXES = [
+  "/api/auth/",
+  "/api/waitlist",
+  "/api/notifications/public-key",
+  "/api/cron/", // cron routes auth themselves via CRON_SECRET
+];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
