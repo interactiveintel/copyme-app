@@ -49,10 +49,10 @@ export async function GET(request: NextRequest) {
     }
 
     // -----------------------------------------------------------------
-    // No contactId: return contact list with last message preview
+    // No contactId: return contact list with last message preview +
+    // unread count per conversation.
     // -----------------------------------------------------------------
 
-    // Get all messages involving this user, grouped by the other party
     const sentMessages = await prisma.message.findMany({
       where: { senderId: auth.userId },
       orderBy: { createdAt: "desc" },
@@ -62,6 +62,8 @@ export async function GET(request: NextRequest) {
         type: true,
         content: true,
         createdAt: true,
+        deliveredAt: true,
+        readAt: true,
         receiver: { select: { id: true, displayName: true } },
       },
     });
@@ -75,23 +77,37 @@ export async function GET(request: NextRequest) {
         type: true,
         content: true,
         createdAt: true,
+        deliveredAt: true,
+        readAt: true,
         sender: { select: { id: true, displayName: true } },
       },
     });
 
-    // Build a map of contactId -> latest message
+    // Unread count per peer (messages received by me that I haven't read).
+    const unreadPerPeer = new Map<string, number>();
+    for (const m of receivedMessages) {
+      if (!m.readAt) {
+        unreadPerPeer.set(m.senderId, (unreadPerPeer.get(m.senderId) ?? 0) + 1);
+      }
+    }
+
+    type LastMessage = {
+      id: string;
+      type: string;
+      content: string | null;
+      createdAt: Date;
+      deliveredAt: Date | null;
+      readAt: Date | null;
+      direction: "sent" | "received";
+    };
+
     const contactMap = new Map<
       string,
       {
         contactId: string;
         contactName: string;
-        lastMessage: {
-          id: string;
-          type: string;
-          content: string | null;
-          createdAt: Date;
-          direction: "sent" | "received";
-        };
+        unreadCount: number;
+        lastMessage: LastMessage;
       }
     >();
 
@@ -101,11 +117,14 @@ export async function GET(request: NextRequest) {
         contactMap.set(msg.receiverId, {
           contactId: msg.receiverId,
           contactName: msg.receiver.displayName,
+          unreadCount: unreadPerPeer.get(msg.receiverId) ?? 0,
           lastMessage: {
             id: msg.id,
             type: msg.type,
             content: msg.content,
             createdAt: msg.createdAt,
+            deliveredAt: msg.deliveredAt,
+            readAt: msg.readAt,
             direction: "sent",
           },
         });
@@ -118,18 +137,20 @@ export async function GET(request: NextRequest) {
         contactMap.set(msg.senderId, {
           contactId: msg.senderId,
           contactName: msg.sender.displayName,
+          unreadCount: unreadPerPeer.get(msg.senderId) ?? 0,
           lastMessage: {
             id: msg.id,
             type: msg.type,
             content: msg.content,
             createdAt: msg.createdAt,
+            deliveredAt: msg.deliveredAt,
+            readAt: msg.readAt,
             direction: "received",
           },
         });
       }
     }
 
-    // Sort by most recent message
     const conversations = Array.from(contactMap.values()).sort(
       (a, b) =>
         b.lastMessage.createdAt.getTime() - a.lastMessage.createdAt.getTime(),

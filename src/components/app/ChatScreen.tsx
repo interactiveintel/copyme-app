@@ -10,6 +10,7 @@ import {
   Mic,
   Send,
   Globe,
+  Check,
   CheckCheck,
   Play,
   Image as ImageIcon,
@@ -38,6 +39,8 @@ interface ApiMessage {
   mediaUrls: string[] | null;
   durationSeconds: number | null;
   createdAt: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
   sender?: { id: string; displayName: string };
   receiver?: { id: string; displayName: string };
 }
@@ -105,6 +108,34 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Auto-mark-read: whenever we land in a conversation (or receive a new
+  // message from this peer while the screen is open), tell the server
+  // those messages have been read. Only fires for real users / real peers.
+  useEffect(() => {
+    if (!user || isMockContact) return;
+    const hasUnread = messages.some(
+      (m) => m.senderId === chatId && !m.readAt,
+    );
+    if (!hasUnread) return;
+
+    // Optimistic local update so checkmarks tick forward even if the
+    // server is slow; the next poll will reconcile if something changes.
+    const now = new Date().toISOString();
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.senderId === chatId && !m.readAt ? { ...m, readAt: now } : m,
+      ),
+    );
+
+    authFetch("/api/messages/mark-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ peerId: chatId }),
+    }).catch(() => {
+      // Non-fatal; the next poll will try again.
+    });
+  }, [messages, chatId, user, isMockContact, authFetch]);
 
   const sentCount = messages.filter((m) => m.senderId === user?.id || m.senderId === "me").length;
   const remainingMessages = Math.max(0, 7 - sentCount);
@@ -301,10 +332,27 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                     </div>
                   )}
 
-                  {/* Timestamp */}
+                  {/* Timestamp + receipt status */}
                   <div className={`flex items-center gap-1 mt-1 ${isSent ? "justify-end" : "justify-start"}`}>
                     <span className="text-[10px] text-slate-400">{formatTime(msg.createdAt)}</span>
-                    {isSent && <CheckCheck size={13} className="text-purple-400" />}
+                    {isSent && (() => {
+                      // Legacy demo / mock messages have no delivered/read
+                      // data — render the old double-check to keep the
+                      // demo looking identical.
+                      if (isMockContact || msg.id.startsWith("demo_")) {
+                        return <CheckCheck size={13} className="text-purple-400" />;
+                      }
+                      if (msg.readAt) {
+                        // read: bright purple double-check
+                        return <CheckCheck size={13} className="text-purple-500" aria-label="Read" />;
+                      }
+                      if (msg.deliveredAt) {
+                        // delivered but not yet read: muted double-check
+                        return <CheckCheck size={13} className="text-slate-400" aria-label="Delivered" />;
+                      }
+                      // queued / sending: single check
+                      return <Check size={13} className="text-slate-300" aria-label="Sent" />;
+                    })()}
                   </div>
                 </div>
                 {/* User avatar on sent messages */}

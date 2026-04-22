@@ -134,6 +134,11 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Create the message -------------------------------------------------
+    // We stamp deliveredAt at creation time because our message fan-out is
+    // polling-based (no realtime socket). The message has "arrived" at the
+    // server as soon as this row exists; the recipient will see it on their
+    // next inbox poll. Read receipts still require the recipient to open
+    // the conversation — see POST /api/messages/mark-read.
     const message = await prisma.message.create({
       data: {
         senderId: auth.userId,
@@ -142,6 +147,7 @@ export async function POST(request: NextRequest) {
         content: body.content ?? null,
         mediaUrls: body.mediaUrls ?? undefined,
         durationSeconds: body.durationSeconds ?? null,
+        deliveredAt: new Date(),
       },
     });
 

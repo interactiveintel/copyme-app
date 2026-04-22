@@ -77,6 +77,18 @@ export async function getInbox(
   }
 }
 
+/**
+ * Invalidate both sides of an inbox cache pair. Use this after writes that
+ * change message state (mark-read, edit, delete) to force the next reader
+ * to hit the DB and see the fresh row.
+ */
+export async function invalidateInbox(
+  userId: string,
+  contactId: string,
+): Promise<void> {
+  await redis.del(inboxKey(userId, contactId), inboxKey(contactId, userId));
+}
+
 // ---------------------------------------------------------------------------
 // Online presence (5 minute TTL)
 // ---------------------------------------------------------------------------

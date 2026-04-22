@@ -229,6 +229,8 @@ model Message {
   languageTranslated  String?     @map("language_translated") @db.VarChar(10)
   translatedText      String?     @map("translated_text")
   createdAt           DateTime    @default(now()) @map("created_at")
+  deliveredAt         DateTime?   @map("delivered_at")
+  readAt              DateTime?   @map("read_at")
   expiresFromInboxAt  DateTime?   @map("expires_from_inbox_at")
 
   sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
@@ -237,6 +239,7 @@ model Message {
 
   @@index([senderId, createdAt])
   @@index([receiverId, createdAt])
+  @@index([receiverId, readAt])
   @@index([groupId, createdAt])
   @@index([expiresFromInboxAt])
   @@map("messages")
