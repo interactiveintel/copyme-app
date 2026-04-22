@@ -122,6 +122,10 @@ model User {
   yogiPersonality          YogiPersonality?
   yogiMessages             YogiMessage[]
   yogiCostLogs             YogiCostLog[]
+  blocksMade               UserBlock[]      @relation("UserBlocks")
+  blockedBy                UserBlock[]      @relation("BlockedByUsers")
+  reportsMade              UserReport[]     @relation("UserReportsMade")
+  reportsAgainst           UserReport[]     @relation("UserReportsAgainst")
 
   @@index([accountTier])
   @@index([lastActivityAt])
@@ -141,6 +145,39 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+model UserBlock {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  reason    String?  @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockedByUsers", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
+}
+
+model UserReport {
+  id           String   @id @default(uuid()) @db.Uuid
+  reporterId   String   @map("reporter_id") @db.Uuid
+  reportedId   String   @map("reported_id") @db.Uuid
+  reason       String   @db.VarChar(50)
+  details      String?  @db.VarChar(2000)
+  status       String   @default("open") @db.VarChar(20)
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  reporter User @relation("UserReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("UserReportsAgainst", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  @@index([reportedId, status])
+  @@index([reporterId])
+  @@index([status, createdAt])
+  @@map("user_reports")
 }
 
 model YogiPersonality {

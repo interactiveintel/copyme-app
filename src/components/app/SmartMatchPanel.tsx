@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, RefreshCw, UserPlus } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import AgentThinking from "../ui/AgentThinking";
+import { useAuth } from "@/lib/auth-context";
 
 interface SmartMatchPanelProps {
   onConnect: (userId: string) => void;
@@ -17,6 +18,28 @@ interface MatchData {
   score: number;
   interests: string[];
   icebreaker: string;
+}
+
+interface ApiSuggestion {
+  id: string;
+  displayName: string;
+  matchScore: number;
+  sharedInterests: string[];
+  interests: Array<{ slotNumber: number; interestText: string }>;
+}
+
+function buildIcebreaker(name: string, shared: string[], allInterests: string[]): string {
+  const first = name.split(/\s+/)[0] ?? name;
+  if (shared.length >= 2) {
+    return `Hey ${first}! Looks like we're both into ${shared[0]} and ${shared[1]}. What got you started?`;
+  }
+  if (shared.length === 1) {
+    return `Hey ${first}! I noticed we both like ${shared[0]}. How did you get into it?`;
+  }
+  if (allInterests.length > 0) {
+    return `Hey ${first}! Saw your interest in ${allInterests[0]} — would love to hear more about that.`;
+  }
+  return `Hey ${first}! Just spotted your profile — keen to swap notes on what you're into.`;
 }
 
 const mockMatches: MatchData[] = [
@@ -109,14 +132,55 @@ export default function SmartMatchPanel({
   onConnect,
   onClose,
 }: SmartMatchPanelProps) {
+  const { user, authFetch } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [matches] = useState<MatchData[]>(mockMatches);
+  const [matches, setMatches] = useState<MatchData[]>(mockMatches);
+  const [error, setError] = useState("");
 
-  // Simulate loading
+  const load = useCallback(async () => {
+    // Demo mode (no auth) → keep the rich mock data so the public preview stays warm.
+    if (!user) {
+      setMatches(mockMatches);
+      // Brief artificial delay so the AgentThinking animation doesn't flash by.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/users/suggested?limit=12");
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setError(data?.error?.message || "Couldn't load matches.");
+        setMatches([]);
+        return;
+      }
+      const suggestions = (data.data?.suggestions ?? []) as ApiSuggestion[];
+      const transformed: MatchData[] = suggestions.map((s) => {
+        const allInterestTexts = s.interests.map((i) => i.interestText);
+        return {
+          id: s.id,
+          name: s.displayName,
+          // Render score as a percent. Cap at 99% (no one is "100% match").
+          score: Math.min(99, 50 + s.matchScore * 12),
+          interests: allInterestTexts.slice(0, 4),
+          icebreaker: buildIcebreaker(s.displayName, s.sharedInterests, allInterestTexts),
+        };
+      });
+      setMatches(transformed);
+    } catch {
+      setError("Network error.");
+      setMatches([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, authFetch]);
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    void load();
+  }, [load]);
 
   return (
     <motion.div
@@ -189,6 +253,31 @@ export default function SmartMatchPanel({
                     />
                   ))}
                 </div>
+              </motion.div>
+            ) : matches.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center py-16 px-8 text-center"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                  <Sparkles size={20} className="text-slate-400" />
+                </div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">
+                  {error || "No matches yet"}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {error
+                    ? "Try refreshing in a moment."
+                    : "Add a few interests on your profile and we'll find people with shared interests."}
+                </p>
+                <button
+                  onClick={() => void load()}
+                  className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:text-purple-700"
+                >
+                  <RefreshCw size={12} /> Try again
+                </button>
               </motion.div>
             ) : (
               <motion.div key="results" className="space-y-3">

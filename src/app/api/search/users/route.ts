@@ -49,13 +49,26 @@ export async function POST(request: NextRequest) {
     const tier = currentUser?.accountTier ?? "basic";
     const limit = getSearchLimit(tier);
 
+    // --- Exclude blocked users (both directions) ---------------------------
+    const [blocksMade, blockedBy] = await Promise.all([
+      prisma.userBlock.findMany({ where: { blockerId: auth.userId }, select: { blockedId: true } }),
+      prisma.userBlock.findMany({ where: { blockedId: auth.userId }, select: { blockerId: true } }),
+    ]);
+    const excludedIds = Array.from(
+      new Set([
+        auth.userId,
+        ...blocksMade.map((b) => b.blockedId),
+        ...blockedBy.map((b) => b.blockerId),
+      ]),
+    );
+
     // --- Build where conditions ---------------------------------------------
     // Phase 1: simple ILIKE search across display name, interests, location,
     // and description fields. Elasticsearch integration planned for Phase 2.
 
     const users = await prisma.user.findMany({
       where: {
-        id: { not: auth.userId }, // Exclude self
+        id: { notIn: excludedIds }, // Exclude self + blocked
         OR: [
           { displayName: { contains: body.query.trim(), mode: "insensitive" } },
           {

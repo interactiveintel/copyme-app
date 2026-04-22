@@ -21,6 +21,7 @@ import {
 import Avatar from "../ui/Avatar";
 import SmartMatchPanel from "./SmartMatchPanel";
 import HomeNudges from "./HomeNudges";
+import { useContacts } from "@/lib/use-contacts";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
 import { MOCK_CONVERSATIONS, MOCK_PROFILES } from "@/lib/mock-data";
@@ -218,6 +219,7 @@ function timeAgo(dateStr: string): string {
 
 export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const { user, authFetch } = useAuth();
+  const { addContact } = useContacts();
   const [search, setSearch] = useState("");
   const [showSmartMatch, setShowSmartMatch] = useState(false);
   const [selectedAd, setSelectedAd] = useState<AdItem | null>(null);
@@ -656,8 +658,14 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
       <AnimatePresence>
         {showSmartMatch && (
           <SmartMatchPanel
-            onConnect={(userId) => {
-              console.log("Connect to:", userId);
+            onConnect={async (userId) => {
+              if (user) {
+                // Real path: add contact via API. Fire-and-forget — the
+                // panel closes immediately so the UX feels snappy.
+                void addContact(userId).catch(() => {
+                  /* surfaced via the contacts hook's error state */
+                });
+              }
               setShowSmartMatch(false);
             }}
             onClose={() => setShowSmartMatch(false)}
