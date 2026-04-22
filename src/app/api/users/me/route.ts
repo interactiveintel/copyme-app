@@ -234,3 +234,79 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// DELETE /api/users/me — Permanently delete the authenticated user's account.
+//
+// Required body: { confirmation: "DELETE" }
+//
+// Implements the GDPR right to erasure (Art. 17). All owned rows are removed
+// via Prisma cascade rules on the Contact, UserInterest, UserDescription,
+// UserLocation, Message, Subscription, VapAccount, VapTransaction, and
+// token tables. Operational logs outside Postgres (e.g. CDN access logs)
+// are retained only as long as documented in the Privacy Policy.
+// ---------------------------------------------------------------------------
+
+interface DeleteBody {
+  confirmation?: string;
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = authenticateRequest(request.headers.get("authorization"));
+  if (!auth) {
+    return NextResponse.json(
+      { success: false, error: { code: "UNAUTHORIZED", message: "Valid access token required" } },
+      { status: 401 },
+    );
+  }
+
+  try {
+    const body = (await request.json().catch(() => ({}))) as DeleteBody;
+    if (body.confirmation !== "DELETE") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "CONFIRMATION_REQUIRED",
+            message: 'Send { "confirmation": "DELETE" } to permanently delete your account.',
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    // Verify user still exists so we return a meaningful 404 rather than
+    // silently succeeding on an already-deleted account.
+    const user = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { id: true },
+    });
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: "NOT_FOUND", message: "User not found" } },
+        { status: 404 },
+      );
+    }
+
+    // Prisma schema has onDelete: Cascade on every dependent relation, so a
+    // single delete on users cascades to all owned rows (location, interests,
+    // descriptions, messages, contacts, subscriptions, password-reset and
+    // verification tokens, VAP account & transactions).
+    await prisma.user.delete({ where: { id: auth.userId } });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        userId: auth.userId,
+        deletedAt: new Date().toISOString(),
+        message: "Account and associated personal data have been deleted.",
+      },
+    });
+  } catch (error) {
+    console.error("[users/me DELETE] Unhandled error:", error);
+    return NextResponse.json(
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to delete account" } },
+      { status: 500 },
+    );
+  }
+}

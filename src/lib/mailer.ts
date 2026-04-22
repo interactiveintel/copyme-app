@@ -156,6 +156,44 @@ export function passwordResetTemplate(resetUrl: string) {
   return { subject, text, html };
 }
 
+export function welcomeTemplate(displayName: string, appHref: string) {
+  const greeting = displayName.trim() ? `Welcome, ${displayName.split(/\s+/)[0]}!` : `Welcome!`;
+  const subject = `${greeting} Let's start communicating with meaning.`;
+  const text =
+    `${greeting}\n\n` +
+    `CopyMe is built on the Rule of 7 — a constraint system that replaces noise with meaning.\n\n` +
+    `A quick tour:\n` +
+    `  • Every message is capped at 70 words — choose your words carefully.\n` +
+    `  • You can hold up to 7 active contacts on the free tier.\n` +
+    `  • Your last 7 messages per contact are retained — older ones cycle out.\n` +
+    `  • Yogi, your personal AI companion, learns from how you communicate.\n\n` +
+    `Ready when you are: ${appHref}\n\n` +
+    `— The CopyMe team`;
+
+  const html = wrap(
+    `${greeting}`,
+    `<p>CopyMe is built on the <strong>Rule of 7</strong> — a constraint system that
+      replaces noise with meaning. A quick tour:</p>
+     <ul style="padding-left:20px; margin:16px 0;">
+       <li>Every message is capped at <strong>70 words</strong> — choose carefully.</li>
+       <li>You can hold up to <strong>7 active contacts</strong> on the free tier.</li>
+       <li>Your last 7 messages per contact are retained — older ones cycle out.</li>
+       <li><strong>Yogi</strong>, your personal AI companion, learns from how you communicate.</li>
+     </ul>
+     <p style="margin:24px 0;">
+       <a href="${appHref}"
+          style="display:inline-block; padding:12px 24px; border-radius:999px;
+                 background:#7C3AED; color:white; text-decoration:none;
+                 font-weight:600;">Open CopyMe</a>
+     </p>
+     <p style="font-size:12px; color:#666;">
+       Not you? Ignore this message — no account was created without the phone + password you chose.
+     </p>`,
+  );
+
+  return { subject, text, html };
+}
+
 export function emailVerificationTemplate(verifyUrl: string) {
   const subject = `Verify your ${appName()} email`;
   const text =

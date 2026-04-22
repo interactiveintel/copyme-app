@@ -4,6 +4,7 @@ import prisma from "@/lib/db";
 import { hashPassword, generateAccessToken, generateRefreshToken } from "@/lib/auth";
 import { validateDisplayName } from "@/lib/ruleOf7";
 import { issueEmailVerification } from "@/lib/email-verification";
+import { sendMail, welcomeTemplate } from "@/lib/mailer";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -87,12 +88,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // --- Fire verification email (non-blocking best-effort) ----------------
+    // --- Fire verification + welcome emails (non-blocking best-effort) -----
     // Only meaningful when an email was supplied. We intentionally don't
     // await long or fail registration if the mailer is misconfigured.
     if (body.email) {
       issueEmailVerification(user.id, body.email).catch((err) => {
         console.warn("[register] verification email failed:", err);
+      });
+
+      const appHref =
+        process.env.NEXT_PUBLIC_APP_URL
+          ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/app`
+          : "https://copyme-app.vercel.app/app";
+      const { subject, text, html } = welcomeTemplate(user.displayName, appHref);
+      sendMail({ to: body.email, subject, text, html }).catch((err) => {
+        console.warn("[register] welcome email failed:", err);
       });
     }
 

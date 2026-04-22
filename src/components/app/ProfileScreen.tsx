@@ -1,8 +1,24 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Settings, Eye, EyeOff, Edit3, Crown, MapPin, Sparkles, Users, MessageSquare, X, Plus, Save } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Settings,
+  Eye,
+  EyeOff,
+  Edit3,
+  Crown,
+  MapPin,
+  Sparkles,
+  Users,
+  MessageSquare,
+  X,
+  Plus,
+  Save,
+  LogOut,
+  AlertTriangle,
+  Trash2,
+} from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
@@ -75,7 +91,7 @@ function CircularProgress({ value, max, label, color }: { value: number; max: nu
 }
 
 export default function ProfileScreen() {
-  const { user, authFetch } = useAuth();
+  const { user, authFetch, logout } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationVisible, setLocationVisible] = useState(true);
@@ -92,6 +108,9 @@ export default function ProfileScreen() {
   const [editDetail, setEditDetail] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [deleteStage, setDeleteStage] = useState<"closed" | "confirm" | "deleting" | "done">("closed");
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -170,6 +189,44 @@ export default function ProfileScreen() {
   const cancelEditing = () => {
     setSaveError("");
     setEditMode(false);
+  };
+
+  // -------------------------------------------------------------------------
+  // Account deletion (GDPR right to erasure)
+  // -------------------------------------------------------------------------
+
+  const handleDeleteAccount = async () => {
+    setDeleteError("");
+    if (!user) {
+      // Demo mode: just close the modal — there's nothing to delete.
+      setSettingsOpen(false);
+      setDeleteStage("closed");
+      return;
+    }
+    setDeleteStage("deleting");
+    try {
+      const res = await authFetch("/api/users/me", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "DELETE" }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setDeleteStage("confirm");
+        setDeleteError(data?.error?.message || "Couldn't delete your account. Try again.");
+        return;
+      }
+      setDeleteStage("done");
+      // Give the user a moment to read the confirmation before we log them
+      // out and send them back to the landing page.
+      setTimeout(() => {
+        logout();
+        window.location.href = "/";
+      }, 1500);
+    } catch {
+      setDeleteStage("confirm");
+      setDeleteError("Network error. Please try again.");
+    }
   };
 
   const saveEditing = async () => {
@@ -292,7 +349,16 @@ export default function ProfileScreen() {
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
-            <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-white/80 shadow-sm flex items-center justify-center">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                setSettingsOpen(true);
+                setDeleteStage("closed");
+                setDeleteError("");
+              }}
+              aria-label="Open settings"
+              className="w-9 h-9 rounded-full bg-white/80 shadow-sm flex items-center justify-center"
+            >
               <Settings size={18} className="text-slate-500" />
             </motion.button>
           </div>
@@ -591,6 +657,146 @@ export default function ProfileScreen() {
           </GradientButton>
         )}
       </div>
+
+      {/* Settings modal */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => {
+              if (deleteStage === "deleting") return; // block dismiss mid-delete
+              setSettingsOpen(false);
+              setDeleteStage("closed");
+            }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              transition={{ type: "spring", damping: 26, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
+            >
+              {deleteStage === "done" ? (
+                <div className="text-center py-8">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                    <Trash2 size={22} className="text-emerald-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">Account deleted</h3>
+                  <p className="text-sm text-slate-500">Redirecting you to the home page…</p>
+                </div>
+              ) : deleteStage === "confirm" || deleteStage === "deleting" ? (
+                <>
+                  <div className="flex items-start gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                      <AlertTriangle size={18} className="text-rose-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Delete your account?</h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        This permanently deletes your profile, messages, contacts, and tokens.
+                        We&apos;ll keep anonymized operational logs for up to 12 months as
+                        described in our{" "}
+                        <a href="/privacy" className="underline text-purple-600">
+                          Privacy Policy
+                        </a>
+                        . This cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+
+                  {deleteError && (
+                    <div className="mb-3 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200">
+                      <p className="text-xs text-rose-700">{deleteError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setDeleteStage("closed")}
+                      disabled={deleteStage === "deleting"}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-700 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleteStage === "deleting"}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-rose-600 disabled:opacity-60"
+                    >
+                      {deleteStage === "deleting" ? "Deleting..." : "Delete permanently"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-lg font-bold text-slate-900">Settings</h3>
+                    <button
+                      onClick={() => setSettingsOpen(false)}
+                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
+                      aria-label="Close settings"
+                    >
+                      <X size={16} className="text-slate-500" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1">
+                    <a
+                      href="/privacy"
+                      className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
+                    >
+                      <span>Privacy policy</span>
+                      <span className="text-xs text-slate-400">→</span>
+                    </a>
+                    <a
+                      href="/terms"
+                      className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
+                    >
+                      <span>Terms of service</span>
+                      <span className="text-xs text-slate-400">→</span>
+                    </a>
+                    {user && (
+                      <button
+                        onClick={() => {
+                          logout();
+                          window.location.href = "/";
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
+                      >
+                        <span className="flex items-center gap-2">
+                          <LogOut size={14} className="text-slate-500" /> Sign out
+                        </span>
+                        <span className="text-xs text-slate-400">→</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-5 pt-5 border-t border-slate-100">
+                    <button
+                      onClick={() => setDeleteStage("confirm")}
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-rose-50 text-sm text-rose-600"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Trash2 size={14} /> Delete account
+                      </span>
+                      <span className="text-xs text-rose-400">→</span>
+                    </button>
+                    {!user && (
+                      <p className="mt-2 px-3 text-[11px] text-slate-400">
+                        Sign in to delete a real account — demo mode has nothing to delete.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
