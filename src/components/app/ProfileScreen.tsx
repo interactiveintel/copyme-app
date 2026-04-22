@@ -90,6 +90,8 @@ export default function ProfileScreen() {
   const [editLevel, setEditLevel] = useState("");
   const [editInstitution, setEditInstitution] = useState("");
   const [editDetail, setEditDetail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -166,10 +168,12 @@ export default function ProfileScreen() {
   };
 
   const cancelEditing = () => {
+    setSaveError("");
     setEditMode(false);
   };
 
-  const saveEditing = () => {
+  const saveEditing = async () => {
+    setSaveError("");
     const p = profile ?? localProfile ?? demoProfile;
     const updated: Profile = {
       ...p,
@@ -191,11 +195,47 @@ export default function ProfileScreen() {
         typeDescription: editDetail.trim() || p.descriptions?.[0]?.typeDescription || null,
       }],
     };
-    if (profile) {
-      setProfile(updated);
+
+    // Authenticated user: persist via API. Demo mode keeps local state only.
+    if (user) {
+      setSaving(true);
+      try {
+        const payload = {
+          displayName: updated.displayName,
+          location: {
+            globalArea: updated.location?.globalArea ?? undefined,
+            countryPhoneCode: updated.location?.countryPhoneCode ?? undefined,
+            region: updated.location?.region ?? undefined,
+            cityZip: updated.location?.cityZip ?? undefined,
+            localDescription: updated.location?.localDescription ?? undefined,
+            locationVisible: updated.location?.locationVisible,
+          },
+          interests: updated.interests,
+          descriptions: updated.descriptions,
+        };
+        const res = await authFetch("/api/users/me", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setSaveError(data?.error?.message || "Couldn't save profile. Please try again.");
+          return;
+        }
+        setProfile(data.data);
+      } catch {
+        setSaveError("Network error. Please try again.");
+        return;
+      } finally {
+        setSaving(false);
+      }
     } else {
-      setLocalProfile(updated);
+      // Demo fallback
+      if (profile) setProfile(updated);
+      else setLocalProfile(updated);
     }
+
     setEditMode(false);
   };
 
@@ -520,14 +560,31 @@ export default function ProfileScreen() {
 
         {/* Edit profile */}
         {editMode ? (
-          <div className="flex gap-3 mb-4">
-            <GradientButton variant="outline" className="flex-1" onClick={cancelEditing}>
-              <X size={16} /> Cancel
-            </GradientButton>
-            <GradientButton className="flex-1" onClick={saveEditing}>
-              <Save size={16} /> Save
-            </GradientButton>
-          </div>
+          <>
+            {saveError && (
+              <div className="mb-3 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200">
+                <p className="text-xs text-rose-700">{saveError}</p>
+              </div>
+            )}
+            <div className="flex gap-3 mb-4">
+              <GradientButton
+                variant="outline"
+                className="flex-1"
+                onClick={cancelEditing}
+                disabled={saving}
+              >
+                <X size={16} /> Cancel
+              </GradientButton>
+              <GradientButton
+                className="flex-1"
+                onClick={saveEditing}
+                disabled={saving}
+                loading={saving}
+              >
+                <Save size={16} /> {saving ? "Saving..." : "Save"}
+              </GradientButton>
+            </div>
+          </>
         ) : (
           <GradientButton variant="outline" className="w-full mb-4" onClick={startEditing}>
             <Edit3 size={16} /> Edit Profile

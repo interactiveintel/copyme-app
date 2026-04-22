@@ -159,6 +159,14 @@ export function getContactLimit(tier: string): number {
 }
 
 /**
+ * Get the concurrent "at once" contact cap for a given tier. This is the
+ * number of rows a user may hold in the Contact table at any one time.
+ */
+export function getContactAtOnceLimit(tier: string): number {
+  return LIMITS[tierKey(tier)].contactsAtOnce;
+}
+
+/**
  * Get the search result limit for a given tier.
  */
 export function getSearchLimit(tier: string): number {

@@ -70,6 +70,27 @@ interface UpdateProfileBody {
     locationVisible?: boolean;
   };
   interests?: Array<{ slotNumber: number; interestText: string }>;
+  descriptions?: Array<{
+    category?: string;
+    level?: string | null;
+    location?: string | null;
+    institution?: string | null;
+    typeDescription?: string | null;
+  }>;
+}
+
+// The DescriptionCategory enum in Prisma only accepts these values; the
+// UI lets the user type freely, so we normalize before persisting.
+const ALLOWED_CATEGORIES = ["education", "business", "religion", "other"] as const;
+type AllowedCategory = (typeof ALLOWED_CATEGORIES)[number];
+
+function normalizeCategory(input: string | undefined | null): AllowedCategory {
+  if (!input) return "other";
+  const lower = input.trim().toLowerCase();
+  if ((ALLOWED_CATEGORIES as readonly string[]).includes(lower)) {
+    return lower as AllowedCategory;
+  }
+  return "other";
 }
 
 export async function PUT(request: NextRequest) {
@@ -157,6 +178,28 @@ export async function PUT(request: NextRequest) {
             userId: auth.userId,
             slotNumber: i.slotNumber,
             interestText: i.interestText,
+          })),
+        });
+      }
+    }
+
+    // --- Update descriptions (delete + recreate) ----------------------------
+    if (body.descriptions) {
+      await prisma.userDescription.deleteMany({
+        where: { userId: auth.userId },
+      });
+      const nonEmpty = body.descriptions.filter(
+        (d) => d.level || d.institution || d.typeDescription || d.category,
+      );
+      if (nonEmpty.length > 0) {
+        await prisma.userDescription.createMany({
+          data: nonEmpty.map((d) => ({
+            userId: auth.userId,
+            category: normalizeCategory(d.category),
+            level: d.level || null,
+            location: d.location || null,
+            institution: d.institution || null,
+            typeDescription: d.typeDescription || null,
           })),
         });
       }
