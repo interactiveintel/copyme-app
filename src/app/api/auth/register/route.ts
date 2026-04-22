@@ -5,6 +5,7 @@ import { hashPassword, generateAccessToken, generateRefreshToken } from "@/lib/a
 import { validateDisplayName } from "@/lib/ruleOf7";
 import { issueEmailVerification } from "@/lib/email-verification";
 import { sendMail, welcomeTemplate } from "@/lib/mailer";
+import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -105,6 +106,12 @@ export async function POST(request: NextRequest) {
         console.warn("[register] welcome email failed:", err);
       });
     }
+
+    // --- Analytics: signup ------------------------------------------------
+    capture(user.id, ANALYTICS_EVENTS.Signup, {
+      hasEmail: Boolean(body.email),
+      accountTier: user.accountTier,
+    });
 
     // --- Generate tokens ----------------------------------------------------
     const accessToken = generateAccessToken(user.id);

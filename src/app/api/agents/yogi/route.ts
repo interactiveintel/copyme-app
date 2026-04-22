@@ -4,6 +4,7 @@ import { AgentEngine } from "@/lib/agents/engine";
 import { createAgentiConfig, analyzeMessageStyle, DEFAULT_PERSONALITY } from "@/lib/agents/yogi";
 import type { AgentMessage } from "@/lib/agents/types";
 import type { PersonalityProfile } from "@/lib/agents/yogi";
+import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 // ---------------------------------------------------------------------------
 // POST /api/agents/yogi
@@ -65,7 +66,17 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = callerId || "anonymous";
+    const isFirstYogiChat = !personalityStore.has(userId);
     const personality = getOrCreatePersonality(userId);
+
+    // Analytics: first time this user talks to Yogi in this process lifetime.
+    // Tracked on the transition (personalityStore cache miss) — good enough
+    // for "did they try Yogi" without needing a new DB column.
+    if (isFirstYogiChat && callerId) {
+      capture(callerId, ANALYTICS_EVENTS.YogiChatStarted, {
+        mode: body.mode,
+      });
+    }
 
     // Learn from the user's message history
     const userMessages = (body.conversationHistory ?? [])

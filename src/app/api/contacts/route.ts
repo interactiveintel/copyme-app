@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { getContactAtOnceLimit } from "@/lib/ruleOf7";
+import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 // ---------------------------------------------------------------------------
 // GET /api/contacts
@@ -149,6 +150,12 @@ export async function POST(request: NextRequest) {
     // --- Create row --------------------------------------------------------
     const row = await prisma.contact.create({
       data: { userId: auth.userId, contactId: body.contactId },
+    });
+
+    // --- Analytics -------------------------------------------------------
+    capture(auth.userId, ANALYTICS_EVENTS.ContactAdded, {
+      contactCountAfter: me._count.contacts + 1,
+      tier: me.accountTier,
     });
 
     return NextResponse.json(

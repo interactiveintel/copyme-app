@@ -8,6 +8,7 @@ import {
   LIMITS,
 } from "@/lib/ruleOf7";
 import { cacheInbox } from "@/lib/redis";
+import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 // ---------------------------------------------------------------------------
 // POST /api/messages/send
@@ -101,7 +102,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Check inbox limit (7 messages per contact) -------------------------
+    // --- Check inbox limit (7 messages per contact) + first-message check --
+    // Count total messages in this conversation for the cycling cap.
     const existingCount = await prisma.message.count({
       where: {
         OR: [
@@ -109,6 +111,17 @@ export async function POST(request: NextRequest) {
           { senderId: body.receiverId, receiverId: auth.userId },
         ],
       },
+    });
+
+    // Count the sender's prior messages (any recipient) so we can fire the
+    // `first_message` event exactly once per lifetime.
+    const priorSenderMessages = await prisma.message.count({
+      where: { senderId: auth.userId },
+    });
+
+    // How many messages has the sender sent to THIS contact before?
+    const priorFromSenderToReceiver = await prisma.message.count({
+      where: { senderId: auth.userId, receiverId: body.receiverId },
     });
 
     const inboxLimit = LIMITS.BASIC.inboxPerContact;
@@ -150,6 +163,23 @@ export async function POST(request: NextRequest) {
         deliveredAt: new Date(),
       },
     });
+
+    // --- Analytics --------------------------------------------------------
+    // First ever message for this user → first_message. Exactly once per
+    // user lifetime (priorSenderMessages was counted BEFORE create).
+    if (priorSenderMessages === 0) {
+      capture(auth.userId, ANALYTICS_EVENTS.FirstMessage, {
+        type: body.type,
+      });
+    }
+    // Cycle completed: this send brings the sender's count TO this peer up
+    // to 7. We only fire on the transition (exactly == 7), not each message
+    // past it.
+    if (priorFromSenderToReceiver + 1 === LIMITS.BASIC.inboxPerContact) {
+      capture(auth.userId, ANALYTICS_EVENTS.CycleCompleted, {
+        peerId: body.receiverId,
+      });
+    }
 
     // --- Update inbox cache -------------------------------------------------
     try {
