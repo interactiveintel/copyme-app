@@ -9,6 +9,9 @@ import CTA from "@/components/landing/CTA";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://copyme-app.vercel.app",
+  ),
   title: "CopyMe — Communication That Copies Your World",
   description:
     "Built on the Rule of 7, CopyMe is the messaging platform that replaces noise with meaning. 7 messages. 70 words. Infinite impact.",
@@ -24,6 +27,13 @@ export const metadata: Metadata = {
     description:
       "Built on the Rule of 7, CopyMe is the messaging platform that replaces noise with meaning.",
     type: "website",
+    siteName: "CopyMe",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CopyMe — Communication That Copies Your World",
+    description: "Built on the Rule of 7. 7 messages. 70 words. Infinite impact.",
   },
 };
 

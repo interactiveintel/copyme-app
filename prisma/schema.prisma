@@ -100,6 +100,10 @@ model User {
   lastActivityAt    DateTime?   @map("last_activity_at")
   streakDays        Int         @default(0) @map("streak_days")
   streakLastDayAt   DateTime?   @map("streak_last_day_at")
+  /// 8-char URL-safe referral code, generated lazily on first read.
+  referralCode      String?     @unique @map("referral_code") @db.VarChar(16)
+  /// User who invited this user (set once on register from ?ref=...).
+  referredById      String?     @map("referred_by_id") @db.Uuid
   createdAt         DateTime    @default(now()) @map("created_at")
 
   // Relations
@@ -127,6 +131,8 @@ model User {
   reportsMade              UserReport[]     @relation("UserReportsMade")
   reportsAgainst           UserReport[]     @relation("UserReportsAgainst")
   ownedAds                 BusinessAd[]
+  referredBy               User?            @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals                User[]           @relation("UserReferrals")
 
   @@index([accountTier])
   @@index([lastActivityAt])

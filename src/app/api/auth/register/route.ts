@@ -6,6 +6,7 @@ import { validateDisplayName } from "@/lib/ruleOf7";
 import { issueEmailVerification } from "@/lib/email-verification";
 import { sendMail, welcomeTemplate } from "@/lib/mailer";
 import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { resolveReferralCode } from "@/lib/referral";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -16,6 +17,8 @@ interface RegisterBody {
   phone: string;
   email?: string;
   password: string;
+  /** Optional referral code from a friend's invite link. */
+  ref?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -73,6 +76,12 @@ export async function POST(request: NextRequest) {
     // --- Hash password ------------------------------------------------------
     const passwordHash = await hashPassword(body.password);
 
+    // --- Resolve optional referral code -------------------------------------
+    // We resolve before user creation so we can stamp `referredById` atomically.
+    // Self-referral guard isn't needed here (no userId yet) — the resolver
+    // handles it on subsequent /me calls.
+    const referredById = await resolveReferralCode(body.ref);
+
     // --- Create user --------------------------------------------------------
     const user = await prisma.user.create({
       data: {
@@ -80,6 +89,7 @@ export async function POST(request: NextRequest) {
         phoneHash,
         emailHash,
         passwordHash,
+        referredById,
       },
       select: {
         id: true,
