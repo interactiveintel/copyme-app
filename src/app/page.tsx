@@ -3,6 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import Features from "@/components/landing/Features";
 import RuleOf7 from "@/components/landing/RuleOf7";
+import ExplainerVideo from "@/components/landing/ExplainerVideo";
 import Pricing from "@/components/landing/Pricing";
 import CTA from "@/components/landing/CTA";
 import Footer from "@/components/landing/Footer";
@@ -33,6 +34,7 @@ export default function Home() {
       <Hero />
       <Features />
       <RuleOf7 />
+      <ExplainerVideo />
       <Pricing />
       <CTA />
       <Footer />

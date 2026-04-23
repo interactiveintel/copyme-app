@@ -8,8 +8,8 @@ import DownloadButton from "./DownloadButton";
 const navLinks = [
   { label: "Features", href: "#features" },
   { label: "Rule of 7", href: "#rule-of-7" },
-  { label: "Demo", href: "#cta" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Watch", href: "#watch" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 export default function Navbar() {
