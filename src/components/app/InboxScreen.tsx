@@ -21,6 +21,7 @@ import {
 import Avatar from "../ui/Avatar";
 import SmartMatchPanel from "./SmartMatchPanel";
 import HomeNudges from "./HomeNudges";
+import AppBrand from "./AppBrand";
 import { useContacts } from "@/lib/use-contacts";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
@@ -376,7 +377,8 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   return (
     <div className="flex flex-col h-full pb-20">
       {/* Header */}
-      <div className="px-4 pt-12 pb-4">
+      <div className="px-4 pt-10 pb-4">
+        <AppBrand className="mb-2" />
         <h1 className="text-2xl font-bold text-slate-900 mb-4">Messages</h1>
 
         {/* Search bar */}

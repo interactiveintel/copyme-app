@@ -303,12 +303,50 @@ function useTypewriter(lines: string[], active: boolean, speed = 30) {
 // Voice narration hook — uses Web Speech API (SpeechSynthesis)
 // ---------------------------------------------------------------------------
 
-// Curated voice presets — soft female English voices preferred
+// Curated voice presets — default is a profound British English male voice
+// (BBC narrator feel). Keyword order matters: each list runs top-to-bottom
+// against the platform's installed voices, first hit wins.
 const VOICE_PRESETS = [
-  { id: "auto", label: "Soft Female (Default)", keywords: ["samantha", "karen", "victoria", "google uk english female", "microsoft zira", "female"] },
-  { id: "male", label: "Deep Male", keywords: ["daniel", "alex", "google uk english male", "microsoft david", "male"] },
-  { id: "british", label: "British Female", keywords: ["kate", "serena", "google uk english female", "martha"] },
-  { id: "warm", label: "Warm & Friendly", keywords: ["samantha", "tessa", "moira", "google us english"] },
+  // Daniel = iOS/macOS BBC-style English male. Oliver/Arthur = newer Apple
+  // "Premium" British males. Microsoft George/Ryan = Windows. Google UK
+  // English Male = Android/Chrome. "british" / "english (united kingdom)"
+  // are last-ditch substring matches.
+  {
+    id: "auto",
+    label: "Profound British (Default)",
+    keywords: [
+      "daniel",
+      "oliver",
+      "arthur",
+      "google uk english male",
+      "microsoft george",
+      "microsoft ryan",
+      "british",
+      "english (united kingdom)",
+    ],
+  },
+  {
+    id: "british-female",
+    label: "Refined British Female",
+    keywords: [
+      "kate",
+      "serena",
+      "martha",
+      "google uk english female",
+      "microsoft hazel",
+      "microsoft susan",
+    ],
+  },
+  {
+    id: "us-male",
+    label: "Deep American Male",
+    keywords: ["alex", "tom", "google us english", "microsoft david"],
+  },
+  {
+    id: "us-female",
+    label: "Warm American Female",
+    keywords: ["samantha", "tessa", "moira", "microsoft zira", "google us english"],
+  },
 ] as const;
 
 type VoicePresetId = typeof VOICE_PRESETS[number]["id"] | "custom";
@@ -323,13 +361,30 @@ function resolveVoice(presetId: VoicePresetId, customVoiceName?: string): Speech
   }
 
   const preset = VOICE_PRESETS.find((p) => p.id === presetId) ?? VOICE_PRESETS[0];
+  const wantsBritish = presetId === "auto" || presetId === "british-female";
+
   for (const kw of preset.keywords) {
-    const match = voices.find(
+    // For British presets, prefer en-GB locale matches first; only fall back
+    // to en-* if no en-GB voice carries the keyword. Without this an installed
+    // "Microsoft David — en-US" voice would match the "david" keyword on the
+    // US-male preset but would never be picked over en-GB Daniel for Auto.
+    if (wantsBritish) {
+      const gbMatch = voices.find(
+        (v) => v.lang.toLowerCase().startsWith("en-gb") && v.name.toLowerCase().includes(kw),
+      );
+      if (gbMatch) return gbMatch;
+    }
+    const enMatch = voices.find(
       (v) => v.lang.startsWith("en") && v.name.toLowerCase().includes(kw),
     );
-    if (match) return match;
+    if (enMatch) return enMatch;
   }
-  // Fallback: any English voice
+
+  // Last resort: any en-GB voice for British presets, otherwise any English voice.
+  if (wantsBritish) {
+    const anyGb = voices.find((v) => v.lang.toLowerCase().startsWith("en-gb"));
+    if (anyGb) return anyGb;
+  }
   return voices.find((v) => v.lang.startsWith("en")) ?? null;
 }
 
@@ -348,16 +403,32 @@ function useAvailableVoices() {
   return voices;
 }
 
+// Some TTS engines (notably Apple) clip the final ~150ms of a phrase that
+// has no terminal punctuation. Force a period so the synthesizer renders the
+// trailing pause and the last syllable doesn't get cut off.
+function ensureTerminalPunctuation(line: string): string {
+  const trimmed = line.trimEnd();
+  if (!trimmed) return trimmed;
+  const last = trimmed[trimmed.length - 1];
+  if (".!?…".includes(last)) return trimmed;
+  return trimmed + ".";
+}
+
 function useVoiceNarration(
   lines: string[],
   active: boolean,
   enabled: boolean,
   voicePreset: VoicePresetId,
-  customVoiceName?: string,
+  customVoiceName: string | undefined,
+  onComplete?: () => void,
 ) {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const lineIndexRef = useRef(0);
   const unlockedRef = useRef(false);
+  // Latest onComplete is held in a ref so changing it doesn't tear down the
+  // speech effect mid-scene.
+  const onCompleteRef = useRef<(() => void) | undefined>(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
 
   // Unlock speech synthesis immediately when hook is active (user already clicked to open modal)
   useEffect(() => {
@@ -403,26 +474,43 @@ function useVoiceNarration(
 
     window.speechSynthesis.cancel();
     lineIndexRef.current = 0;
+    const padded = lines.map(ensureTerminalPunctuation);
 
     function speakLine(idx: number) {
-      if (idx >= lines.length) return;
-      const utterance = new SpeechSynthesisUtterance(lines[idx]);
-      utterance.rate = 0.92;
-      utterance.pitch = 1.05;
-      utterance.lang = "en-US";
+      if (idx >= padded.length) {
+        // Notify parent that the full scene narration finished. Small delay
+        // gives the audio engine time to flush its tail buffer before any
+        // next-scene cancel() lands.
+        setTimeout(() => onCompleteRef.current?.(), 250);
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(padded[idx]);
+      // Slower + deeper for that BBC narrator feel; lang en-GB so Chromium /
+      // Android pick a British voice when no exact preset match exists.
+      utterance.rate = 0.85;
+      utterance.pitch = 0.9;
+      utterance.lang = "en-GB";
 
       const voice = resolveVoice(voicePreset, customVoiceName);
-      if (voice) utterance.voice = voice;
+      if (voice) {
+        utterance.voice = voice;
+        // Match utterance.lang to the picked voice's locale so the engine
+        // doesn't re-resolve to a different voice mid-line.
+        utterance.lang = voice.lang;
+      }
 
       utterance.onend = () => {
         lineIndexRef.current = idx + 1;
-        speakLine(idx + 1);
+        // ~350ms pause between lines — gives the previous sentence room to
+        // fully decay before the next one starts. Fixes the "blends together
+        // and clips" complaint on Apple voices.
+        setTimeout(() => speakLine(idx + 1), 350);
       };
 
       utterance.onerror = () => {
         // Skip to next line on error
         lineIndexRef.current = idx + 1;
-        setTimeout(() => speakLine(idx + 1), 300);
+        setTimeout(() => speakLine(idx + 1), 350);
       };
 
       utteranceRef.current = utterance;
@@ -480,18 +568,33 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceSample, setVoiceSample] = useState<string | null>(null);
+  // narrationDone gates auto-advance: even if SCENE_DURATION elapses, we hold
+  // the scene until the British narrator has actually finished speaking. Stops
+  // the last sentence of long scenes from being clipped by a scene change.
+  const [narrationDone, setNarrationDone] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const availableVoices = useAvailableVoices();
 
   const scene = scenes[current];
-  const progress = ((current + elapsed / SCENE_DURATION) / scenes.length) * 100;
+  // Progress bar caps at 100% within a scene even if we're holding for the
+  // narrator — the bar shouldn't overflow visually while waiting on voice.
+  const sceneProgressFraction = Math.min(1, elapsed / SCENE_DURATION);
+  const progress = ((current + sceneProgressFraction) / scenes.length) * 100;
 
   const narrationLines = useTypewriter(scene.narration, open && true, 25);
 
-  // TTS narration
-  useVoiceNarration(scene.narration, open, voiceEnabled, voicePreset, customVoiceName);
+  // TTS narration. onComplete flips narrationDone when the British narrator
+  // finishes the last sentence — auto-advance reads that flag.
+  useVoiceNarration(
+    scene.narration,
+    open,
+    voiceEnabled,
+    voicePreset,
+    customVoiceName,
+    () => setNarrationDone(true),
+  );
 
   // Record voice sample for "My Voice" feature
   const startVoiceRecording = useCallback(async () => {
@@ -525,7 +628,8 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
     }
   }, []);
 
-  // Timer tick — drives progress bar and auto-advance
+  // Timer tick — drives progress bar (capped at SCENE_DURATION). Auto-advance
+  // happens in a separate effect so it can also gate on narrationDone.
   useEffect(() => {
     if (!open || !playing) {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -533,21 +637,11 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
     }
 
     const TICK = 50;
+    // Cap at 1.5x SCENE_DURATION as a safety so a stuck voice engine never
+    // freezes the demo forever — past that we move on regardless.
+    const HARD_CAP = SCENE_DURATION * 1.5;
     intervalRef.current = setInterval(() => {
-      setElapsed((prev) => {
-        const next = prev + TICK;
-        if (next >= SCENE_DURATION) {
-          setCurrent((c) => {
-            if (c >= scenes.length - 1) {
-              setPlaying(false);
-              return c;
-            }
-            return c + 1;
-          });
-          return 0;
-        }
-        return next;
-      });
+      setElapsed((prev) => Math.min(HARD_CAP, prev + TICK));
     }, TICK);
 
     return () => {
@@ -555,9 +649,27 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
     };
   }, [open, playing]);
 
-  // Reset elapsed when scene changes
+  // Auto-advance: scene moves on once BOTH SCENE_DURATION has elapsed AND the
+  // narrator has signalled it's done, OR we hit the hard cap. Voice-disabled
+  // mode falls back to pure timer-based pacing.
+  useEffect(() => {
+    if (!open || !playing) return;
+    const minElapsedReached = elapsed >= SCENE_DURATION;
+    const hardCapReached = elapsed >= SCENE_DURATION * 1.5;
+    const narratorReady = !voiceEnabled || narrationDone;
+    if (!(minElapsedReached && narratorReady) && !hardCapReached) return;
+
+    if (current >= scenes.length - 1) {
+      setPlaying(false);
+      return;
+    }
+    setCurrent((c) => c + 1);
+  }, [open, playing, elapsed, narrationDone, voiceEnabled, current]);
+
+  // Reset elapsed + narrationDone when scene changes — fresh sentence ahead.
   useEffect(() => {
     setElapsed(0);
+    setNarrationDone(false);
   }, [current]);
 
   // Reset on open/close
@@ -566,6 +678,7 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
       setCurrent(0);
       setElapsed(0);
       setPlaying(true);
+      setNarrationDone(false);
       // Cancel any ongoing speech when modal closes
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel();
@@ -576,6 +689,7 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   const goTo = useCallback((idx: number) => {
     setCurrent(idx);
     setElapsed(0);
+    setNarrationDone(false);
     setPlaying(true);
   }, []);
 

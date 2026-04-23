@@ -6,6 +6,7 @@ import { Search, Sparkles, MapPin, Briefcase, GraduationCap, Users } from "lucid
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
+import AppBrand from "./AppBrand";
 import { useAuth } from "@/lib/auth-context";
 import { MOCK_PROFILES } from "@/lib/mock-data";
 
@@ -90,7 +91,8 @@ export default function SearchScreen() {
 
   return (
     <div className="flex flex-col h-full pb-20">
-      <div className="px-4 pt-12 pb-4">
+      <div className="px-4 pt-10 pb-4">
+        <AppBrand className="mb-2" />
         <h1 className="text-2xl font-bold text-slate-900 mb-4">Discover</h1>
 
         {/* Search input */}

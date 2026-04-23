@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { MOCK_PROFILES } from "@/lib/mock-data";
+import AppBrand from "./AppBrand";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -713,7 +714,8 @@ export default function YogiAIScreen() {
   return (
     <div className="flex flex-col h-full bg-white pb-16">
       {/* Header */}
-      <div className="relative z-10 px-4 pt-12 pb-3 bg-white/90 backdrop-blur-xl border-b border-slate-200">
+      <div className="relative z-10 px-4 pt-10 pb-3 bg-white/90 backdrop-blur-xl border-b border-slate-200">
+        <AppBrand className="mb-2" />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Tappable Yogi avatar — opens avatar picker */}

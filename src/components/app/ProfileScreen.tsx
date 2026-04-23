@@ -22,6 +22,7 @@ import {
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
+import AppBrand from "./AppBrand";
 import { useAuth } from "@/lib/auth-context";
 import { MOCK_PROFILES } from "@/lib/mock-data";
 
@@ -341,12 +342,13 @@ export default function ProfileScreen() {
   return (
     <div className="flex flex-col h-full pb-28 overflow-y-auto">
       {/* Header with gradient mesh */}
-      <div className="relative pt-12 pb-8 px-4">
+      <div className="relative pt-10 pb-8 px-4">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50" />
         <div className="absolute top-0 left-1/4 w-40 h-40 rounded-full bg-purple-200/30 blur-[60px]" />
         <div className="absolute bottom-0 right-1/4 w-40 h-40 rounded-full bg-indigo-200/30 blur-[60px]" />
 
         <div className="relative z-10">
+          <AppBrand className="mb-2" />
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
             <motion.button
