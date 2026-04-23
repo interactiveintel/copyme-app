@@ -230,6 +230,31 @@ interface ApiAd {
   sharedInterests: string[];
 }
 
+// Track + open. For real ads (uuid) we POST /api/ads/:id/click first so the
+// advertiser sees the click in their dashboard. For mock ads (string ids
+// like "ad1") we skip the network call and open directly. Always open in
+// a new tab so we don't leave the inbox.
+async function trackAndOpen(
+  ad: AdItem,
+  authFetch: (url: string, init?: RequestInit) => Promise<Response>,
+  isAuthed: boolean,
+) {
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ad.id);
+  if (isUuid && isAuthed) {
+    try {
+      // Fire-and-forget click record. We don't await so the new tab opens
+      // immediately — the click record happens in the background. Some
+      // browsers block window.open from inside an async chain; opening
+      // synchronously ahead of the fetch sidesteps that entirely.
+      void authFetch(`/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }
+  window.open(ad.url, "_blank");
+}
+
 function apiAdToItem(ad: ApiAd, idx: number): AdItem {
   const palette = [
     "from-indigo-600 to-purple-600",
@@ -558,7 +583,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
 
                 {/* Visit Website link */}
                 <button
-                  onClick={() => window.open(selectedAd.url, "_blank")}
+                  onClick={() => void trackAndOpen(selectedAd, authFetch, !!user)}
                   className="flex items-center gap-1.5 text-xs font-medium text-purple-500 hover:text-purple-700 transition-colors mb-4"
                 >
                   <ExternalLink size={12} />
@@ -632,7 +657,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
               {/* CTA button */}
               <div className="p-5 pt-0 shrink-0">
                 <button
-                  onClick={() => window.open(selectedAd.url, "_blank")}
+                  onClick={() => void trackAndOpen(selectedAd, authFetch, !!user)}
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r ${selectedAd.color} text-white text-sm font-semibold shadow-lg`}
                 >
                   {selectedAd.cta}

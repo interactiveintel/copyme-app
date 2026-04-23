@@ -25,6 +25,10 @@ interface CreateAdBody {
   ctaUrl?: string;
   category?: string;
   targetInterests?: string[];
+  /** Optional global region filter, e.g. "Americas". */
+  targetGlobalArea?: string;
+  /** Optional region/state filter, e.g. "Florida". */
+  targetRegion?: string;
   priceMicroUsd?: number;
 }
 
@@ -163,6 +167,8 @@ export async function POST(request: NextRequest) {
         ctaUrl: body.ctaUrl!.trim(),
         category: body.category || "for-you",
         targetInterests: targetInterests.length > 0 ? targetInterests : undefined,
+        targetGlobalArea: body.targetGlobalArea?.trim().slice(0, 100) || null,
+        targetRegion: body.targetRegion?.trim().slice(0, 100) || null,
         status: "draft",
         priceMicroUsd: priceRaw,
       },

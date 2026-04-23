@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,6 +14,8 @@ import {
   CreditCard,
   X,
   ExternalLink,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
@@ -267,6 +269,13 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+interface AnalyticsResponse {
+  ad: { id: string; title: string; status: string; activatedAt: string | null; expiresAt: string | null };
+  totals: { impressions: number; clicks: number; ctr: number; spendMicroUsd: number };
+  series: Array<{ day: string; impressions: number; clicks: number; ctr: number }>;
+  rangeDays: number;
+}
+
 function AdCard({
   ad,
   authFetch,
@@ -279,6 +288,30 @@ function AdCard({
   onError: (msg: string) => void;
 }) {
   const [paying, setPaying] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const res = await authFetch(`/api/business/ads/${ad.id}/analytics?days=14`);
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        setAnalytics(data.data as AnalyticsResponse);
+      }
+    } catch {
+      /* leave panel empty on failure */
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [authFetch, ad.id]);
+
+  const toggleAnalytics = () => {
+    const next = !showAnalytics;
+    setShowAnalytics(next);
+    if (next && !analytics) void loadAnalytics();
+  };
 
   const pay = async () => {
     setPaying(true);
@@ -331,13 +364,28 @@ function AdCard({
           </div>
 
           {/* Stats row */}
-          <div className="mt-3 flex items-center gap-4 text-[11px] text-slate-500">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
             <span>{formatUsd(ad.priceMicroUsd)}</span>
             <span>{ad.impressions.toLocaleString()} impressions</span>
             <span>{ad.clicks.toLocaleString()} clicks</span>
+            <span>
+              CTR{" "}
+              <strong className="text-slate-700">
+                {ad.impressions > 0
+                  ? `${((ad.clicks / ad.impressions) * 100).toFixed(2)}%`
+                  : "—"}
+              </strong>
+            </span>
             {ad.targetInterests && ad.targetInterests.length > 0 && (
               <span className="truncate">→ {ad.targetInterests.slice(0, 3).join(", ")}</span>
             )}
+            <button
+              onClick={toggleAnalytics}
+              className="ml-auto inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 font-medium"
+            >
+              <BarChart3 size={11} />
+              {showAnalytics ? "Hide details" : "Analytics"}
+            </button>
           </div>
 
           {ad.status === "rejected" && ad.rejectionReason && (
@@ -368,8 +416,94 @@ function AdCard({
               Preview your link <ExternalLink size={10} />
             </a>
           )}
+
+          {/* Analytics drawer */}
+          <AnimatePresence initial={false}>
+            {showAnalytics && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-4 pt-4 border-t border-slate-100"
+              >
+                <AnalyticsBody loading={analyticsLoading} data={analytics} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AnalyticsBody({
+  loading,
+  data,
+}: {
+  loading: boolean;
+  data: AnalyticsResponse | null;
+}) {
+  if (loading && !data) {
+    return (
+      <div className="py-6 flex justify-center">
+        <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!data) {
+    return <p className="text-xs text-slate-500">No analytics yet.</p>;
+  }
+  const max = Math.max(1, ...data.series.map((d) => d.impressions));
+  return (
+    <div>
+      {/* Top-line numbers */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <Stat label="Impressions" value={data.totals.impressions.toLocaleString()} />
+        <Stat label="Clicks" value={data.totals.clicks.toLocaleString()} />
+        <Stat
+          label="CTR"
+          value={`${data.totals.ctr}%`}
+          accent={data.totals.ctr > 0}
+        />
+      </div>
+
+      {/* Sparkline */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <TrendingUp size={11} className="text-slate-400" />
+        <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">
+          Last {data.rangeDays} days
+        </span>
+      </div>
+      <div className="flex items-end gap-1 h-16">
+        {data.series.map((d) => {
+          const h = Math.round((d.impressions / max) * 100);
+          return (
+            <div
+              key={d.day}
+              title={`${d.day}: ${d.impressions} imp, ${d.clicks} clicks (${d.ctr}% CTR)`}
+              className="flex-1 min-w-[3px] rounded-sm bg-gradient-to-t from-indigo-400 to-purple-400"
+              style={{ height: `${Math.max(2, h)}%`, opacity: d.impressions === 0 ? 0.15 : 1 }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-between mt-1 text-[9px] text-slate-400">
+        <span>{data.series[0]?.day.slice(5)}</span>
+        <span>{data.series[data.series.length - 1]?.day.slice(5)}</span>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div
+      className={`p-2 rounded-lg border ${accent ? "bg-purple-50 border-purple-200" : "bg-slate-50 border-slate-100"}`}
+    >
+      <p className={`text-base font-bold tabular-nums ${accent ? "text-purple-700" : "text-slate-900"}`}>
+        {value}
+      </p>
+      <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
     </div>
   );
 }

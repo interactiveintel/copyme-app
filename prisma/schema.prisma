@@ -171,6 +171,10 @@ model BusinessAd {
   category        String    @default("for-you") @db.VarChar(40)
   /// Lowercased interest keywords used for targeting; empty = "show to anyone".
   targetInterests Json?     @map("target_interests")
+  /// Optional global region filter (matches UserLocation.globalArea), e.g. "Americas", "Europe".
+  targetGlobalArea String?  @map("target_global_area") @db.VarChar(100)
+  /// Optional region/state filter (matches UserLocation.region), e.g. "Florida", "Slovenia".
+  targetRegion    String?   @map("target_region") @db.VarChar(100)
   status          AdStatus  @default(draft)
   /// Price the advertiser paid (stored in micro-USD, integer).
   priceMicroUsd   Int       @default(100000) @map("price_micro_usd")
@@ -191,12 +195,28 @@ model BusinessAd {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner    User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  eventDays AdEventDay[]
 
   @@index([ownerId, status])
   @@index([status, activatedAt])
   @@index([category, status])
   @@map("business_ads")
+}
+
+model AdEventDay {
+  adId        String   @map("ad_id") @db.Uuid
+  /// UTC YYYY-MM-DD bucket.
+  day         String   @db.VarChar(10)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  ad BusinessAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@id([adId, day])
+  @@index([day])
+  @@map("ad_event_days")
 }
 
 model UserBlock {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
+import { recordImpressions } from "@/lib/ad-events";
 
 // ---------------------------------------------------------------------------
 // GET /api/ads/inbox?category=for-you&limit=10
@@ -52,12 +53,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Caller's interests for matching.
-    const myInterests = await prisma.userInterest.findMany({
-      where: { userId: auth.userId },
-      select: { interestText: true },
-    });
+    // Caller's interests + location for matching.
+    const [myInterests, myLocation] = await Promise.all([
+      prisma.userInterest.findMany({
+        where: { userId: auth.userId },
+        select: { interestText: true },
+      }),
+      prisma.userLocation.findUnique({
+        where: { userId: auth.userId },
+        select: { globalArea: true, region: true, locationVisible: true },
+      }),
+    ]);
     const myInterestSet = new Set(myInterests.map((i) => i.interestText.toLowerCase()));
+    const myGlobalArea = myLocation?.locationVisible ? myLocation?.globalArea : null;
+    const myRegion = myLocation?.locationVisible ? myLocation?.region : null;
 
     const now = new Date();
     const ads = await prisma.businessAd.findMany({
@@ -72,9 +81,21 @@ export async function GET(request: NextRequest) {
       take: limit * 3, // fetch wider so we have headroom after scoring
     });
 
+    // Apply location targeting after the SQL fetch (cheap in-memory, lets
+    // us reason about targeted-vs-untargeted ads symmetrically with the
+    // interest-overlap logic below).
+    const locationFiltered = ads.filter((ad) => {
+      // No targeting set → eligible for everyone.
+      if (!ad.targetGlobalArea && !ad.targetRegion) return true;
+      // Targeted → user must have a visible location and it must match.
+      if (ad.targetGlobalArea && ad.targetGlobalArea === myGlobalArea) return true;
+      if (ad.targetRegion && ad.targetRegion === myRegion) return true;
+      return false;
+    });
+
     // Rank: targeted matches (more shared interests = higher) first, then
     // untargeted by recency.
-    const scored = ads.map((ad) => {
+    const scored = locationFiltered.map((ad) => {
       const targets = Array.isArray(ad.targetInterests)
         ? (ad.targetInterests as string[]).map((t) => t.toLowerCase())
         : [];
@@ -92,15 +113,13 @@ export async function GET(request: NextRequest) {
 
     const top = eligible.slice(0, limit);
 
-    // Bump impressions, fire-and-forget.
+    // Record impressions in the per-day aggregate AND bump the lifetime
+    // counter on the ad row. Fire-and-forget — never block the response.
     if (top.length > 0) {
       const ids = top.map((s) => s.ad.id);
-      void prisma.businessAd
-        .updateMany({
-          where: { id: { in: ids } },
-          data: { impressions: { increment: 1 } },
-        })
-        .catch(() => {});
+      void recordImpressions(ids).catch((err) => {
+        console.warn("[ads/inbox] recordImpressions failed:", err instanceof Error ? err.message : err);
+      });
     }
 
     return NextResponse.json({
