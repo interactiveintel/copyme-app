@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit by IP — an attacker who stole a token would try many.
     const ip = clientIpFromRequest(request);
-    const ipLimit = rateLimit(`pwreset-confirm:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
+    const ipLimit = await rateLimit(`pwreset-confirm:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
     if (!ipLimit.allowed) {
       return NextResponse.json(
         {

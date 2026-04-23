@@ -44,8 +44,10 @@ export async function POST(request: NextRequest) {
     const ip = clientIpFromRequest(request);
     const phoneHash = createHash("sha256").update(body.phone).digest("hex");
 
-    const ipLimit = rateLimit(`login:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
-    const accountLimit = rateLimit(`login:acct:${phoneHash}`, ACCOUNT_LIMIT, ACCOUNT_WINDOW_MS);
+    const [ipLimit, accountLimit] = await Promise.all([
+      rateLimit(`login:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS),
+      rateLimit(`login:acct:${phoneHash}`, ACCOUNT_LIMIT, ACCOUNT_WINDOW_MS),
+    ]);
 
     if (!ipLimit.allowed || !accountLimit.allowed) {
       const retryAfterSec = Math.ceil(

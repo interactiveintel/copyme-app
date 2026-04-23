@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = clientIpFromRequest(request);
-    const limit = rateLimit(`verify:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
+    const limit = await rateLimit(`verify:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
     if (!limit.allowed) {
       return NextResponse.json(
         {

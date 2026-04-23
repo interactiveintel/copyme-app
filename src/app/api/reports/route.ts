@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limit so a malicious actor can't drown the moderation queue.
   const ip = clientIpFromRequest(request);
-  const limit = rateLimit(`report:${auth.userId}:${ip}`, REPORT_LIMIT, REPORT_WINDOW_MS);
+  const limit = await rateLimit(`report:${auth.userId}:${ip}`, REPORT_LIMIT, REPORT_WINDOW_MS);
   if (!limit.allowed) {
     return NextResponse.json(
       {

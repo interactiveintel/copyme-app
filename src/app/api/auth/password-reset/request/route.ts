@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Rate limit per IP — generous enough not to block a legitimate user
     // retrying, tight enough to blunt enumeration attempts.
     const ip = clientIpFromRequest(request);
-    const ipLimit = rateLimit(`pwreset:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
+    const ipLimit = await rateLimit(`pwreset:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
     if (!ipLimit.allowed) {
       return NextResponse.json(
         {
