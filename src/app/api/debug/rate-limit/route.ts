@@ -45,14 +45,13 @@ export async function GET() {
   }
 
   // Inspect Upstash REST creds visibility from the function.
+  // Expose the URL value (NOT the token) so we can see protocol + port.
   out.upstashRest = {
-    KV_REST_API_URL: !!process.env.KV_REST_API_URL,
-    KV_REST_API_TOKEN: !!process.env.KV_REST_API_TOKEN,
-    UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
-    UPSTASH_REDIS_REST_TOKEN: !!process.env.UPSTASH_REDIS_REST_TOKEN,
-    pickedUrlHost: (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL)
-      ? new URL(process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL!).hostname
-      : null,
+    KV_REST_API_URL_value: process.env.KV_REST_API_URL ?? null,
+    KV_REST_API_TOKEN_set: !!process.env.KV_REST_API_TOKEN,
+    KV_REST_API_TOKEN_len: process.env.KV_REST_API_TOKEN?.length ?? 0,
+    UPSTASH_REDIS_REST_URL_value: process.env.UPSTASH_REDIS_REST_URL ?? null,
+    UPSTASH_REDIS_REST_TOKEN_set: !!process.env.UPSTASH_REDIS_REST_TOKEN,
   };
 
   // Test Upstash REST directly (bypass rate-limit code path).
