@@ -9,6 +9,7 @@ const PUBLIC_PREFIXES = [
   "/api/waitlist",
   "/api/notifications/public-key",
   "/api/cron/", // cron routes auth themselves via CRON_SECRET
+  "/api/webhooks/", // webhook routes verify their own provider signatures
 ];
 
 function isPublicRoute(pathname: string): boolean {

@@ -126,6 +126,7 @@ model User {
   blockedBy                UserBlock[]      @relation("BlockedByUsers")
   reportsMade              UserReport[]     @relation("UserReportsMade")
   reportsAgainst           UserReport[]     @relation("UserReportsAgainst")
+  ownedAds                 BusinessAd[]
 
   @@index([accountTier])
   @@index([lastActivityAt])
@@ -145,6 +146,57 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+enum AdStatus {
+  draft
+  pending_payment
+  pending_review
+  approved
+  rejected
+  paused
+  expired
+}
+
+model BusinessAd {
+  id              String    @id @default(uuid()) @db.Uuid
+  ownerId         String    @map("owner_id") @db.Uuid
+  brand           String    @db.VarChar(80)
+  title           String    @db.VarChar(120)
+  tagline         String?   @db.VarChar(200)
+  body            String    @db.VarChar(700)
+  imageUrl        String?   @map("image_url") @db.VarChar(500)
+  ctaLabel        String    @default("Learn more") @map("cta_label") @db.VarChar(40)
+  ctaUrl          String    @map("cta_url") @db.VarChar(500)
+  category        String    @default("for-you") @db.VarChar(40)
+  /// Lowercased interest keywords used for targeting; empty = "show to anyone".
+  targetInterests Json?     @map("target_interests")
+  status          AdStatus  @default(draft)
+  /// Price the advertiser paid (stored in micro-USD, integer).
+  priceMicroUsd   Int       @default(100000) @map("price_micro_usd")
+  /// Stripe Checkout Session id (when payment via Stripe).
+  stripeCheckoutId String?  @unique @map("stripe_checkout_id") @db.VarChar(120)
+  /// Set once the advertiser has paid AND admin approved.
+  activatedAt     DateTime? @map("activated_at")
+  /// Ads expire 30 days after activation by default.
+  expiresAt       DateTime? @map("expires_at")
+  /// Admin who approved/rejected.
+  reviewedById    String?   @map("reviewed_by_id") @db.Uuid
+  reviewedAt      DateTime? @map("reviewed_at")
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(300)
+  /// Lifetime impression / click counters (denormalized; Sprint 10 will add a
+  /// proper events table).
+  impressions     Int       @default(0)
+  clicks          Int       @default(0)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, status])
+  @@index([status, activatedAt])
+  @@index([category, status])
+  @@map("business_ads")
 }
 
 model UserBlock {

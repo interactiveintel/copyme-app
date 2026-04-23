@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -217,11 +217,59 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+interface ApiAd {
+  id: string;
+  brand: string;
+  title: string;
+  tagline: string | null;
+  body: string;
+  imageUrl: string | null;
+  ctaLabel: string;
+  ctaUrl: string;
+  category: string;
+  sharedInterests: string[];
+}
+
+function apiAdToItem(ad: ApiAd, idx: number): AdItem {
+  const palette = [
+    "from-indigo-600 to-purple-600",
+    "from-purple-600 to-pink-600",
+    "from-rose-500 to-orange-500",
+    "from-emerald-500 to-teal-500",
+    "from-cyan-500 to-indigo-500",
+    "from-amber-500 to-rose-500",
+  ];
+  return {
+    id: ad.id,
+    title: ad.title,
+    brand: ad.brand,
+    color: palette[idx % palette.length]!,
+    icon: Sparkles,
+    emoji: "💼",
+    tagline: ad.tagline ?? ad.brand,
+    description: ad.body,
+    highlights: ad.sharedInterests.length > 0
+      ? ad.sharedInterests.slice(0, 3).map((t) => `Matches your interest in ${t}`)
+      : ["Live ad", "Hand-reviewed", "70-word respect"],
+    stats: { rating: 4.8, users: "—", label: "advertiser" },
+    cta: ad.ctaLabel,
+    url: ad.ctaUrl,
+    category: ad.category,
+    aiReason:
+      ad.sharedInterests.length > 0
+        ? `Surfaced because you're into ${ad.sharedInterests[0]}.`
+        : "Featured by an advertiser this week.",
+    trending: true,
+    expiresLabel: "Live now",
+  };
+}
+
 export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const { user, authFetch } = useAuth();
   const { addContact } = useContacts();
   const [search, setSearch] = useState("");
   const [showSmartMatch, setShowSmartMatch] = useState(false);
+  const [liveAds, setLiveAds] = useState<AdItem[]>([]);
   const [selectedAd, setSelectedAd] = useState<AdItem | null>(null);
   const [adCategory, setAdCategory] = useState("for-you");
   const [showAdMarketplace, setShowAdMarketplace] = useState(false);
@@ -248,6 +296,40 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
     if (!user) { setLoading(false); return; }
     fetchInbox();
   }, [user, fetchInbox]);
+
+  // Real ads from /api/ads/inbox (when authenticated). When the response is
+  // empty we fall back to the rich `allAds` mocks so the demo experience
+  // stays warm. When ads exist, real ones go first.
+  useEffect(() => {
+    if (!user) {
+      setLiveAds([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authFetch("/api/ads/inbox?limit=10");
+        if (!res.ok) return;
+        const data = await res.json();
+        const apiAds = ((data.data?.ads ?? []) as ApiAd[]).map((ad, i) =>
+          apiAdToItem(ad, i),
+        );
+        if (!cancelled) setLiveAds(apiAds);
+      } catch {
+        /* network error — leave liveAds empty, mocks kick in */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authFetch]);
+
+  const displayedAds: AdItem[] = useMemo(() => {
+    if (liveAds.length === 0) return allAds;
+    // Real ads first, then mocks (deduped by id).
+    const liveIds = new Set(liveAds.map((a) => a.id));
+    return [...liveAds, ...allAds.filter((a) => !liveIds.has(a.id))];
+  }, [liveAds]);
 
   // Poll every 10 seconds
   usePolling(fetchInbox, 10_000, !!user);
@@ -306,7 +388,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
           </button>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4">
-          {allAds.map((ad, i) => {
+          {displayedAds.map((ad, i) => {
             const isNew = ad.trending;
             const hasActivity = i < 5;
             return (
@@ -611,7 +693,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             {/* Marketplace grid */}
             <div className="flex-1 overflow-y-auto p-4 pb-20">
               <div className="grid grid-cols-2 gap-3">
-                {allAds
+                {displayedAds
                   .filter((ad) => adCategory === "for-you" || ad.category === adCategory || (adCategory === "trending" && ad.trending))
                   .map((ad, i) => (
                     <motion.button
