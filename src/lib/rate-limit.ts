@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Sliding-window rate limiter — Redis-backed with in-memory fallback.
+// Sliding-window rate limiter — Upstash REST + in-memory fallback.
 //
 // Why this exists separately from src/lib/redis.ts::rateLimit:
 //   - This one is for security-sensitive paths (login attempts, password
@@ -9,6 +9,16 @@
 //   - redis.ts::rateLimit is for tier-based throughput limiting on AI /
 //     messaging endpoints — fixed window, INCR-based, simpler.
 //
+// Why Upstash REST and not the ioredis singleton:
+//   - Vercel serverless functions can't reliably hold a long-lived TCP
+//     connection to Upstash. ioredis times out at 3 retries on cold start
+//     (verified empirically against this Upstash instance from prod). The
+//     Upstash REST client is HTTP-based — no socket lifecycle, perfect for
+//     serverless cold starts.
+//   - We keep ioredis (src/lib/redis.ts) for inbox cache / presence which
+//     run from contexts that can afford the warm-up cost; the rate-limit
+//     path lives on the request-blocking path so it has to be fast.
+//
 // Implementation:
 //   - Each key gets a Redis sorted set: score = unix-ms timestamp, member =
 //     "${ts}:${nonce}" so duplicate timestamps don't collide.
@@ -17,14 +27,15 @@
 //   - Set TTL = windowMs (in seconds, rounded up) so abandoned keys expire.
 //
 // Fallback:
-//   - If REDIS_URL is unset, or the call to Redis throws / times out, we
-//     fall back to the in-memory bucket. Same API. Tradeoff: per-instance
-//     limits in fallback mode, but the system still functions.
-//   - Fallback failures get reported to Sentry once per process so we
-//     notice if Redis is degraded in prod (without spamming).
+//   - If neither KV_REST_API_URL+KV_REST_API_TOKEN nor UPSTASH_REDIS_REST_*
+//     pair is set, OR the REST call throws, we fall back to an in-memory
+//     bucket. Same API. Tradeoff: per-instance limits in fallback mode,
+//     but the system still functions.
+//   - The first REST failure per process gets reported to Sentry once so
+//     degraded mode is visible without spamming.
 // ---------------------------------------------------------------------------
 
-import { redis } from "@/lib/redis";
+import { Redis as UpstashRedis } from "@upstash/redis";
 import { reportError } from "@/lib/observability";
 
 export interface RateLimitResult {
@@ -130,12 +141,31 @@ const SLIDING_WINDOW_LUA = `
   return { 1, limit - (count + 1), 0 }
 `;
 
-// Track whether we've already pinged Sentry about a Redis-unavailable
+// Track whether we've already pinged Sentry about an Upstash-unavailable
 // situation so we don't flood the queue with one event per request.
-let redisUnavailableReported = false;
+let upstashUnavailableReported = false;
 
-function redisConfigured(): boolean {
-  return !!process.env.REDIS_URL;
+// Pick up the REST credentials from any of the standard envs. Vercel's KV
+// integration provisions KV_REST_API_*; @upstash/redis convention is
+// UPSTASH_REDIS_REST_*; both work because we hand them to the client
+// constructor explicitly.
+function upstashCredentials(): { url: string; token: string } | null {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
+}
+
+// Lazily-instantiated singleton. The Upstash client is essentially a fetch
+// wrapper, so creating one is cheap, but we still cache it to keep config
+// reads off the hot path.
+let upstashClient: UpstashRedis | null = null;
+function getUpstash(): UpstashRedis | null {
+  if (upstashClient) return upstashClient;
+  const creds = upstashCredentials();
+  if (!creds) return null;
+  upstashClient = new UpstashRedis({ url: creds.url, token: creds.token });
+  return upstashClient;
 }
 
 async function redisRateLimit(
@@ -143,31 +173,35 @@ async function redisRateLimit(
   limit: number,
   windowMs: number,
 ): Promise<RateLimitResult | null> {
-  if (!redisConfigured()) return null;
+  const client = getUpstash();
+  if (!client) return null;
 
   try {
     const nonce = Math.random().toString(36).slice(2, 10);
-    const result = (await redis.eval(
+    // @upstash/redis's eval signature is eval(script, keys[], args[]).
+    const raw = (await client.eval(
       SLIDING_WINDOW_LUA,
-      1,
-      `ratelimit:sw:${key}`,
-      String(Date.now()),
-      String(windowMs),
-      String(limit),
-      nonce,
-    )) as [number, number, number];
+      [`ratelimit:sw:${key}`],
+      [String(Date.now()), String(windowMs), String(limit), nonce],
+    )) as Array<number | string>;
+
+    // Upstash returns RESP integers as JS numbers, but defensive parse just
+    // in case any platform shim returns strings.
+    const allowed = Number(raw[0]) === 1;
+    const remaining = Number(raw[1]);
+    const retryAfterMs = Number(raw[2]);
 
     return {
-      allowed: result[0] === 1,
-      remaining: result[1],
-      retryAfterMs: result[2],
+      allowed,
+      remaining,
+      retryAfterMs,
       source: "redis",
     };
   } catch (error) {
-    if (!redisUnavailableReported) {
-      redisUnavailableReported = true;
+    if (!upstashUnavailableReported) {
+      upstashUnavailableReported = true;
       reportError(error, {
-        context: "rate-limit:redis-eval-failed",
+        context: "rate-limit:upstash-eval-failed",
         key,
         limit,
         windowMs,
