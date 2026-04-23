@@ -1,27 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { isPitchUnlocked, isPitchConfigured } from "@/lib/pitch";
 
 // ---------------------------------------------------------------------------
 // GET /api/pitch/metrics
 //
-// Investor-grade live metrics. Gated by PITCH_PASSWORD env var:
-//   ?key=<password>           or
-//   x-pitch-password: <password> header
-//
-// Returns the same DAU/WAU/MAU/funnel set as /api/admin/metrics PLUS:
+// Investor-grade live metrics — public. Returns the same DAU/WAU/MAU/funnel
+// set as /api/admin/metrics PLUS:
 //   - D1 / D7 / D30 retention   (% of N-day-old signups active in last 24h)
 //   - Yogi cost-per-user        (sum of YogiCostLog.costMicroUsd / distinct
 //                                 users) over last 30 days
 //   - Ad revenue                (sum of approved BusinessAd.priceMicroUsd)
+//
+// Previously gated by PITCH_PASSWORD; gate removed by user request so
+// investors can land directly without an access key.
 // ---------------------------------------------------------------------------
-
-function pwFromRequest(request: NextRequest): string | null {
-  const url = new URL(request.url);
-  const fromQuery = url.searchParams.get("key");
-  if (fromQuery) return fromQuery;
-  return request.headers.get("x-pitch-password");
-}
 
 function minusMs(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -34,31 +26,7 @@ function cohortWindow(daysAgo: number): { gte: Date; lt: Date } {
   return { gte: start, lt: end };
 }
 
-export async function GET(request: NextRequest) {
-  if (!isPitchConfigured()) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "NOT_CONFIGURED",
-          message:
-            "Pitch is not configured. Set PITCH_PASSWORD in Vercel env vars to enable.",
-        },
-      },
-      { status: 503 },
-    );
-  }
-
-  if (!isPitchUnlocked(pwFromRequest(request))) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "FORBIDDEN", message: "Invalid pitch password" },
-      },
-      { status: 403 },
-    );
-  }
-
+export async function GET() {
   try {
     const now = new Date();
     const c24h = minusMs(1);

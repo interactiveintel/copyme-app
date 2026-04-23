@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { isPitchUnlocked, isPitchConfigured } from "@/lib/pitch";
 
 // ---------------------------------------------------------------------------
-// GET /api/pitch/export?key=<password>
+// GET /api/pitch/export
 //
 // One-click data export for investor due diligence. Returns a single JSON
 // blob with the headline metrics + 30 days of daily series (signups,
@@ -11,13 +10,8 @@ import { isPitchUnlocked, isPitchConfigured } from "@/lib/pitch";
 // into a spreadsheet without having to scrape the live page.
 //
 // PII-safe: no display names, no emails, no UUIDs except aggregated counts.
-// Same password gate as /api/pitch/metrics.
+// Public — gate removed alongside /api/pitch/metrics.
 // ---------------------------------------------------------------------------
-
-function pwFromRequest(request: NextRequest): string | null {
-  const url = new URL(request.url);
-  return url.searchParams.get("key") ?? request.headers.get("x-pitch-password");
-}
 
 function dayKey(d: Date): string {
   const y = d.getUTCFullYear();
@@ -36,20 +30,7 @@ function buildDayList(days: number): string[] {
   return out;
 }
 
-export async function GET(request: NextRequest) {
-  if (!isPitchConfigured()) {
-    return NextResponse.json(
-      { success: false, error: { code: "NOT_CONFIGURED", message: "Pitch not configured." } },
-      { status: 503 },
-    );
-  }
-  if (!isPitchUnlocked(pwFromRequest(request))) {
-    return NextResponse.json(
-      { success: false, error: { code: "FORBIDDEN", message: "Invalid pitch password" } },
-      { status: 403 },
-    );
-  }
-
+export async function GET() {
   try {
     const RANGE = 30;
     const days = buildDayList(RANGE);

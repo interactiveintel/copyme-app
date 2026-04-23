@@ -1,7 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -13,22 +12,16 @@ import {
   Target,
   Briefcase,
   Download,
-  Lock,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// /pitch — password-gated investor data room.
+// /pitch — public investor data room.
 //
-// Flow:
-//   1. Password from `?key=` query param OR password prompt
-//   2. POST GET /api/pitch/metrics with the password
-//   3. Render KPIs + retention + Yogi + ads
-//   4. "Download data" button → /api/pitch/export?key=...
-//
-// We deliberately client-render so the password lives in URL or local state,
-// not in a server component cache.
+// Previously password-gated; the gate was removed by user request so investors
+// can land directly on the live numbers. Still client-rendered so the page
+// always reflects the latest call to /api/pitch/metrics (no ISR cache).
 // ---------------------------------------------------------------------------
 
 interface RetentionRow {
@@ -56,37 +49,22 @@ interface PitchMetrics {
   ads: { approved: number; revenueUsd: number; impressions: number; clicks: number; ctrPct: number };
 }
 
-function PitchInner() {
-  const params = useSearchParams();
-  const initialKey = params.get("key") ?? "";
-  const [password, setPassword] = useState(initialKey);
-  const [submittedKey, setSubmittedKey] = useState(initialKey);
+export default function PitchPage() {
   const [data, setData] = useState<PitchMetrics | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [unlocked, setUnlocked] = useState<boolean>(false);
 
-  const fetchMetrics = useCallback(async (key: string) => {
-    if (!key) return;
+  const fetchMetrics = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/pitch/metrics?key=${encodeURIComponent(key)}`);
+      const res = await fetch("/api/pitch/metrics");
       const json = await res.json();
-      if (res.status === 503) {
-        setError("Pitch is not configured on this deployment. Set PITCH_PASSWORD in Vercel env vars.");
-        return;
-      }
-      if (res.status === 403) {
-        setError("Wrong password.");
-        return;
-      }
       if (!res.ok || !json?.success) {
         setError(json?.error?.message ?? "Failed to load metrics.");
         return;
       }
       setData(json.data as PitchMetrics);
-      setUnlocked(true);
     } catch {
       setError("Network error.");
     } finally {
@@ -95,60 +73,8 @@ function PitchInner() {
   }, []);
 
   useEffect(() => {
-    if (initialKey) {
-      void fetchMetrics(initialKey);
-    }
-  }, [initialKey, fetchMetrics]);
-
-  if (!unlocked) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-purple-50/40 to-pink-50/30 p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-sm bg-white rounded-3xl shadow-xl border border-slate-100 p-8"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center mb-4">
-            <Lock size={20} className="text-white" />
-          </div>
-          <h1 className="text-xl font-bold text-slate-900">CopyMe pitch room</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Live product + business numbers. Ask the founders for the access key.
-          </p>
-
-          <form
-            className="mt-6 space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setSubmittedKey(password);
-              void fetchMetrics(password);
-            }}
-          >
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Access key"
-              autoFocus
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-purple-400"
-            />
-            {error && <p className="text-xs text-rose-600">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading || !password}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 disabled:opacity-60"
-            >
-              {loading ? "Unlocking…" : "Unlock"}
-            </button>
-          </form>
-
-          <p className="mt-6 text-[11px] text-slate-400">
-            See public site at <Link href="/" className="underline">copyme-app.vercel.app</Link>.
-          </p>
-        </motion.div>
-      </main>
-    );
-  }
+    void fetchMetrics();
+  }, [fetchMetrics]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50/30">
@@ -171,7 +97,7 @@ function PitchInner() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => void fetchMetrics(submittedKey)}
+              onClick={() => void fetchMetrics()}
               disabled={loading}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-slate-700 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60"
             >
@@ -179,7 +105,7 @@ function PitchInner() {
               Refresh
             </button>
             <a
-              href={`/api/pitch/export?key=${encodeURIComponent(submittedKey)}`}
+              href="/api/pitch/export"
               download="copyme-metrics.json"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800"
             >
@@ -355,13 +281,5 @@ function RetentionTile({ label, data }: { label: string; data: RetentionRow }) {
       sub={`${data.retained} of ${data.cohortSize} cohort`}
       accent={accent}
     />
-  );
-}
-
-export default function PitchPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen" />}>
-      <PitchInner />
-    </Suspense>
   );
 }
