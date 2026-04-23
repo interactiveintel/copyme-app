@@ -67,7 +67,34 @@ export async function GET() {
       out.upstashRestPing = {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error && (error as Error & { cause?: unknown }).cause
+          ? String((error as Error & { cause?: unknown }).cause)
+          : null,
         latencyMs: Date.now() - restStart,
+      };
+    }
+
+    // Raw fetch to the same URL — bypasses @upstash/redis to isolate
+    // whether the issue is the library or the actual network reach.
+    const rawStart = Date.now();
+    try {
+      const res = await fetch(`${url.replace(/\/$/, "")}/ping`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(3000),
+      });
+      const text = await res.text();
+      out.upstashRawFetch = {
+        status: res.status,
+        body: text.slice(0, 200),
+        latencyMs: Date.now() - rawStart,
+      };
+    } catch (error) {
+      out.upstashRawFetch = {
+        error: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error && (error as Error & { cause?: unknown }).cause
+          ? String((error as Error & { cause?: unknown }).cause)
+          : null,
+        latencyMs: Date.now() - rawStart,
       };
     }
   } else {
