@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { rateLimit } from "@/lib/rate-limit";
+import { Redis as UpstashRedis } from "@upstash/redis";
 
 // ---------------------------------------------------------------------------
 // GET /api/debug/rate-limit
@@ -41,6 +42,37 @@ export async function GET() {
       error: error instanceof Error ? error.message : String(error),
       latencyMs: Date.now() - pingStart,
     };
+  }
+
+  // Inspect Upstash REST creds visibility from the function.
+  out.upstashRest = {
+    KV_REST_API_URL: !!process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: !!process.env.KV_REST_API_TOKEN,
+    UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+    pickedUrlHost: (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL)
+      ? new URL(process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL!).hostname
+      : null,
+  };
+
+  // Test Upstash REST directly (bypass rate-limit code path).
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) {
+    const restStart = Date.now();
+    try {
+      const r = new UpstashRedis({ url, token });
+      const pong = await r.ping();
+      out.upstashRestPing = { ok: pong === "PONG", value: pong, latencyMs: Date.now() - restStart };
+    } catch (error) {
+      out.upstashRestPing = {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        latencyMs: Date.now() - restStart,
+      };
+    }
+  } else {
+    out.upstashRestPing = { skipped: true, reason: "no REST creds" };
   }
 
   // Probe the rate limiter once with a stable key — multiple requests in
