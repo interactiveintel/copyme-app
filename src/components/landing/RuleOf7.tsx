@@ -2,30 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 
-const constraints = [
-  "7 inbox items",
-  "70 word messages",
-  "7 images per chat",
-  "70s voice notes",
-  "7 contacts at once",
+const principles = [
+  "Cap the message — say what matters.",
+  "Cap the contacts — protect attention.",
+  "Cap retention — live in the present.",
+  "Cap the recording — listen with intent.",
+  "Cap the group — rooms, not crowds.",
 ];
 
 const comparisonData = [
   {
-    feature: "Message Limits",
-    copyme: "7 per inbox",
+    feature: "Message philosophy",
+    copyme: "Constrained",
     whatsapp: "Unlimited",
     telegram: "Unlimited",
     wechat: "Unlimited",
-  },
-  {
-    feature: "Word Count",
-    copyme: "70 words max",
-    whatsapp: "65,536 chars",
-    telegram: "4,096 chars",
-    wechat: "2,000 chars",
   },
   {
     feature: "AI Discovery",
@@ -72,8 +65,8 @@ export default function RuleOf7() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % constraints.length);
-    }, 2400);
+      setActiveIndex((prev) => (prev + 1) % principles.length);
+    }, 2800);
     return () => clearInterval(interval);
   }, []);
 
@@ -124,37 +117,38 @@ export default function RuleOf7() {
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-accent-pink/20 blur-3xl" />
             </div>
 
-            {/* Cycling constraint */}
-            <div className="mt-4 h-10 flex items-center justify-center">
+            {/* Cycling principle */}
+            <div className="mt-4 min-h-10 flex items-center justify-center text-center">
               <motion.span
                 key={activeIndex}
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.4 }}
-                className="text-xl sm:text-2xl font-semibold text-slate-900"
+                className="text-xl sm:text-2xl font-semibold text-slate-900 max-w-md"
               >
-                {constraints[activeIndex]}
+                {principles[activeIndex]}
               </motion.span>
             </div>
 
             {/* Dot indicators */}
             <div className="flex gap-2 mt-4">
-              {constraints.map((_, i) => (
+              {principles.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveIndex(i)}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  aria-label={`Show principle ${i + 1}`}
+                  className={`h-2 rounded-full transition-all duration-300 ${
                     i === activeIndex
                       ? "w-6 bg-gradient-to-r from-primary to-accent-pink"
-                      : "bg-slate-600"
+                      : "w-2 bg-slate-300"
                   }`}
                 />
               ))}
             </div>
           </motion.div>
 
-          {/* Right — Constraint list */}
+          {/* Right — Principle list */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -162,9 +156,9 @@ export default function RuleOf7() {
             transition={{ duration: 0.6 }}
             className="space-y-4"
           >
-            {constraints.map((constraint, i) => (
+            {principles.map((principle, i) => (
               <div
-                key={constraint}
+                key={principle}
                 className={`flex items-center gap-4 p-4 rounded-xl transition-all duration-300 ${
                   i === activeIndex
                     ? "bg-white shadow-lg shadow-primary/10 scale-[1.02] border border-slate-200"
@@ -172,23 +166,32 @@ export default function RuleOf7() {
                 }`}
               >
                 <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0 ${
                     i === activeIndex
                       ? "gradient-bg-animated"
                       : "bg-slate-200"
                   }`}
                 >
-                  {i === 1 || i === 3 ? "70" : "7"}
+                  <Check size={18} />
                 </div>
                 <span
                   className={`text-base font-medium ${
                     i === activeIndex ? "text-slate-900" : "text-slate-500"
                   }`}
                 >
-                  {constraint}
+                  {principle}
                 </span>
               </div>
             ))}
+
+            {/* Read-the-Rule-of-7-in-Terms CTA */}
+            <a
+              href="/terms#rule-of-7"
+              className="group mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-secondary transition-colors"
+            >
+              Read the Rule of 7 in Terms
+              <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+            </a>
           </motion.div>
         </div>
 

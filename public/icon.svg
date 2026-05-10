@@ -7,7 +7,6 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <text x="256" y="200" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="120" fill="white">Copy</text>
-  <text x="256" y="340" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="140" fill="#FDE68A">Me</text>
-  <text x="256" y="420" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="600" font-size="48" fill="rgba(255,255,255,0.7)">Rule of 7</text>
+  <text x="256" y="252" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="148" fill="white">Copy</text>
+  <text x="256" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="172" fill="#FDE68A">Me</text>
 </svg>

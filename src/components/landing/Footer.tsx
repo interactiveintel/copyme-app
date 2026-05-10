@@ -10,7 +10,7 @@ const footerLinks = {
   Company: [
     { label: "About", href: "#about" },
     { label: "Sign Up Free", href: "/app" },
-    { label: "Contact", href: "mailto:interactiveintel@gmail.com" },
+    { label: "Contact", href: "mailto:info@copyme1.com" },
   ],
   Legal: [
     { label: "Privacy Policy", href: "/privacy" },

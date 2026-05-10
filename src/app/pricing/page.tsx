@@ -82,7 +82,7 @@ const TIERS: Tier[] = [
     monthly: "Custom",
     monthlyNote: "talk to us",
     cta: "Contact us",
-    href: "mailto:interactiveintel@gmail.com?subject=CopyMe%20Enterprise",
+    href: "mailto:info@copyme1.com?subject=CopyMe%20Enterprise",
     icon: Zap,
     features: [
       "Everything in Business",

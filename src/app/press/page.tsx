@@ -32,8 +32,8 @@ export default function PressPage() {
           <p className="mt-3 text-base text-slate-500 max-w-2xl">
             Everything you need to write about, link to, or build alongside CopyMe.
             For interviews, embargoed news, or partnership conversations:{" "}
-            <a href="mailto:interactiveintel@gmail.com" className="text-purple-600 underline">
-              interactiveintel@gmail.com
+            <a href="mailto:info@copyme1.com" className="text-purple-600 underline">
+              info@copyme1.com
             </a>
             .
           </p>
@@ -99,7 +99,7 @@ export default function PressPage() {
         <Section title="Brand assets">
           <div className="grid sm:grid-cols-2 gap-4">
             <AssetCard
-              title="Logo (SVG)"
+              title="Current logo (SVG)"
               subtitle="Scalable vector — use this for web + print"
               href="/icon.svg"
               filename="copyme-logo.svg"
@@ -109,6 +109,12 @@ export default function PressPage() {
               subtitle="Social share preview, 1200×630"
               href="/opengraph-image"
               filename="copyme-og.png"
+            />
+            <AssetCard
+              title="Legacy logo (SVG, archive only)"
+              subtitle={"Pre-2026-05 lockup with the “Rule of 7” subscript."}
+              href="/legacy-icon.svg"
+              filename="copyme-logo-legacy.svg"
             />
           </div>
           <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
@@ -164,10 +170,10 @@ export default function PressPage() {
                 Press, partnerships, investor inquiries:
               </p>
               <a
-                href="mailto:interactiveintel@gmail.com"
+                href="mailto:info@copyme1.com"
                 className="mt-2 inline-block text-sm font-semibold text-purple-600 hover:underline"
               >
-                interactiveintel@gmail.com
+                info@copyme1.com
               </a>
             </div>
           </div>

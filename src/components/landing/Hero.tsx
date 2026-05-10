@@ -73,24 +73,33 @@ export default function Hero() {
               </span>
             </motion.div>
 
-            {/* Headline */}
+            {/* Primary headline — per Feedback 3 / S-010, "Communication That
+                Matters" stays as H1; only "Copies" was struck. */}
             <motion.h1
               variants={item}
               className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight tracking-tight text-slate-900"
             >
               Communication That{" "}
-              <span className="gradient-text">Copies</span>{" "}
-              Your World
+              <span className="gradient-text">Matters</span>
             </motion.h1>
+
+            {/* Second-tier headline (S-010) — Joze's new framing sits below the
+                primary, above the Rule-of-7 subhead paragraph. */}
+            <motion.h2
+              variants={item}
+              className="mt-4 text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-slate-700"
+            >
+              Your World&apos;s chart of Communication
+            </motion.h2>
 
             {/* Subheadline */}
             <motion.p
               variants={item}
               className="mt-6 text-lg sm:text-xl text-slate-500 max-w-xl mx-auto lg:mx-0 leading-relaxed"
             >
-              Built on the Rule of 7 — a revolutionary constraint system that
-              replaces noise with meaning. Seven messages. Seventy words. Infinite
-              impact.
+              <span className="font-semibold text-slate-700">Rule of 7</span> — A
+              revolutionary constraint system that replaces noise with meaning.
+              Less is more, giving meaning to messages. Infinite impact
             </motion.p>
 
             {/* CTA Buttons */}

@@ -122,6 +122,10 @@ model User {
   receivedTransactions VapTransaction[] @relation("TransactionReceiver")
   passwordResetTokens      PasswordResetToken[]
   emailVerificationTokens  EmailVerificationToken[]
+  sessions                 Session[]
+  recoveryFile             RecoveryFile?
+  accountDeletion          AccountDeletion?
+  suspensions              AccountSuspension[]
   pushSubscriptions        PushSubscription[]
   yogiPersonality          YogiPersonality?
   yogiMessages             YogiMessage[]
@@ -335,6 +339,152 @@ model EmailVerificationToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1.1 — Auth & Onboarding (S-101..S-110)
+// ---------------------------------------------------------------------------
+
+/// Phone-OTP challenge issued during sign-up or sign-in (S-101 / S-103).
+/// One row per (phoneHash, attempt). Cleaned up by a cron job after expiry.
+model PhoneOtp {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// SHA-256 hex of the E.164 phone we sent the code to.
+  phoneHash   String   @map("phone_hash") @db.VarChar(64)
+  /// Bcrypt of the 6-digit code (so a DB leak doesn't expose live codes).
+  codeHash    String   @map("code_hash")
+  /// E.164 (encrypted at rest if that pipeline is wired; nullable).
+  phoneEncrypted Bytes? @map("phone_encrypted")
+  ipHash      String?  @map("ip_hash") @db.VarChar(64)
+  attempts    Int      @default(0)
+  consumedAt  DateTime? @map("consumed_at")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([phoneHash, createdAt])
+  @@index([expiresAt])
+  @@map("phone_otps")
+}
+
+/// Active device/session list (S-106 + S-107).
+/// Refresh tokens are stored as a hashed value here; rotation invalidates the old row.
+model Session {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  /// Bcrypt of the refresh token. Single-use: rotated on each refresh.
+  refreshHash     String   @map("refresh_hash")
+  /// Stable per-device id (random uuid stored on the device).
+  deviceId        String   @map("device_id") @db.Uuid
+  deviceLabel     String?  @map("device_label") @db.VarChar(120)
+  userAgent       String?  @map("user_agent") @db.VarChar(255)
+  ipHash          String?  @map("ip_hash") @db.VarChar(64)
+  createdAt       DateTime @default(now()) @map("created_at")
+  lastUsedAt      DateTime @default(now()) @map("last_used_at")
+  revokedAt       DateTime? @map("revoked_at")
+  /// Set when a refresh-token replay is detected — UI surfaces a banner.
+  replayDetectedAt DateTime? @map("replay_detected_at")
+  expiresAt       DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([deviceId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Lost-phone recovery (S-108). One signed file per user, regenerated on demand.
+model RecoveryFile {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  /// SHA-256 hex of the recovery secret printed in the file.
+  secretHash    String   @map("secret_hash")
+  /// Optional secondary verified phone (E.164 hash) for fallback recovery.
+  secondaryPhoneHash String? @map("secondary_phone_hash") @db.VarChar(64)
+  createdAt     DateTime @default(now()) @map("created_at")
+  /// Set the moment recovery is exercised so we can rotate.
+  consumedAt    DateTime? @map("consumed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("recovery_files")
+}
+
+/// Hard-delete account (S-109). Holds 30-day grace before erasure.
+model AccountDeletion {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @unique @map("user_id") @db.Uuid
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  /// requestedAt + 30 days; after this, an erase job purges PII.
+  effectiveAt  DateTime  @map("effective_at")
+  exportUrl    String?   @map("export_url") @db.VarChar(500)
+  exportReadyAt DateTime? @map("export_ready_at")
+  cancelledAt  DateTime? @map("cancelled_at")
+  erasedAt     DateTime? @map("erased_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([effectiveAt, erasedAt])
+  @@map("account_deletions")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2.3 — Surveys (S-221..S-224)
+// ---------------------------------------------------------------------------
+
+model Survey {
+  id              String   @id @default(uuid()) @db.Uuid
+  ownerId         String   @map("owner_id") @db.Uuid
+  title           String   @db.VarChar(120)
+  description     String?  @db.VarChar(500)
+  /// Up to 7 questions (Rule of 7).
+  questions       Json
+  /// Up to 7 interest tags for targeting.
+  targetInterests Json?    @map("target_interests")
+  status          String   @default("draft") @db.VarChar(16)
+  rewardType      String   @default("none") @map("reward_type") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  responses SurveyResponse[]
+
+  @@index([ownerId, status])
+  @@index([status, createdAt])
+  @@map("surveys")
+}
+
+model SurveyResponse {
+  id        String   @id @default(uuid()) @db.Uuid
+  surveyId  String   @map("survey_id") @db.Uuid
+  /// Hashed user id — k-anonymity ≥ 7 enforced at read time (S-223).
+  userHash  String   @map("user_hash") @db.VarChar(64)
+  answers   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, userHash])
+  @@index([surveyId, createdAt])
+  @@map("survey_responses")
+}
+
+/// Suspension lifecycle (S-175). Soft → hard with appeal.
+model AccountSuspension {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  /// "soft" (read-only 7d) or "hard" (locked).
+  level           String    @db.VarChar(10)
+  reason          String    @db.VarChar(120)
+  details         String?   @db.VarChar(2000)
+  startedAt       DateTime  @default(now()) @map("started_at")
+  /// For soft suspensions, the time at which it auto-escalates to hard.
+  escalatesAt     DateTime? @map("escalates_at")
+  liftedAt        DateTime? @map("lifted_at")
+  appealUrl       String?   @map("appeal_url") @db.VarChar(500)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, liftedAt])
+  @@map("account_suspensions")
 }
 
 model UserLocation {

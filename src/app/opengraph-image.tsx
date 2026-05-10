@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
 // can declare their own opengraph-image.tsx for per-page social previews.
 
 export const runtime = "edge";
-export const alt = "CopyMe — Communication That Copies Your World";
+export const alt = "CopyMe — Communication That Matters · Your World's chart of Communication";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -61,11 +61,9 @@ export default function OG() {
           >
             ✨ THE FUTURE OF COMMUNICATION
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 84, fontWeight: 800, lineHeight: 1.05 }}>
-              Communication That
-            </div>
-            <div style={{ fontSize: 84, fontWeight: 800, lineHeight: 1.05, display: "flex", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ fontSize: 88, fontWeight: 800, lineHeight: 1.02, display: "flex", gap: 22, flexWrap: "wrap" }}>
+              <span>Communication That</span>
               <span
                 style={{
                   background: "linear-gradient(90deg, #A78BFA, #F472B6)",
@@ -73,20 +71,29 @@ export default function OG() {
                   color: "transparent",
                 }}
               >
-                Copies
+                Matters
               </span>
-              <span>Your World.</span>
+            </div>
+            <div
+              style={{
+                fontSize: 36,
+                fontWeight: 600,
+                color: "rgba(255,255,255,0.85)",
+                lineHeight: 1.2,
+              }}
+            >
+              {"Your World’s chart of Communication."}
             </div>
           </div>
           <div
             style={{
-              fontSize: 26,
+              fontSize: 24,
               color: "rgba(255,255,255,0.65)",
               lineHeight: 1.4,
               maxWidth: 900,
             }}
           >
-            Built on the Rule of 7 — seven messages, seventy words, infinite impact.
+            Rule of 7 — a revolutionary constraint system that replaces noise with meaning.
           </div>
         </div>
 

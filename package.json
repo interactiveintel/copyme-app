@@ -9,7 +9,10 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
-    "migrate:deploy": "prisma migrate deploy"
+    "migrate:deploy": "prisma migrate deploy",
+    "test:phone": "node scripts/test-phone.mjs",
+    "test:ruleof7": "node scripts/test-ruleof7.mjs",
+    "test:all": "npm run test:phone && npm run test:ruleof7"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

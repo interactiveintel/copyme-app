@@ -30,7 +30,7 @@ export default function TermsPage() {
               <li>You need to be 16+ (or the local age of digital consent, whichever is higher).</li>
               <li>Every message is capped at 70 words, you keep up to 7 active contacts on the free tier, and your last 7 messages per contact are retained.</li>
               <li>No spam, no harassment, no illegal content — AI and humans moderate.</li>
-              <li>We can suspend accounts that break these rules.</li>
+              <li>Accounts that break these rules may be suspended.</li>
               <li>You can cancel or delete your account at any time.</li>
             </ul>
           </section>
@@ -61,7 +61,7 @@ export default function TermsPage() {
           </section>
 
           {/* 3. Rule of 7 */}
-          <section>
+          <section id="rule-of-7" className="scroll-mt-24">
             <h2 className="text-lg font-semibold text-slate-900 mb-3">3. The Rule of 7</h2>
             <p>
               The Service imposes a constraint system called the &quot;Rule of 7&quot;:
@@ -206,8 +206,8 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-slate-900 mb-3">13. Contact</h2>
             <p>
               Questions about these Terms:{" "}
-              <a href="mailto:interactiveintel@gmail.com" className="text-[#7C3AED] hover:underline">
-                interactiveintel@gmail.com
+              <a href="mailto:info@copyme1.com" className="text-[#7C3AED] hover:underline">
+                info@copyme1.com
               </a>
               .
             </p>

@@ -1,20 +1,29 @@
 {
   "name": "CopyMe",
   "short_name": "CopyMe",
-  "description": "Communication That Copies Your World. Built on the Rule of 7.",
+  "description": "Your World's chart of Communication. Rule of 7.",
   "start_url": "/app",
   "display": "standalone",
   "background_color": "#0F172A",
   "theme_color": "#4F46E5",
   "orientation": "portrait",
+  "scope": "/",
+  "lang": "en",
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-icon",
+      "sizes": "180x180",
+      "type": "image/png",
       "purpose": "any"
     }
   ],
   "screenshots": [],
-  "categories": ["social", "communication"]
+  "categories": ["social", "communication"],
+  "prefer_related_applications": false
 }

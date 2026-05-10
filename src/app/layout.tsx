@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CopyMe — Communication That Copies Your World",
+  title: "CopyMe — Communication That Matters",
   description:
-    "Built on the Rule of 7, CopyMe is the messaging platform that replaces noise with meaning.",
+    "Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning.",
   manifest: "/manifest.json",
   icons: [
     { rel: "icon", url: "/icon.svg", type: "image/svg+xml" },

@@ -12,9 +12,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL || "https://copyme-app.vercel.app",
   ),
-  title: "CopyMe — Communication That Copies Your World",
+  title: "CopyMe — Communication That Matters · Your World's chart of Communication",
   description:
-    "Built on the Rule of 7, CopyMe is the messaging platform that replaces noise with meaning. 7 messages. 70 words. Infinite impact.",
+    "Communication That Matters. Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Less is more, giving meaning to messages. Infinite impact.",
   keywords: [
     "messaging",
     "communication",
@@ -23,17 +23,18 @@ export const metadata: Metadata = {
     "intentional communication",
   ],
   openGraph: {
-    title: "CopyMe — Communication That Copies Your World",
+    title: "CopyMe — Communication That Matters",
     description:
-      "Built on the Rule of 7, CopyMe is the messaging platform that replaces noise with meaning.",
+      "Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning.",
     type: "website",
     siteName: "CopyMe",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "CopyMe — Communication That Copies Your World",
-    description: "Built on the Rule of 7. 7 messages. 70 words. Infinite impact.",
+    title: "CopyMe — Communication That Matters",
+    description:
+      "Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Infinite impact.",
   },
 };
 

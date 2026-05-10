@@ -47,8 +47,8 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-2">
               Contact the privacy team at{" "}
-              <a href="mailto:interactiveintel@gmail.com" className="text-[#7C3AED] hover:underline">
-                interactiveintel@gmail.com
+              <a href="mailto:info@copyme1.com" className="text-[#7C3AED] hover:underline">
+                info@copyme1.com
               </a>
               . For EU-specific requests we will route you to our EU representative.
             </p>
@@ -181,10 +181,10 @@ export default function PrivacyPage() {
               <li>
                 Email:{" "}
                 <a
-                  href="mailto:interactiveintel@gmail.com"
+                  href="mailto:info@copyme1.com"
                   className="text-[#7C3AED] hover:underline"
                 >
-                  interactiveintel@gmail.com
+                  info@copyme1.com
                 </a>{" "}
                 — we respond within 30 days.
               </li>
@@ -242,8 +242,8 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-slate-900 mb-3">12. Contact</h2>
             <p>
               Privacy questions and data-subject requests:{" "}
-              <a href="mailto:interactiveintel@gmail.com" className="text-[#7C3AED] hover:underline">
-                interactiveintel@gmail.com
+              <a href="mailto:info@copyme1.com" className="text-[#7C3AED] hover:underline">
+                info@copyme1.com
               </a>
               .
             </p>

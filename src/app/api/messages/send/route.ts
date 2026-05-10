@@ -7,6 +7,7 @@ import {
   validateDuration,
   LIMITS,
 } from "@/lib/ruleOf7";
+import { recordCapHit } from "@/lib/ruleOf7-metrics";
 import { cacheInbox } from "@/lib/redis";
 import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { bumpStreak } from "@/lib/streak";
@@ -71,34 +72,37 @@ export async function POST(request: NextRequest) {
     });
     const tier = sender?.accountTier ?? "basic";
 
-    // --- Validate text content (Rule of 7: max 70 words) --------------------
+    // --- Validate text content (Rule of 7: max 70 words) — S-111 ------------
     if (body.content) {
       const textCheck = validateMessageContent(body.content, tier);
       if (!textCheck.valid) {
+        recordCapHit("word", tier);
         return NextResponse.json(
-          { success: false, error: { code: "CONTENT_TOO_LONG", message: textCheck.error! } },
+          { success: false, error: { code: "RULE_OF_7_WORD_CAP", message: textCheck.error! } },
           { status: 400 },
         );
       }
     }
 
-    // --- Validate media count (max 7 items) ---------------------------------
+    // --- Validate media count (max 7 items) — S-113 -------------------------
     if (body.mediaUrls && body.mediaUrls.length > 0) {
       const mediaCheck = validateMediaCount(body.mediaUrls.length);
       if (!mediaCheck.valid) {
+        recordCapHit("media", tier);
         return NextResponse.json(
-          { success: false, error: { code: "TOO_MANY_MEDIA", message: mediaCheck.error! } },
+          { success: false, error: { code: "RULE_OF_7_MEDIA_CAP", message: mediaCheck.error! } },
           { status: 400 },
         );
       }
     }
 
-    // --- Validate duration (max 70 seconds) ---------------------------------
+    // --- Validate duration (max 70 seconds) — S-114 -------------------------
     if (body.durationSeconds !== undefined) {
       const durationCheck = validateDuration(body.durationSeconds);
       if (!durationCheck.valid) {
+        recordCapHit("duration", tier);
         return NextResponse.json(
-          { success: false, error: { code: "DURATION_TOO_LONG", message: durationCheck.error! } },
+          { success: false, error: { code: "RULE_OF_7_DURATION_CAP", message: durationCheck.error! } },
           { status: 400 },
         );
       }

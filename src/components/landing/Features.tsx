@@ -14,7 +14,7 @@ const features = [
   {
     title: "Rule of 7",
     description:
-      "7 messages, 70 words, 7 contacts at a time. Constraints that spark creativity and deeper connections.",
+      "A constraint system that replaces noise with meaning. Less is more, giving meaning to messages.",
     icon: Sparkles,
     gradient: "from-primary to-secondary",
     glow: "shadow-primary/20",
@@ -38,7 +38,7 @@ const features = [
   {
     title: "Voice & Video",
     description:
-      "Crystal-clear WebRTC calls up to 70 seconds. Quick, meaningful conversations that respect your time.",
+      "Crystal-clear WebRTC calls in short, intentional bursts. Quick, meaningful conversations that respect your time.",
     icon: Video,
     gradient: "from-accent-pink to-secondary",
     glow: "shadow-accent-pink/20",

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
+// S-158: edge-cache for 60s so the page survives a ~100 RPS burst.
+export const revalidate = 60;
+
 // ---------------------------------------------------------------------------
 // GET /api/pitch/metrics
 //
