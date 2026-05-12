@@ -31,6 +31,7 @@ source doc.
 | 07 | [07-production-readiness.md](07-production-readiness.md) | Gap analysis vs the spec. Maps to Phase 1 sprints. |
 | 08 | [08-references.md](08-references.md) | Live links + index of every source document. |
 | 09 | [09-next-steps.md](09-next-steps.md) | **Operational checklist** — A (founder unblocks) / B (provider keys) / C (real eng work) / D (validation) / E (business gates). Critical path to G3. |
+| 10 | [10-engineering-backlog.md](10-engineering-backlog.md) | What still needs coding to be fully functional. Tier A (MVP completers), B (hardening), C (Phase 2), D (Phase 3). Maps to the original `Production model instructions.docx` gap list. |
 
 ## Executive summary (read me first)
 
