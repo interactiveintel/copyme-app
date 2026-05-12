@@ -57,12 +57,12 @@ export default function Navbar({ t }: NavbarProps = {}) {
           {/* CTA + Download Buttons */}
           <div className="hidden md:flex items-center gap-3">
             <DownloadButton variant="navbar" />
-            <a
+            <Link
               href="/app"
               className="relative inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
             >
               {ctaSignup}
-            </a>
+            </Link>
           </div>
 
           {/* Mobile Hamburger */}
@@ -97,13 +97,13 @@ export default function Navbar({ t }: NavbarProps = {}) {
                   {link.label}
                 </a>
               ))}
-              <a
+              <Link
                 href="/app"
                 onClick={() => setIsOpen(false)}
                 className="block w-full text-center rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated mt-2"
               >
                 {ctaSignup}
-              </a>
+              </Link>
             </div>
           </motion.div>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -122,7 +123,7 @@ export default function Hero({ t }: HeroProps = {}) {
               variants={item}
               className="mt-10 flex flex-wrap gap-4 justify-center lg:justify-start"
             >
-              <a
+              <Link
                 href="/app"
                 className="group relative inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
               >
@@ -131,7 +132,7 @@ export default function Hero({ t }: HeroProps = {}) {
                   size={18}
                   className="transition-transform group-hover:translate-x-1"
                 />
-              </a>
+              </Link>
               <button
                 onClick={() => {
                   // Unlock browser speech synthesis with user gesture

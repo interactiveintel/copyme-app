@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings,
@@ -706,9 +707,9 @@ export default function ProfileScreen() {
                         This permanently deletes your profile, messages, contacts, and tokens.
                         We&apos;ll keep anonymized operational logs for up to 12 months as
                         described in our{" "}
-                        <a href="/privacy" className="underline text-purple-600">
+                        <Link href="/privacy" className="underline text-purple-600">
                           Privacy Policy
-                        </a>
+                        </Link>
                         . This cannot be undone.
                       </p>
                     </div>
@@ -751,20 +752,20 @@ export default function ProfileScreen() {
                   </div>
 
                   <div className="space-y-1">
-                    <a
+                    <Link
                       href="/privacy"
                       className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
                     >
                       <span>Privacy policy</span>
                       <span className="text-xs text-slate-400">→</span>
-                    </a>
-                    <a
+                    </Link>
+                    <Link
                       href="/terms"
                       className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
                     >
                       <span>Terms of service</span>
                       <span className="text-xs text-slate-400">→</span>
-                    </a>
+                    </Link>
                     {user && (
                       <button
                         onClick={() => {

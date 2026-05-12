@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ArrowLeft, Loader2, Phone, ShieldCheck, Sparkles } from "lucide-react";
@@ -456,8 +457,8 @@ function SignupPageInner() {
 
         <p className="text-center text-xs text-slate-400 mt-6">
           By continuing you agree to our{" "}
-          <a href="/terms" className="underline hover:text-slate-600">Terms</a> and{" "}
-          <a href="/privacy" className="underline hover:text-slate-600">Privacy</a>.
+          <Link href="/terms" className="underline hover:text-slate-600">Terms</Link> and{" "}
+          <Link href="/privacy" className="underline hover:text-slate-600">Privacy</Link>.
         </p>
       </div>
     </main>

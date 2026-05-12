@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -73,12 +74,12 @@ function VerifyContent() {
             <AlertCircle size={40} className="text-rose-500 mx-auto mb-4" />
             <h1 className="text-lg font-bold text-slate-900 mb-1">Verification failed</h1>
             <p className="text-sm text-slate-500 mb-6">{message}</p>
-            <a
+            <Link
               href="/app"
               className="inline-block px-5 py-2.5 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
             >
               Go to app
-            </a>
+            </Link>
           </>
         )}
       </motion.div>

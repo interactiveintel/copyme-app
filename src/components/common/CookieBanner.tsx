@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Cookie, X } from "lucide-react";
 
@@ -144,9 +145,9 @@ export default function CookieBanner() {
 
               <p className="mt-2 text-[10px] text-slate-400">
                 See our{" "}
-                <a href="/privacy" className="underline hover:text-slate-600">
+                <Link href="/privacy" className="underline hover:text-slate-600">
                   Privacy Policy
-                </a>{" "}
+                </Link>{" "}
                 for details.
               </p>
             </div>

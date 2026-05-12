@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, Monitor, Smartphone, X, Globe, Laptop } from "lucide-react";
 
@@ -193,12 +194,12 @@ function InstallModal({
             </div>
 
             {/* Open in browser button */}
-            <a
+            <Link
               href="/app"
               className="mt-6 flex items-center justify-center gap-2 w-full rounded-full py-3 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
             >
               Open CopyMe in Browser
-            </a>
+            </Link>
           </motion.div>
         </motion.div>
       )}

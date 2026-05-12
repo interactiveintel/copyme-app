@@ -44,9 +44,9 @@ export default function TermsPage() {
               CopyMe (operated jointly by InteractiveIntel, United States, and Pimdom d.o.o.,
               Slovenia). By creating an account, accessing, or using CopyMe (the &quot;Service&quot;),
               you agree to these Terms and to our{" "}
-              <a href="/privacy" className="text-[#7C3AED] hover:underline">
+              <Link href="/privacy" className="text-[#7C3AED] hover:underline">
                 Privacy Policy
-              </a>
+              </Link>
               . If you do not agree, do not use the Service.
             </p>
           </section>

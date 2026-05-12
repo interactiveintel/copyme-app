@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Play, Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -85,9 +86,9 @@ export default function ExplainerVideo() {
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Or{" "}
-          <a href="/app" className="text-purple-600 font-semibold hover:underline">
+          <Link href="/app" className="text-purple-600 font-semibold hover:underline">
             try the live app
-          </a>
+          </Link>
           {" — "}it&apos;s free.
         </p>
       </div>

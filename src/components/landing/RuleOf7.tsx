@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, X } from "lucide-react";
 
@@ -185,13 +186,13 @@ export default function RuleOf7() {
             ))}
 
             {/* Read-the-Rule-of-7-in-Terms CTA */}
-            <a
+            <Link
               href="/terms#rule-of-7"
               className="group mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-secondary transition-colors"
             >
               Read the Rule of 7 in Terms
               <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-            </a>
+            </Link>
           </motion.div>
         </div>
 
