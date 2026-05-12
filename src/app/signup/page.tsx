@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ArrowLeft, Loader2, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import PhoneInput from "@/components/PhoneInput";
@@ -12,20 +12,57 @@ import type { ValidationResult } from "@/lib/phone/validate";
 //   step 1: phone → SMS OTP
 //   step 2: code → verify
 //   step 3 (new user): displayName + birthdate (age gate) → first 7 contacts
+//
+// Referral code (Tier C9 / S-246): if the URL has ?ref=<code>, we stash it in
+// localStorage so it survives the OTP round-trip and forward it to
+// /api/auth/phone/complete on account creation.
 // ---------------------------------------------------------------------------
 
 type Step = "phone" | "code" | "profile" | "contacts" | "done";
+
+const REFERRAL_STORAGE_KEY = "copyme.signup.ref";
 
 function getStoredCountry(): string {
   if (typeof window === "undefined") return "si";
   return localStorage.getItem("copyme.signup.country") ?? "si";
 }
 
+function getStoredReferral(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFERRAL_STORAGE_KEY);
+}
+
+function clearStoredReferral() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(REFERRAL_STORAGE_KEY);
+}
+
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("phone");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Capture ?ref=<code> on first render and persist across the OTP round-trip.
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref && ref.trim().length > 0 && ref.length <= 32) {
+      try {
+        localStorage.setItem(REFERRAL_STORAGE_KEY, ref.trim());
+      } catch {
+        // Storage unavailable (private mode, quota) — skip; signup still works.
+      }
+    }
+  }, [searchParams]);
 
   // step 1 — phone
   const [phone, setPhone] = useState<ValidationResult | null>(null);
@@ -127,6 +164,7 @@ export default function SignupPage() {
     setBusy(true);
     setError(null);
     try {
+      const referralCode = getStoredReferral();
       const r = await fetch("/api/auth/phone/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,6 +173,7 @@ export default function SignupPage() {
           displayName: displayName.trim(),
           countryIso2: phone.country.iso2,
           birthdate,
+          ...(referralCode ? { referralCode } : {}),
         }),
       });
       const data = await r.json();
@@ -150,6 +189,9 @@ export default function SignupPage() {
         return;
       }
       storeSession(data);
+      // Referral code (if any) was just consumed by the server — drop it
+      // from local storage so we don't re-send it next time.
+      clearStoredReferral();
 
       // Optional avatar upload (after session exists so /api/uploads/avatar
       // authenticates). Failure here is non-fatal — UI falls back to the

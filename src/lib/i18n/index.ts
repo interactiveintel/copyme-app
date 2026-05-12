@@ -24,7 +24,7 @@ export function getLocale(): Locale {
   return active;
 }
 
-const STRINGS: Record<Locale, Record<string, string>> = {
+export const STRINGS: Record<Locale, Record<string, string>> = {
   en: {
     "hero.h1": "Your World's chart of Communication",
     "hero.subhead.lead": "Rule of 7",

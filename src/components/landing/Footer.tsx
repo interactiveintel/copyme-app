@@ -1,23 +1,26 @@
 import Link from "next/link";
 import { Heart } from "lucide-react";
 
-const footerLinks = {
-  Product: [
-    { label: "Features", href: "#features" },
-    { label: "Rule of 7", href: "#rule-of-7" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "Try the App", href: "/app" },
-  ],
-  Company: [
-    { label: "About", href: "#about" },
-    { label: "Sign Up Free", href: "/app" },
-    { label: "Contact", href: "mailto:info@copyme1.com" },
-  ],
-  Legal: [
-    { label: "Privacy Policy", href: "/privacy" },
-    { label: "Terms of Service", href: "/terms" },
-  ],
-};
+// Language switcher entries — each link points to that locale's segment.
+// English uses the bare `/` so the root canonical URL stays clean and the
+// existing root-page bundle is what gets served for the default audience.
+const LOCALE_LINKS: ReadonlyArray<{ href: string; label: string; lang: string }> = [
+  { href: "/", label: "English", lang: "en" },
+  { href: "/si", label: "Slovenščina", lang: "si" },
+  { href: "/es", label: "Español", lang: "es" },
+  { href: "/de", label: "Deutsch", lang: "de" },
+  { href: "/fr", label: "Français", lang: "fr" },
+];
+
+interface FooterProps {
+  /**
+   * Optional translation lookup. When omitted, falls back to the original
+   * English copy so the root `/` page renders identically to the pre-S-254
+   * behaviour. Only the keys present in the STRINGS table are switched —
+   * column headings, link labels not in the table stay in English for now.
+   */
+  t?: (key: string) => string;
+}
 
 const socialIcons = [
   { label: "Twitter", href: "https://twitter.com", path: "M23 3a10.9 10.9 0 01-3.14 1.53A4.48 4.48 0 0022.43.36a9 9 0 01-5.07 1.94A4.52 4.52 0 0012 5.8a4.52 4.52 0 001.33 3.36A12.94 12.94 0 013 4.53a4.52 4.52 0 001.4 6.03A4.5 4.5 0 012 9.71a4.52 4.52 0 003.63 4.49 4.52 4.52 0 01-2.04.08 4.52 4.52 0 004.22 3.14A9.05 9.05 0 012 19.54 12.77 12.77 0 009 21c8.29 0 12.84-6.87 12.84-12.84 0-.2 0-.39-.01-.58A9.17 9.17 0 0024 5.06a9 9 0 01-2.6.71A4.54 4.54 0 0023 3z" },
@@ -25,7 +28,25 @@ const socialIcons = [
   { label: "Instagram", href: "https://instagram.com", path: "M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.97.24 2.44.41.61.24 1.05.52 1.51.98.46.46.74.9.98 1.51.17.47.36 1.27.41 2.44.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.24 1.97-.41 2.44-.24.61-.52 1.05-.98 1.51-.46.46-.9.74-1.51.98-.47.17-1.27.36-2.44.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.97-.24-2.44-.41a4.09 4.09 0 01-1.51-.98 4.09 4.09 0 01-.98-1.51c-.17-.47-.36-1.27-.41-2.44C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.24-1.97.41-2.44.24-.61.52-1.05.98-1.51.46-.46.9-.74 1.51-.98.47-.17 1.27-.36 2.44-.41C8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63a5.84 5.84 0 00-2.13 1.38A5.84 5.84 0 00.63 4.14C.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.31.79.72 1.46 1.38 2.13a5.84 5.84 0 002.13 1.38c.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56a5.84 5.84 0 002.13-1.38 5.84 5.84 0 001.38-2.13c.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91a5.84 5.84 0 00-1.38-2.13A5.84 5.84 0 0019.86.63c-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-10.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z" },
 ];
 
-export default function Footer() {
+export default function Footer({ t }: FooterProps = {}) {
+  const ctaSignup = t ? t("cta.signup") : "Sign Up Free";
+  const footerLinks = {
+    Product: [
+      { label: "Features", href: "#features" },
+      { label: "Rule of 7", href: "#rule-of-7" },
+      { label: "Pricing", href: "#pricing" },
+      { label: "Try the App", href: "/app" },
+    ],
+    Company: [
+      { label: "About", href: "#about" },
+      { label: ctaSignup, href: "/app" },
+      { label: "Contact", href: "mailto:info@copyme1.com" },
+    ],
+    Legal: [
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms of Service", href: "/terms" },
+    ],
+  };
   return (
     <footer id="about" className="relative border-t border-slate-200 bg-slate-50">
       {/* Gradient top border */}
@@ -88,8 +109,27 @@ export default function Footer() {
           ))}
         </div>
 
+        {/* Language switcher (S-254). Plain links so it works without JS and
+            keeps the bundle weight at zero — each click hits the matching
+            server-rendered locale segment. */}
+        <div className="mt-12 pt-6 border-t border-slate-200 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
+          <span className="text-slate-400 font-semibold uppercase tracking-wider">
+            Language
+          </span>
+          {LOCALE_LINKS.map((loc) => (
+            <Link
+              key={loc.lang}
+              href={loc.href}
+              hrefLang={loc.lang}
+              className="text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              {loc.label}
+            </Link>
+          ))}
+        </div>
+
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="mt-6 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-slate-500">
             &copy; 2026 CopyMe. All rights reserved.
           </p>

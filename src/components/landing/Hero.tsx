@@ -42,8 +42,24 @@ const stats = [
   { icon: Shield, label: "End-to-End Encrypted", color: "text-accent-emerald" },
 ];
 
-export default function Hero() {
+interface HeroProps {
+  /**
+   * Optional translation lookup. When omitted, falls back to the original
+   * English copy that was hard-coded before S-254 — keeps the root `/` page
+   * behaviour byte-identical for the English audience.
+   */
+  t?: (key: string) => string;
+}
+
+export default function Hero({ t }: HeroProps = {}) {
   const [showDemo, setShowDemo] = useState(false);
+  const heroH1 = t ? t("hero.h1") : "Your World's chart of Communication";
+  const subheadLead = t ? t("hero.subhead.lead") : "Rule of 7";
+  const subheadBody = t
+    ? t("hero.subhead.body")
+    : "A revolutionary constraint system that replaces noise with meaning. Less is more, giving meaning to messages. Infinite impact";
+  const ctaSignup = t ? t("cta.signup") : "Sign Up Free";
+  const ctaDemo = t ? t("cta.demo") : "Watch the Demo";
 
   return (
     <>
@@ -84,12 +100,13 @@ export default function Hero() {
             </motion.h1>
 
             {/* Second-tier headline (S-010) — Joze's new framing sits below the
-                primary, above the Rule-of-7 subhead paragraph. */}
+                primary, above the Rule-of-7 subhead paragraph. Maps to the
+                i18n `hero.h1` key (the translated marquee). */}
             <motion.h2
               variants={item}
               className="mt-4 text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-slate-700"
             >
-              Your World&apos;s chart of Communication
+              {heroH1}
             </motion.h2>
 
             {/* Subheadline */}
@@ -97,9 +114,7 @@ export default function Hero() {
               variants={item}
               className="mt-6 text-lg sm:text-xl text-slate-500 max-w-xl mx-auto lg:mx-0 leading-relaxed"
             >
-              <span className="font-semibold text-slate-700">Rule of 7</span> — A
-              revolutionary constraint system that replaces noise with meaning.
-              Less is more, giving meaning to messages. Infinite impact
+              <span className="font-semibold text-slate-700">{subheadLead}</span> — {subheadBody}
             </motion.p>
 
             {/* CTA Buttons */}
@@ -111,7 +126,7 @@ export default function Hero() {
                 href="/app"
                 className="group relative inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
               >
-                Sign Up Free
+                {ctaSignup}
                 <ArrowRight
                   size={18}
                   className="transition-transform group-hover:translate-x-1"
@@ -132,7 +147,7 @@ export default function Hero() {
                 <span className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center shadow-sm shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                   <Play size={12} className="text-white ml-0.5" />
                 </span>
-                Watch the Demo
+                {ctaDemo}
               </button>
               <DownloadButton variant="hero" />
             </motion.div>

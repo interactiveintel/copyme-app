@@ -23,6 +23,7 @@ import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import AppBrand from "./AppBrand";
+import ReferralBanner from "./ReferralBanner";
 import { useAuth } from "@/lib/auth-context";
 import { MOCK_PROFILES } from "@/lib/mock-data";
 
@@ -402,6 +403,9 @@ export default function ProfileScreen() {
       </div>
 
       <div className="px-4 space-y-4 -mt-2">
+        {/* Referral promo (Tier C9 / S-246) — hides itself for paid tiers */}
+        <ReferralBanner />
+
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[

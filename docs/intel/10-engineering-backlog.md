@@ -1,7 +1,7 @@
 # 10 — Engineering Backlog: What's Left to Code for Full Functionality
 
 **Anchor doc:** `Production model instructions.docx` (2026-04-04).
-**Last updated:** 2026-05-12, after the v4.3.2 deploy + `copyme1.com` domain wiring.
+**Last updated:** 2026-05-12, after the v4.8.0 Tier C parallel-agent ship (Phase 2 surfaces complete).
 
 This document answers the question "what next has to be coded to make
 CopyMe fully functional?" It cross-checks every gap the original
@@ -99,18 +99,18 @@ Phase 2 = Yogi top-level surface + AI search + surveys + ad marketplace + paid t
 
 | ID | What to build | Effort | Sprint |
 |---|---|---|---|
-| **C1** | **Yogi top-level inbox surface** — a dedicated tab where Yogi is the contact. Reuses `/api/agents/yogi`. Adds a Privacy modal first-run (per S-203). | 2d | S-201 |
-| **C2** | **Smart-replies chip** wired into `ChatScreen.tsx` composer. Endpoint exists (`/api/agents/yogi/smart-replies`). | 1d | S-207 |
-| **C3** | **Yogi quality dashboard UI** for the `/api/admin/yogi-quality` data (cost/DAU chart, refusal rate, accept rate). | 1d | S-208 |
-| **C4** | **AI search & discovery surface** — `SearchScreen.tsx` polish + match-score badges + "92% match" UI. Endpoint exists. | 1.5d | S-211 / S-213 |
-| **C5** | **Surveys UI** — creator (`/business/surveys/create`), delivery (in-inbox card), respondent flow, results dashboard with k≥7 gating. Backend complete. | 3–4d | S-221 / S-222 / S-223 |
-| **C6** | **Ad marketplace creator polish** — `/business/ads` exists but needs (a) preview rendering the actual user inbox view, (b) banned-word lint, (c) targeting picker improvement. | 2d | S-232 |
-| **C7** | **Pro / Business tier upgrade flow** — `/pricing` → checkout → `/billing/success` → tier flip. Checkout endpoint exists (S-243); UI flow + portal link needs wiring. | 2d | S-243 |
-| **C8** | **EU 14-day cancellation flow** — refund UI + record-keep. Backend metadata flag is set on Stripe; refund endpoint + admin view needs building. | 1.5d | S-244 |
-| **C9** | **Referral promo activation** — `lib/referrals/rule-of-7.ts` exists; UI flow ("Refer 7 friends, get 7 days Pro") + share-link generator + in-app banner. | 1d | S-246 |
-| **C10** | **i18n wire** — `lib/i18n/index.ts` exists with EN/SI/ES/DE/FR strings; need to thread `t('hero.h1')` through `Hero.tsx`, `Navbar.tsx`, `Footer.tsx` and add locale routing (`/si/`). | 2d | S-254 |
+| ~~**C1**~~ | ✅ **DONE in v4.8.0** — `YogiInboxScreen.tsx` is now the dedicated 3rd-tab surface (renamed "Yogi" in `BottomNav.tsx`). First-run consent modal gated by `localStorage["copyme.yogi.consented"]`. Cost-cap banner reads from `/api/agents/yogi`. Composer with `WordCounter` enforces Rule of 7. | shipped | done — S-201 |
+| ~~**C2**~~ | ✅ **DONE in v4.8.0** — `SmartReplyChips.tsx` mounted above the composer in `ChatScreen.tsx`. Fetches `/api/agents/yogi/smart-replies` keyed off the latest inbound message ref; skips when last msg <4 words or sent-by-user. Renders 3 chips with skeletons; accept emits `yogi.smart_reply.accepted` Sentry breadcrumb. | shipped | done — S-207 |
+| ~~**C3**~~ | ✅ **DONE in v4.8.0** — `/admin/yogi-quality` page live with 4 summary tiles (calls, cost, avg DAU, avg cost/DAU), pure-SVG gradient-stroke cost trend chart, day-by-day collapsible table, 30s auto-refresh. Reads `/api/admin/yogi-quality`. | shipped | done — S-208 |
+| ~~**C4**~~ | ✅ **DONE in v4.8.0** — `SearchScreen.tsx` ships inline `MatchBadge` + `SearchResultCard`. Score formula `Math.min(100, Math.round((relevanceScore / 18) * 100))` → "92% match" copy. Adds "Why this match?" affordance + "Send first message →" CTA. | shipped | done — S-211 / S-213 |
+| ~~**C5**~~ | ✅ **DONE in v4.8.0** — Three new surfaces: `/business/surveys` (list), `/business/surveys/create` (builder, ≤7 questions), `/business/surveys/[id]/results` (k≥7 anonymity gate, CSS-only horizontal bars). Recipient surface: `SurveyInboxCard.tsx` (radio/checkbox/textarea by type) rendered above conversations in `InboxScreen.tsx` via `/api/surveys/pending`. | shipped | done — S-221 / S-222 / S-223 |
+| ~~**C6**~~ | ✅ **DONE in v4.8.0** — `/business/ads` now ships live preview pane using shared `AdInboxCard.tsx` (matches consumer marketplace look), 5 banned-word lint patterns (guarantee / free money / click here / excessive `!!!` / restricted categories), chip-based `InterestPicker` with 24-item `COMMON_INTERESTS` suggestions, max 7 tags. | shipped | done — S-232 |
+| ~~**C7**~~ | ✅ **DONE in v4.8.0** — `/pricing` is now a client component with functional Upgrade CTAs hitting `/api/billing/checkout`. Stripe webhook now handles `mode === "subscription"` idempotently via `TIER_RANK` (pro → business_3, business → business_7). New `/billing/success` (with `/api/billing/verify-session`), `/profile/billing` (Manage / Downgrade), `/api/billing/cancel`. | shipped | done — S-243 |
+| ~~**C8**~~ | ✅ **DONE in v4.8.0** — Refund flow shipped: `/api/billing/refund` (POST; degrades 503 + `REFUND_LOOKUP_UNAVAILABLE` until Stripe customer ID is stored on User row), `/profile/billing/refund` (user-facing form), `/admin/billing/refunds` + `/api/admin/billing/refunds` (admin queue). | shipped | done — S-244 |
+| ~~**C9**~~ | ✅ **DONE in v4.8.0** — `/api/users/me/referral/share` (returns code, deepLink, shareText, qualifyingReferrals, needed=7, freeDaysGranted, earnedAt). `ReferralBanner.tsx` (7-dot progress + share with native + copy fallback) rendered in `ProfileScreen.tsx` above the stats grid; hides for non-basic tiers. Signup captures `?ref=<code>` → forwards to `/api/auth/phone/complete`. New `getReferralProgress()` sibling in `lib/referrals/rule-of-7.ts`. | shipped | done — S-246 |
+| ~~**C10**~~ | ✅ **DONE in v4.8.0** — Locale routing via `src/app/[locale]/(layout|page).tsx` with `generateStaticParams` + per-locale `generateMetadata`. New `lib/i18n/server.ts` (`tFor` + `isSupportedLocale`). `Hero.tsx`, `Navbar.tsx`, `Footer.tsx` accept optional `t?: (key) => string` (falls back to English when omitted, so `/` is byte-identical). `Footer.tsx` adds language-switcher row with native names. | shipped | done — S-254 |
 
-**Tier C total: ~17–18 days. Phase 2 LIVE target (per FEEDBACK_3 plan): 2026-08-31.**
+**Tier C total: shipped in v4.8.0 (parallel agents — wall-clock minutes). Phase 2 LIVE target (per FEEDBACK_3 plan): 2026-08-31 — surface work complete; remaining is launch ops + marketing.**
 
 ### Tier D — Phase 3 features (Years 3–5; regulator-gated)
 
@@ -147,8 +147,8 @@ These cannot ship until the BaaS partner term sheet (S-302) is signed. But the c
 | **Week 3** (2026-05-25 → 2026-05-29) | **B2 + B3** | Test coverage doubled; admin moderation UI live |
 | **Week 4** (2026-06-01 → 2026-06-05) | **B1 + B4** | libsignal swap; daily digest polish |
 | **Week 5** (2026-06-08 → 2026-06-12) | Beta soak + G3 launch | Phase 1 LIVE on copyme1.com |
-| **Weeks 6–11** (June → mid-July) | **Tier C** | Phase 2 surfaces — Yogi top-level, surveys, ad polish, paid tiers, referrals, i18n |
-| **Week 12+** | Phase 2 LAUNCH | Pro/Business public |
+| ~~Weeks 6–11~~ | ~~Tier C~~ | ✅ Shipped in v4.8.0 (parallel-agent run; wall-clock minutes vs. 17–18 estimated days). Phase 2 surfaces all live. |
+| **Week 12+** | Phase 2 LAUNCH ops | Pro/Business public — marketing + onboarding + plan-tier docs (no remaining code) |
 | **Q3 2026** | BaaS partner signed (S-302) → Tier D begins | Phase 3 closed beta |
 
 **Bottom line:** with **one focused engineer**, the absolute MVP-complete state (Tiers A + B) is **~3–4 weeks of work**. Phase 2 surfaces add another **~3–4 weeks**. Phase 3 starts only after the partner term sheet is signed.

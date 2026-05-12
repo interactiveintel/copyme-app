@@ -13,8 +13,18 @@ const navLinks = [
   { label: "Pricing", href: "/pricing" },
 ];
 
-export default function Navbar() {
+interface NavbarProps {
+  /**
+   * Optional translation lookup. When omitted, falls back to the original
+   * English copy so the root `/` page renders identically to the pre-S-254
+   * behaviour.
+   */
+  t?: (key: string) => string;
+}
+
+export default function Navbar({ t }: NavbarProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
+  const ctaSignup = t ? t("cta.signup") : "Sign Up Free";
 
   return (
     <motion.nav
@@ -51,7 +61,7 @@ export default function Navbar() {
               href="/app"
               className="relative inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
             >
-              Sign Up Free
+              {ctaSignup}
             </a>
           </div>
 
@@ -92,7 +102,7 @@ export default function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className="block w-full text-center rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated mt-2"
               >
-                Sign Up Free
+                {ctaSignup}
               </a>
             </div>
           </motion.div>

@@ -18,6 +18,44 @@ export interface ReferralCheckResult {
   freeDaysGranted: number;
 }
 
+export interface ReferralProgress {
+  qualifyingReferrals: number;
+  needed: number;
+  freeDaysGranted: number;
+  /** Timestamp of the active promo grant, if one exists in the current 90d window. */
+  earnedAt: Date | null;
+}
+
+/**
+ * Read-only snapshot of a user's referral progress for the share/banner UI.
+ * Does NOT trigger a grant — call `maybeAwardReferralPromo` for that.
+ */
+export async function getReferralProgress(userId: string): Promise<ReferralProgress> {
+  const windowStart = new Date(Date.now() - PROMO_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  const [referrals, existing] = await Promise.all([
+    prisma.user.count({
+      where: { referredById: userId, createdAt: { gte: windowStart } },
+    }),
+    prisma.subscription.findFirst({
+      where: {
+        userId,
+        plan: "basic", // matches the promo grant in maybeAwardReferralPromo
+        startsAt: { gte: windowStart },
+      },
+      select: { startsAt: true },
+      orderBy: { startsAt: "desc" },
+    }),
+  ]);
+
+  return {
+    qualifyingReferrals: referrals,
+    needed: PROMO_QUOTA,
+    freeDaysGranted: existing ? PROMO_DAYS : 0,
+    earnedAt: existing ? existing.startsAt : null,
+  };
+}
+
 export async function maybeAwardReferralPromo(userId: string): Promise<ReferralCheckResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },

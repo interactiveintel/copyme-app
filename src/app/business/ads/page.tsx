@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,8 +16,44 @@ import {
   ExternalLink,
   BarChart3,
   TrendingUp,
+  Eye,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import AdInboxCard from "@/components/app/AdInboxCard";
+
+// ---------------------------------------------------------------------------
+// Banned-word lint patterns. Inline warnings (non-blocking) — nudge the
+// advertiser away from common spammy/policy-flagged phrasing before we send
+// the ad to manual review.
+// ---------------------------------------------------------------------------
+const BANNED_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
+  { pattern: /\bguarantee[ds]?\b/i, message: "Avoid 'guarantee' — likely violates ad policy." },
+  { pattern: /\bfree\s+(money|cash|bitcoin|crypto)\b/i, message: "Free-money phrasing flags as scam." },
+  { pattern: /\b(click\s*here|act\s*now|limited\s*time)\b/i, message: "Spammy phrasing — rephrase." },
+  { pattern: /[!?]{3,}/, message: "Excessive punctuation looks low-trust." },
+  { pattern: /\b(viagra|cialis|mlm|crypto\s*pump)\b/i, message: "Restricted category." },
+];
+
+function lintText(value: string): string[] {
+  if (!value) return [];
+  const hits: string[] = [];
+  for (const { pattern, message } of BANNED_PATTERNS) {
+    if (pattern.test(value)) hits.push(message);
+  }
+  return hits;
+}
+
+// Suggestions for the targeting picker. Lowercase, deduped at submit.
+const COMMON_INTERESTS = [
+  "tech", "design", "music", "fitness", "cooking", "travel",
+  "books", "movies", "gaming", "art", "photography", "yoga",
+  "fashion", "food", "running", "hiking", "coffee", "wine",
+  "startups", "investing", "crypto", "ai", "marketing", "writing",
+];
+
+// Rule of 7 — max 7 tags, 45 chars per tag.
+const MAX_TAGS = 7;
+const MAX_TAG_LEN = 45;
 
 // ---------------------------------------------------------------------------
 // /business/ads — advertiser dashboard.
@@ -525,22 +561,17 @@ function CreateAdModal({
   const [ctaLabel, setCtaLabel] = useState("Learn more");
   const [ctaUrl, setCtaUrl] = useState("");
   const [category, setCategory] = useState("for-you");
-  const [interestsRaw, setInterestsRaw] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const targetInterests = useMemo(
-    () =>
-      interestsRaw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, 7),
-    [interestsRaw],
-  );
+  // Inline lint warnings — recompute on every keystroke. Non-blocking.
+  const titleLint = useMemo(() => lintText(title), [title]);
+  const taglineLint = useMemo(() => lintText(tagline), [tagline]);
+  const bodyLint = useMemo(() => lintText(body), [body]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError("");
     setSubmitting(true);
     try {
@@ -556,7 +587,7 @@ function CreateAdModal({
           ctaLabel,
           ctaUrl,
           category,
-          targetInterests,
+          targetInterests: tags,
           priceMicroUsd: 1_000_000,
         }),
       });
@@ -591,7 +622,7 @@ function CreateAdModal({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 20, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] flex flex-col"
+        className="w-full sm:max-w-4xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] flex flex-col"
       >
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-900">New ad</h2>
@@ -600,46 +631,73 @@ function CreateAdModal({
           </button>
         </div>
 
-        <form onSubmit={submit} className="flex-1 overflow-y-auto p-5 space-y-3">
-          <Field label="Brand" value={brand} onChange={setBrand} placeholder="Acme Co." required />
-          <Field label="Title" value={title} onChange={setTitle} placeholder="Save 30% on your first month" required />
-          <Field label="Tagline (optional)" value={tagline} onChange={setTagline} placeholder="One short hook" />
-          <FieldArea
-            label="Body copy"
-            value={body}
-            onChange={setBody}
-            placeholder="2-4 sentences max. We'll show this in the ad inbox."
-            maxLength={700}
-            required
-          />
-          <Field label="Image URL (https)" value={imageUrl} onChange={setImageUrl} placeholder="https://example.com/ad.png" />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="CTA label" value={ctaLabel} onChange={setCtaLabel} placeholder="Learn more" />
-            <Field label="Category" value={category} onChange={setCategory} placeholder="for-you" />
-          </div>
-          <Field label="CTA URL (https)" value={ctaUrl} onChange={setCtaUrl} placeholder="https://your-site.com/landing" required />
-          <Field
-            label="Target interests (comma-separated, up to 7)"
-            value={interestsRaw}
-            onChange={setInterestsRaw}
-            placeholder="ai, photography, coffee"
-          />
-          {targetInterests.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {targetInterests.map((t) => (
-                <span key={t} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-600 border border-purple-200">
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-0">
+            {/* Form column */}
+            <form onSubmit={submit} className="p-5 space-y-3 md:border-r md:border-slate-100">
+              <Field label="Brand" value={brand} onChange={setBrand} placeholder="Acme Co." required />
+              <Field
+                label="Title"
+                value={title}
+                onChange={setTitle}
+                placeholder="Save 30% on your first month"
+                required
+                lint={titleLint}
+              />
+              <Field
+                label="Tagline (optional)"
+                value={tagline}
+                onChange={setTagline}
+                placeholder="One short hook"
+                lint={taglineLint}
+              />
+              <FieldArea
+                label="Body copy"
+                value={body}
+                onChange={setBody}
+                placeholder="2-4 sentences max. We'll show this in the ad inbox."
+                maxLength={700}
+                required
+                lint={bodyLint}
+              />
+              <Field label="Image URL (https)" value={imageUrl} onChange={setImageUrl} placeholder="https://example.com/ad.png" />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="CTA label" value={ctaLabel} onChange={setCtaLabel} placeholder="Learn more" />
+                <Field label="Category" value={category} onChange={setCategory} placeholder="for-you" />
+              </div>
+              <Field label="CTA URL (https)" value={ctaUrl} onChange={setCtaUrl} placeholder="https://your-site.com/landing" required />
 
-          {error && (
-            <div className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
-              {error}
-            </div>
-          )}
-        </form>
+              {/* Targeting picker */}
+              <InterestPicker tags={tags} onChange={setTags} />
+
+              {error && (
+                <div className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                  {error}
+                </div>
+              )}
+            </form>
+
+            {/* Preview column */}
+            <aside className="bg-slate-50 p-5 md:sticky md:top-0 md:self-start md:max-h-[80vh] md:overflow-y-auto">
+              <div className="flex items-center gap-1.5 mb-3">
+                <Eye size={12} className="text-slate-400" />
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">
+                  Live preview · how readers will see it
+                </p>
+              </div>
+              <AdInboxCard
+                brand={brand}
+                title={title}
+                tagline={tagline}
+                body={body}
+                imageUrl={imageUrl}
+                ctaLabel={ctaLabel}
+                ctaUrl={ctaUrl}
+                sharedInterests={tags}
+              />
+            </aside>
+          </div>
+        </div>
 
         <div className="p-5 border-t border-slate-100 flex items-center justify-end gap-2">
           <button
@@ -651,7 +709,8 @@ function CreateAdModal({
             Cancel
           </button>
           <button
-            onClick={submit}
+            type="button"
+            onClick={() => void submit()}
             disabled={submitting}
             className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 disabled:opacity-60"
           >
@@ -663,18 +722,37 @@ function CreateAdModal({
   );
 }
 
+function LintWarnings({ messages }: { messages: string[] }) {
+  if (messages.length === 0) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {messages.map((m, i) => (
+        <span
+          key={`${i}-${m}`}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
+        >
+          <AlertTriangle size={9} className="shrink-0" />
+          {m}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Field({
   label,
   value,
   onChange,
   placeholder,
   required,
+  lint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   required?: boolean;
+  lint?: string[];
 }) {
   return (
     <div>
@@ -687,6 +765,7 @@ function Field({
         required={required}
         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-purple-400"
       />
+      {lint && <LintWarnings messages={lint} />}
     </div>
   );
 }
@@ -698,6 +777,7 @@ function FieldArea({
   placeholder,
   maxLength,
   required,
+  lint,
 }: {
   label: string;
   value: string;
@@ -705,6 +785,7 @@ function FieldArea({
   placeholder?: string;
   maxLength?: number;
   required?: boolean;
+  lint?: string[];
 }) {
   return (
     <div>
@@ -721,6 +802,124 @@ function FieldArea({
         rows={4}
         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-purple-400 resize-none"
       />
+      {lint && <LintWarnings messages={lint} />}
+    </div>
+  );
+}
+
+function InterestPicker({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const atMax = tags.length >= MAX_TAGS;
+
+  // Filter the suggestion list: omit already-selected + match prefix.
+  const suggestions = useMemo(() => {
+    const q = draft.trim().toLowerCase();
+    return COMMON_INTERESTS
+      .filter((t) => !tags.includes(t))
+      .filter((t) => (q.length === 0 ? true : t.startsWith(q)))
+      .slice(0, 8);
+  }, [draft, tags]);
+
+  const addTag = (raw: string) => {
+    const t = raw.trim().toLowerCase().slice(0, MAX_TAG_LEN);
+    if (!t) return;
+    if (tags.includes(t)) {
+      setDraft("");
+      return;
+    }
+    if (tags.length >= MAX_TAGS) return;
+    onChange([...tags, t]);
+    setDraft("");
+  };
+
+  const removeTag = (t: string) => {
+    onChange(tags.filter((x) => x !== t));
+  };
+
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (draft.trim().length > 0) addTag(draft);
+    } else if (e.key === "Backspace" && draft.length === 0 && tags.length > 0) {
+      // Quick delete: backspace on empty input pops the last tag.
+      removeTag(tags[tags.length - 1]!);
+    }
+  };
+
+  return (
+    <div>
+      <label className="text-[11px] font-semibold text-slate-500 mb-1 flex items-center justify-between">
+        <span>Target interests</span>
+        <span className="text-slate-400">{tags.length}/{MAX_TAGS}</span>
+      </label>
+
+      {/* Selected chips */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200"
+            >
+              {t}
+              <button
+                type="button"
+                onClick={() => removeTag(t)}
+                aria-label={`Remove ${t}`}
+                className="ml-0.5 hover:text-purple-900"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Combobox input + Add button */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.slice(0, MAX_TAG_LEN))}
+          onKeyDown={onKey}
+          placeholder={atMax ? "Max 7 tags reached" : "Type an interest, then Enter…"}
+          disabled={atMax}
+          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-purple-400 disabled:opacity-60 disabled:bg-slate-50"
+        />
+        <button
+          type="button"
+          onClick={() => addTag(draft)}
+          disabled={atMax || draft.trim().length === 0}
+          className="px-3 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          + Add
+        </button>
+      </div>
+
+      {/* Suggestions */}
+      {!atMax && suggestions.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => addTag(s)}
+              className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors"
+            >
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="mt-1.5 text-[10px] text-slate-400">
+        Up to 7 tags · Rule of 7 · {MAX_TAG_LEN} chars per tag
+      </p>
     </div>
   );
 }

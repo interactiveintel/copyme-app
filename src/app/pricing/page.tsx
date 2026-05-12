@@ -1,18 +1,29 @@
-import type { Metadata } from "next";
+"use client";
+
+// S-243 — Pricing page with functional CTAs:
+//   * "Free" tier  → disabled if signed-in user is already on free, "Sign up" if anon.
+//   * "Pro" / "Business" → "Upgrade":
+//       - anon → /signup?next=/pricing
+//       - signed-in → POST /api/billing/checkout, redirect to Stripe
+//   * "Enterprise" / "Talk to sales" stays as a static link/mailto.
+//
+// Auth pattern: read `localStorage.copyme.access` (matches /admin/ruleof7).
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, ArrowRight, Zap, Crown, Briefcase } from "lucide-react";
-
-export const metadata: Metadata = {
-  title: "Pricing | CopyMe",
-  description: "Simple, transparent pricing. Start free; upgrade when you need more contacts, longer messages, or business features.",
-};
 
 interface Tier {
   name: string;
   tagline: string;
   monthly: string;
   monthlyNote?: string;
-  cta: string;
+  /**
+   * Plan key for the checkout endpoint. Only Pro/Business have a value here;
+   * Free uses "free" (sign-up) and Enterprise uses "contact" (mailto).
+   */
+  plan: "free" | "pro" | "business" | "contact";
+  /** Static fallback href used when no upgrade flow applies. */
   href: string;
   highlight?: boolean;
   icon: React.ElementType;
@@ -26,8 +37,8 @@ const TIERS: Tier[] = [
     tagline: "For people who want communication that means something.",
     monthly: "$0",
     monthlyNote: "forever",
-    cta: "Sign up free",
-    href: "/app",
+    plan: "free",
+    href: "/signup",
     icon: Sparkles,
     features: [
       "Up to 7 active contacts",
@@ -43,8 +54,8 @@ const TIERS: Tier[] = [
     tagline: "For power users who want more room to breathe — without losing intentionality.",
     monthly: "$9",
     monthlyNote: "per month",
-    cta: "Upgrade to Pro",
-    href: "/app",
+    plan: "pro",
+    href: "/signup?next=/pricing",
     highlight: true,
     icon: Crown,
     features: [
@@ -62,8 +73,8 @@ const TIERS: Tier[] = [
     tagline: "For brands and creators reaching real people who actually read.",
     monthly: "$29",
     monthlyNote: "per month + ad spend",
-    cta: "Talk to sales",
-    href: "/business",
+    plan: "business",
+    href: "/signup?next=/pricing",
     icon: Briefcase,
     features: [
       "Everything in Pro",
@@ -81,7 +92,7 @@ const TIERS: Tier[] = [
     tagline: "For large organizations and ecommerce platforms.",
     monthly: "Custom",
     monthlyNote: "talk to us",
-    cta: "Contact us",
+    plan: "contact",
     href: "mailto:info@copyme1.com?subject=CopyMe%20Enterprise",
     icon: Zap,
     features: [
@@ -96,7 +107,174 @@ const TIERS: Tier[] = [
   },
 ];
 
+type AuthState = "loading" | "anon" | "signed-in";
+
+interface MeResponse {
+  success: boolean;
+  data?: { accountTier?: string };
+}
+
+function tierBucket(dbTier: string | undefined | null): "free" | "pro" | "business" | "enterprise" {
+  if (!dbTier) return "free";
+  if (dbTier === "ecommerce") return "enterprise";
+  if (dbTier.startsWith("business")) return "business";
+  if (dbTier === "pro") return "pro";
+  return "free";
+}
+
 export default function PricingPage() {
+  const [auth, setAuth] = useState<AuthState>("loading");
+  const [currentTier, setCurrentTier] = useState<"free" | "pro" | "business" | "enterprise">("free");
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("copyme.access") : null;
+    if (!token) {
+      setAuth("anon");
+      return;
+    }
+    fetch("/api/users/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return (await r.json()) as MeResponse;
+      })
+      .then((data) => {
+        setAuth("signed-in");
+        setCurrentTier(tierBucket(data.data?.accountTier));
+      })
+      .catch(() => {
+        // Token is stale or server is down — treat as anon for CTA purposes.
+        setAuth("anon");
+      });
+  }, []);
+
+  async function startUpgrade(plan: "pro" | "business") {
+    setError(null);
+    if (auth !== "signed-in") {
+      window.location.href = `/signup?next=/pricing`;
+      return;
+    }
+    const token = localStorage.getItem("copyme.access");
+    if (!token) {
+      window.location.href = `/signup?next=/pricing`;
+      return;
+    }
+    setBusyPlan(plan);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          plan,
+          period: "monthly",
+          waiveCancellation: false,
+          // Placeholder country: we don't have the user's locale in the
+          // pricing page yet (S-244 ships the EU consent UI). The checkout
+          // endpoint treats unknown ISO codes as "not EU".
+          countryIso2: "us",
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`Checkout failed: ${res.status} ${detail.slice(0, 120)}`);
+      }
+      const data = (await res.json()) as { url?: string };
+      if (!data.url) throw new Error("Stripe did not return a redirect URL.");
+      window.location.href = data.url;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong starting checkout.";
+      setError(msg);
+      setBusyPlan(null);
+    }
+  }
+
+  function renderCta(tier: Tier) {
+    const baseClass = `block w-full text-center px-4 py-2.5 rounded-full text-sm font-semibold mb-5 transition-shadow ${
+      tier.highlight
+        ? "text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:shadow-[0_0_30px_rgba(124,58,237,0.4)]"
+        : "text-slate-700 border border-slate-200 hover:bg-slate-50"
+    }`;
+
+    if (tier.plan === "free") {
+      if (auth === "signed-in" && currentTier === "free") {
+        return (
+          <button
+            type="button"
+            disabled
+            className={`${baseClass} opacity-60 cursor-not-allowed`}
+          >
+            Current plan
+          </button>
+        );
+      }
+      if (auth === "signed-in") {
+        // Already on a paid tier — show neutral, can downgrade in /profile/billing.
+        return (
+          <Link href="/profile/billing" className={baseClass}>
+            Manage plan
+          </Link>
+        );
+      }
+      return (
+        <Link href="/signup" className={baseClass}>
+          Sign up
+        </Link>
+      );
+    }
+
+    if (tier.plan === "contact") {
+      return (
+        <Link href={tier.href} className={baseClass}>
+          {tier.name === "Enterprise" ? "Contact us" : "Talk to sales"}
+        </Link>
+      );
+    }
+
+    // Pro / Business
+    const plan = tier.plan; // "pro" | "business"
+    const isCurrent = auth === "signed-in" && currentTier === plan;
+    const isHigher =
+      auth === "signed-in" &&
+      ((plan === "pro" && currentTier === "business") ||
+        (plan === "pro" && currentTier === "enterprise") ||
+        (plan === "business" && currentTier === "enterprise"));
+
+    if (isCurrent) {
+      return (
+        <button
+          type="button"
+          disabled
+          className={`${baseClass} opacity-60 cursor-not-allowed`}
+        >
+          Current plan
+        </button>
+      );
+    }
+    if (isHigher) {
+      return (
+        <Link href="/profile/billing" className={baseClass}>
+          Manage plan
+        </Link>
+      );
+    }
+
+    const busy = busyPlan === plan;
+    return (
+      <button
+        type="button"
+        onClick={() => startUpgrade(plan)}
+        disabled={busy || auth === "loading"}
+        className={`${baseClass} ${busy ? "opacity-60 cursor-wait" : ""}`}
+      >
+        {busy ? "Redirecting..." : `Upgrade to ${tier.name}`}
+      </button>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50/40">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
@@ -114,6 +292,12 @@ export default function PricingPage() {
             All plans honor the Rule of 7.
           </p>
         </div>
+
+        {error && (
+          <div className="mx-auto mb-8 max-w-md rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm text-rose-700">
+            {error}
+          </div>
+        )}
 
         {/* Tier grid */}
         <div className="grid lg:grid-cols-4 md:grid-cols-2 gap-4">
@@ -156,16 +340,7 @@ export default function PricingPage() {
                 </div>
               </div>
 
-              <Link
-                href={t.href}
-                className={`block w-full text-center px-4 py-2.5 rounded-full text-sm font-semibold mb-5 transition-shadow ${
-                  t.highlight
-                    ? "text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:shadow-[0_0_30px_rgba(124,58,237,0.4)]"
-                    : "text-slate-700 border border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                {t.cta}
-              </Link>
+              {renderCta(t)}
 
               <ul className="space-y-2.5">
                 {t.features.map((f) => (

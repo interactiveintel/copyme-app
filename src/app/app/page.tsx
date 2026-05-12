@@ -10,7 +10,7 @@ import InboxScreen from "@/components/app/InboxScreen";
 import ChatScreen from "@/components/app/ChatScreen";
 import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
-import YogiAIScreen from "@/components/app/AgentiAIScreen";
+import YogiInboxScreen from "@/components/app/YogiInboxScreen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "agenti" | "profile";
@@ -131,7 +131,7 @@ function AppContent() {
 
         {screen === "search" && <SearchScreen />}
 
-        {screen === "agenti" && <YogiAIScreen />}
+        {screen === "agenti" && <YogiInboxScreen />}
 
         {screen === "profile" && <ProfileScreen />}
       </div>

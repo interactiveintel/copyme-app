@@ -22,6 +22,9 @@ import Avatar from "../ui/Avatar";
 import SmartMatchPanel from "./SmartMatchPanel";
 import HomeNudges from "./HomeNudges";
 import AppBrand from "./AppBrand";
+import SurveyInboxCard, {
+  type SurveyCardSurvey,
+} from "./SurveyInboxCard";
 import { useContacts } from "@/lib/use-contacts";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
@@ -301,6 +304,9 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const [showAdMarketplace, setShowAdMarketplace] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  // Pending surveys (Tier C5, Surface 2b). Surfaces above the conversation
+  // list so recipients see one-tap polls without having to dig.
+  const [pendingSurveys, setPendingSurveys] = useState<SurveyCardSurvey[]>([]);
 
   const fetchInbox = useCallback(async () => {
     if (!user) return;
@@ -356,6 +362,58 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
     const liveIds = new Set(liveAds.map((a) => a.id));
     return [...liveAds, ...allAds.filter((a) => !liveIds.has(a.id))];
   }, [liveAds]);
+
+  // Pending surveys (Tier C5). Calls /api/surveys/pending which returns
+  // surveys the user hasn't responded to that match their interests.
+  // The endpoint is graceful — empty list on no matches; we silently
+  // degrade to an empty pendingSurveys state on any error.
+  const fetchPendingSurveys = useCallback(async () => {
+    if (!user) {
+      setPendingSurveys([]);
+      return;
+    }
+    try {
+      const res = await authFetch("/api/surveys/pending?limit=3");
+      if (!res.ok) return;
+      const data = (await res.json()) as { surveys?: SurveyCardSurvey[] };
+      setPendingSurveys(data.surveys ?? []);
+    } catch {
+      /* network error — leave pendingSurveys as-is */
+    }
+  }, [user, authFetch]);
+
+  useEffect(() => {
+    void fetchPendingSurveys();
+  }, [fetchPendingSurveys]);
+
+  // PUT /api/surveys = idempotent response submit. We optimistically remove
+  // the survey from the local list once the server accepts; the next
+  // fetchPendingSurveys() call would re-confirm but the user already moved on.
+  const submitSurveyResponse = useCallback(
+    async (
+      surveyId: string,
+      answers: Record<string, string | string[]>,
+    ): Promise<void> => {
+      const res = await authFetch("/api/surveys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surveyId, answers }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `Submit failed (${res.status})`);
+      }
+      setPendingSurveys((prev) => prev.filter((s) => s.id !== surveyId));
+    },
+    [authFetch],
+  );
+
+  const dismissSurvey = useCallback((surveyId: string) => {
+    // Local-only dismiss — we don't have a "skip" endpoint and the API
+    // is idempotent on PUT, so a re-fetch would resurrect it. That's fine
+    // for now; treating skip as session-local matches user expectation.
+    setPendingSurveys((prev) => prev.filter((s) => s.id !== surveyId));
+  }, []);
 
   // Poll every 10 seconds
   usePolling(fetchInbox, 10_000, !!user);
@@ -455,6 +513,22 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
           })}
         </div>
       </div>
+
+      {/* Pending surveys (Tier C5, Surface 2b) — shown above contacts so
+          recipients see one-tap polls without scrolling. Card component
+          is self-contained: it owns submit/skip/thanks states. */}
+      {pendingSurveys.length > 0 && (
+        <div className="-mx-0">
+          {pendingSurveys.map((s) => (
+            <SurveyInboxCard
+              key={s.id}
+              survey={s}
+              onSubmit={(answers) => submitSurveyResponse(s.id, answers)}
+              onSkip={() => dismissSurvey(s.id)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-4">

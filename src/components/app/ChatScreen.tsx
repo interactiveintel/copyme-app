@@ -20,10 +20,12 @@ import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
 import ChatAIAssistant from "./ChatAIAssistant";
 import ContactProfileSheet from "./ContactProfileSheet";
+import SmartReplyChips from "./SmartReplyChips";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
 import { useMessageStream, type StreamEvent } from "@/hooks/useMessageStream";
 import { MOCK_CHAT_MESSAGES, MOCK_PROFILES } from "@/lib/mock-data";
+import { addBreadcrumb } from "@/lib/observability";
 
 interface ChatScreenProps {
   chatId: string;
@@ -168,6 +170,20 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
 
   const sentCount = messages.filter((m) => m.senderId === user?.id || m.senderId === "me").length;
   const remainingMessages = Math.max(0, 7 - sentCount);
+
+  // Smart-reply input: only show chips when the most recent message in the
+  // thread came FROM the peer (not us). We pass the translated text when the
+  // reader has translation toggled on so the suggestions match what they're
+  // actually reading.
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const lastMessageIsFromPeer = !!lastMessage && lastMessage.senderId !== user?.id && lastMessage.senderId !== "me";
+  const smartReplyInbound =
+    lastMessageIsFromPeer && lastMessage
+      ? (translateOn && lastMessage.translatedText) || lastMessage.content || null
+      : null;
+  const smartReplyContext = messages
+    .map((m) => (translateOn && m.translatedText) || m.content || "")
+    .filter((s) => s.length > 0);
 
   const handleSend = async () => {
     const text = message.trim();
@@ -430,6 +446,16 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             />
           )}
         </AnimatePresence>
+
+        {/* Smart-reply chips (S-207) — fetches when there's a fresh inbound */}
+        <SmartReplyChips
+          inboundMessage={smartReplyInbound}
+          threadContext={smartReplyContext}
+          onPick={(reply) => {
+            setMessage(reply);
+            addBreadcrumb("yogi.smart_reply.accepted", { replyLength: reply.length });
+          }}
+        />
 
         <div className="flex items-center gap-1 mb-1.5 justify-between px-1">
           {/* AI button */}
