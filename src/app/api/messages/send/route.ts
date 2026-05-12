@@ -12,6 +12,7 @@ import { cacheInbox } from "@/lib/redis";
 import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { bumpStreak } from "@/lib/streak";
 import { sendPush } from "@/lib/push";
+import { publishMessageEvent } from "@/lib/realtime";
 
 // ---------------------------------------------------------------------------
 // POST /api/messages/send
@@ -202,6 +203,17 @@ export async function POST(request: NextRequest) {
     // --- Streak: sending a message counts as activity --------------------
     // Non-blocking; streak errors must never block a send.
     bumpStreak(auth.userId).catch(() => {});
+
+    // --- Realtime fan-out (A5) ------------------------------------------
+    // Fire-and-forget. Polling fallback in ChatScreen still ensures
+    // delivery if Redis is down.
+    void publishMessageEvent(body.receiverId, auth.userId, {
+      messageId: message.id,
+      contactId: body.receiverId,
+      preview: (translatedText ?? body.content ?? "").slice(0, 280) || null,
+      type_: body.type,
+      createdAt: message.createdAt.toISOString(),
+    });
 
     // --- Web Push to the recipient --------------------------------------
     // Fire-and-forget. If VAPID isn't configured, sendPush is a no-op.

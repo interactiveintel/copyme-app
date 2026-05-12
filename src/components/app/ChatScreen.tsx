@@ -22,6 +22,7 @@ import ChatAIAssistant from "./ChatAIAssistant";
 import ContactProfileSheet from "./ContactProfileSheet";
 import { useAuth } from "@/lib/auth-context";
 import { usePolling } from "@/lib/use-polling";
+import { useMessageStream, type StreamEvent } from "@/hooks/useMessageStream";
 import { MOCK_CHAT_MESSAGES, MOCK_PROFILES } from "@/lib/mock-data";
 
 interface ChatScreenProps {
@@ -54,7 +55,7 @@ function formatTime(dateStr: string): string {
 }
 
 export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenProps) {
-  const { user, authFetch } = useAuth();
+  const { user, authFetch, accessToken } = useAuth();
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [translateOn, setTranslateOn] = useState(false);
@@ -106,8 +107,32 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     if (!isMockContact) fetchMessages();
   }, [fetchMessages, isMockContact]);
 
-  // Poll every 3 seconds for new messages (real contacts only)
+  // Poll every 3 seconds for new messages (real contacts only). The
+  // realtime stream below is the primary delivery path; polling is the
+  // always-on safety net. Hook-driven dedupe by message id below.
   usePolling(fetchMessages, 3_000, !loading && !isMockContact);
+
+  // Realtime stream (A5). Server only emits when the feature flag is on;
+  // otherwise this idles in "disabled" state and polling carries on.
+  const handleStreamEvent = useCallback((ev: StreamEvent) => {
+    if (ev.type !== "message") return;
+    // Ignore events that don't belong to this conversation.
+    const peerId = ev.senderId === user?.id ? ev.receiverId : ev.senderId;
+    if (peerId !== chatId) return;
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === ev.messageId)) return prev;
+      // Fetch the full row in the background (translation + media URLs).
+      void fetchMessages();
+      return prev;
+    });
+  }, [chatId, user?.id, fetchMessages]);
+
+  useMessageStream({
+    accessToken,
+    contactId: isMockContact ? undefined : chatId,
+    onEvent: handleStreamEvent,
+    enabled: !isMockContact && !!accessToken,
+  });
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { invalidateInbox } from "@/lib/redis";
+import { publishReadReceipt } from "@/lib/realtime";
 
 // ---------------------------------------------------------------------------
 // POST /api/messages/mark-read
@@ -64,17 +65,36 @@ export async function POST(request: NextRequest) {
     // (Not strictly necessary if only the reader fetches — but keeps the
     // cache correct if either side of the conversation polls the cached
     // single-contact view.)
+    let affectedPeers: string[] = [];
     if (body.peerId) {
+      affectedPeers = [body.peerId];
       await invalidateInbox(auth.userId, body.peerId).catch(() => {});
     } else if (body.messageIds?.length) {
       const rows = await prisma.message.findMany({
         where: { id: { in: body.messageIds } },
-        select: { senderId: true },
+        select: { senderId: true, id: true },
       });
-      const peers = Array.from(new Set(rows.map((r) => r.senderId)));
+      affectedPeers = Array.from(new Set(rows.map((r) => r.senderId)));
       await Promise.all(
-        peers.map((p) => invalidateInbox(auth.userId, p).catch(() => {})),
+        affectedPeers.map((p) => invalidateInbox(auth.userId, p).catch(() => {})),
       );
+    }
+
+    // Realtime read receipts (A5) — tell each sender that we just read
+    // (up to) their most recent message in our pair. Fire-and-forget.
+    if (result.count > 0) {
+      const upToById = await prisma.message.findFirst({
+        where: body.peerId
+          ? { senderId: body.peerId, receiverId: auth.userId, readAt: now }
+          : { id: { in: body.messageIds! }, receiverId: auth.userId, readAt: now },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      if (upToById) {
+        for (const peer of affectedPeers) {
+          void publishReadReceipt(peer, auth.userId, upToById.id);
+        }
+      }
     }
 
     return NextResponse.json({

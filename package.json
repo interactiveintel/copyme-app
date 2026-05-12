@@ -12,7 +12,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "test:phone": "node scripts/test-phone.mjs",
     "test:ruleof7": "node scripts/test-ruleof7.mjs",
-    "test:all": "npm run test:phone && npm run test:ruleof7"
+    "test:realtime": "node scripts/test-realtime.mjs",
+    "test:all": "npm run test:phone && npm run test:ruleof7 && npm run test:realtime"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
