@@ -79,8 +79,13 @@ test("verifyToken — throws on expired token", async () => {
   // Sign a token with negative expiry — guaranteed expired.
   const jwtMod = await import("jsonwebtoken");
   const jwt = jwtMod.default ?? jwtMod;
-  // Use the same dev secret the module derives at import time.
-  const secret = "copyme-dev-secret-not-for-production-use-32ch";
+  // Use whatever secret lib/auth resolved at import time. In CI the workflow
+  // sets JWT_SECRET; locally the dev fallback is used. Either way, the tests
+  // need to sign with the same secret they verify with.
+  const secret =
+    process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32
+      ? process.env.JWT_SECRET
+      : "copyme-dev-secret-not-for-production-use-32ch";
   const expired = jwt.sign({ userId: "u1", type: "access" }, secret, { expiresIn: "-1s" });
   assert.throws(() => verifyToken(expired), /expired|jwt/i);
 });
