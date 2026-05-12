@@ -10,6 +10,19 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // A4: lint should never see generated/vendor/legacy files. The Next.js
+  // build emits .d.ts and route validators under .next/types — those are
+  // mechanical, not source. Prisma client output goes under node_modules.
+  // Scripts/*.cjs are intentionally CommonJS one-shots.
+  {
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "next-env.d.ts",
+      "scripts/**/*.cjs",
+      "prisma.config.ts", // top-level CJS-ish config Prisma loads; not editable
+    ],
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 

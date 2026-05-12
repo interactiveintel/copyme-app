@@ -156,7 +156,9 @@ function encryptAes128Gcm(
 ): Buffer {
   // Generate an ephemeral ECDH keypair on P-256 for this send.
   const ecdh = createECDH("prime256v1");
-  const asPublicKey = ecdh.generateKeys(null as unknown as undefined, "uncompressed");
+  // generateKeys() returns Buffer in uncompressed point format by default.
+  ecdh.generateKeys();
+  const asPublicKey = ecdh.getPublicKey(undefined, "uncompressed") as unknown as Buffer;
   const sharedSecret = ecdh.computeSecret(uaPublicKey);
 
   const salt = randomBytes(16);
@@ -234,7 +236,7 @@ export async function sendPush(
         TTL: "2419200", // 4 weeks
         Authorization: `vapid t=${jwt}, k=${process.env.VAPID_PUBLIC_KEY}`,
       },
-      body: encrypted,
+      body: new Uint8Array(encrypted) as BodyInit,
     });
 
     const expired = res.status === 404 || res.status === 410;

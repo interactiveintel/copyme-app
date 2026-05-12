@@ -258,7 +258,7 @@ const scenes = [
 
 function useTypewriter(lines: string[], active: boolean, speed = 30) {
   const [displayed, setDisplayed] = useState<string[]>([]);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!active) {
@@ -572,7 +572,7 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
   // the scene until the British narrator has actually finished speaking. Stops
   // the last sentence of long scenes from being clipped by a scene change.
   const [narrationDone, setNarrationDone] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const availableVoices = useAvailableVoices();
@@ -897,13 +897,13 @@ export default function DemoModal({ open, onClose }: DemoModalProps) {
                                 key={preset.id}
                                 onClick={() => { setVoicePreset(preset.id); setVoiceEnabled(true); }}
                                 className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all flex items-center justify-between ${
-                                  voicePreset === preset.id && voicePreset !== "custom"
+                                  voicePreset === preset.id
                                     ? "bg-purple-500/30 text-white border border-purple-400/30"
                                     : "text-white/70 hover:bg-white/10"
                                 }`}
                               >
                                 <span>{preset.label}</span>
-                                {voicePreset === preset.id && voicePreset !== "custom" && (
+                                {voicePreset === preset.id && (
                                   <span className="w-2 h-2 rounded-full bg-purple-400" />
                                 )}
                               </button>
@@ -1250,7 +1250,7 @@ function PhoneScreen({ scene, elapsed }: { scene: (typeof scenes)[number]; elaps
                   <div
                     key={i}
                     className={`w-2 h-2 rounded-full ${
-                      i < scene.phone.profile.messagesLeft
+                      i < (scene.phone.profile?.messagesLeft ?? 0)
                         ? "bg-gradient-to-br from-indigo-500 to-purple-500"
                         : "bg-slate-200"
                     }`}

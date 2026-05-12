@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import DownloadButton from "./DownloadButton";
@@ -25,10 +26,10 @@ export default function Navbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <a href="/" className="flex items-center gap-0.5">
+          <Link href="/" className="flex items-center gap-0.5">
             <span className="text-2xl font-bold text-slate-900">Copy</span>
             <span className="text-2xl font-bold gradient-text">Me</span>
-          </a>
+          </Link>
 
           {/* Desktop Nav Links */}
           <div className="hidden md:flex items-center gap-8">

@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service | CopyMe",
@@ -10,12 +11,12 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-white">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-24">
-        <a href="/" className="inline-flex items-center gap-0.5 mb-12">
+        <Link href="/" className="inline-flex items-center gap-0.5 mb-12">
           <span className="text-2xl font-bold text-slate-900">Copy</span>
           <span className="text-2xl font-bold bg-gradient-to-r from-[#7C3AED] to-[#EC4899] bg-clip-text text-transparent">
             Me
           </span>
-        </a>
+        </Link>
 
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Terms of Service</h1>
         <p className="text-sm text-slate-400 mb-10">

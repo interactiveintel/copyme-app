@@ -78,7 +78,7 @@ async function sendViaResend(msg: MailMessage): Promise<MailerResult> {
 }
 
 function logToConsole(msg: MailMessage): MailerResult {
-  // eslint-disable-next-line no-console
+   
   console.log(
     `\n[mailer:dev] ─────────────────────────────────────────\n` +
     `  to:      ${msg.to}\n` +
@@ -102,7 +102,7 @@ export async function sendMail(msg: MailMessage): Promise<MailerResult> {
     }
     // No provider configured in prod — log + signal failure so the caller
     // can decide (e.g. still return 200 to avoid user enumeration).
-    // eslint-disable-next-line no-console
+     
     console.error("[mailer] production RESEND_API_KEY missing; email NOT sent:", msg.subject);
     return { ok: false, error: "Mail transport not configured" };
   }

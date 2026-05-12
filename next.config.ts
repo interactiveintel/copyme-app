@@ -2,11 +2,12 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // A4: strict gating restored. Production builds fail on TS or ESLint errors.
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 };
 
@@ -34,8 +35,12 @@ export default withSentryConfig(nextConfig, {
   // traces. Default is too narrow.
   widenClientFileUpload: true,
 
-  // Hide sourcemaps from the public after upload — Sentry still has them.
-  hideSourceMaps: true,
+  // Sourcemaps — uploaded to Sentry (for stack traces) but hidden from the
+  // public bundle. `hideSourceMaps` was the legacy flag; in @sentry/nextjs 10
+  // this lives under `sourcemaps.deleteSourcemapsAfterUpload`.
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
 
   // Tree-shake out the Sentry SDK debug logger in production builds.
   disableLogger: true,

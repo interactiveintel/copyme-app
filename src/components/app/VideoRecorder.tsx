@@ -30,7 +30,7 @@ export default function VideoRecorder({ onClip }: VideoRecorderProps) {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [facing]);
 
   async function openCamera(f: Facing) {

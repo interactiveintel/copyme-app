@@ -187,8 +187,8 @@ const learnAboutUser: AgentTool = {
   name: "learn_about_user",
   description: "Store a fact or preference learned about the user from conversation",
   parameters: {
-    fact: { type: "string", description: "The fact or preference to remember", required: true },
-    category: { type: "string", description: "Category: interest, preference, goal, personal, style", required: true },
+    fact: { type: "string", description: "The fact or preference to remember" },
+    category: { type: "string", description: "Category: interest, preference, goal, personal, style" },
   },
   execute: async (params) => {
     return {
@@ -204,7 +204,7 @@ const analyzePersonality: AgentTool = {
   name: "analyze_personality",
   description: "Analyze the user's communication style from their messages",
   parameters: {
-    messages: { type: "string", description: "Pipe-separated list of recent user messages to analyze", required: true },
+    messages: { type: "string", description: "Pipe-separated list of recent user messages to analyze" },
   },
   execute: async (params) => {
     const msgs = (params.messages as string).split("|").filter(Boolean);
@@ -220,7 +220,7 @@ const suggestTopic: AgentTool = {
   name: "suggest_topic",
   description: "Suggest a conversation topic based on user's interests and recent activity",
   parameters: {
-    currentMood: { type: "string", description: "User's apparent mood: happy, neutral, stressed, curious, bored", required: false },
+    currentMood: { type: "string", description: "User's apparent mood: happy, neutral, stressed, curious, bored" },
   },
   execute: async (params) => {
     const mood = (params.currentMood as string) || "neutral";
@@ -240,8 +240,8 @@ const adaptStyle: AgentTool = {
   name: "adapt_style",
   description: "Adjust the AI's communication style based on user feedback",
   parameters: {
-    aspect: { type: "string", description: "What to adjust: tone, verbosity, humor, empathy, emoji", required: true },
-    direction: { type: "string", description: "Direction: increase, decrease, or a specific value", required: true },
+    aspect: { type: "string", description: "What to adjust: tone, verbosity, humor, empathy, emoji" },
+    direction: { type: "string", description: "Direction: increase, decrease, or a specific value" },
   },
   execute: async (params) => {
     return {
@@ -257,9 +257,9 @@ const provideFeedback: AgentTool = {
   name: "provide_feedback",
   description: "Record user feedback on AI response quality to improve future responses",
   parameters: {
-    rating: { type: "string", description: "Rating: liked, disliked, neutral", required: true },
-    reason: { type: "string", description: "Why the user gave this rating", required: false },
-    responseId: { type: "string", description: "ID of the response being rated", required: false },
+    rating: { type: "string", description: "Rating: liked, disliked, neutral" },
+    reason: { type: "string", description: "Why the user gave this rating" },
+    responseId: { type: "string", description: "ID of the response being rated" },
   },
   execute: async (params) => {
     return {

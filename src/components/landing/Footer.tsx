@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Heart } from "lucide-react";
 
 const footerLinks = {
@@ -34,10 +35,10 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {/* Logo + Tagline */}
           <div className="col-span-2">
-            <a href="/" className="flex items-center gap-0.5 mb-4">
+            <Link href="/" className="flex items-center gap-0.5 mb-4">
               <span className="text-2xl font-bold text-slate-900">Copy</span>
               <span className="text-2xl font-bold gradient-text">Me</span>
-            </a>
+            </Link>
             <p className="text-sm text-slate-400 max-w-xs leading-relaxed">
               Communication reimagined through the Rule of 7.
               Less noise. More meaning. Real connections.

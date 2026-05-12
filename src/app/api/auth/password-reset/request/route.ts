@@ -116,13 +116,13 @@ export async function POST(request: NextRequest) {
       // to surface errors in logs. The generic response is returned anyway.
       const result = await sendMail({ to: recipient, subject, html, text });
       if (!result.ok) {
-        // eslint-disable-next-line no-console
+         
         console.warn("[password-reset] mail send failed:", result.error);
       }
     } else {
       // Phone-only path: log the raw link for developer / operator use.
       // Once SMS is integrated (Sprint 1.x), we'll send the link via SMS.
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[password-reset] phone-only request for user ${user.id}. ` +
         `Reset link (deliver via SMS in a later sprint):\n  ${buildPasswordResetUrl(raw)}`,

@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Interest match
-      const interestMatch = user.interests.some((i: any) =>
+      const interestMatch = user.interests.some((i: { interestText: string }) =>
         i.interestText.toLowerCase().includes(queryLower),
       );
       if (interestMatch) relevanceScore += 5;
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
           user.location.region,
           user.location.cityZip,
         ];
-        if (locationFields.some((f: any) => f?.toLowerCase().includes(queryLower))) {
+        if (locationFields.some((f: string | null | undefined) => f?.toLowerCase().includes(queryLower))) {
           relevanceScore += 3;
         }
       }
@@ -165,13 +165,13 @@ export async function POST(request: NextRequest) {
         displayName: user.displayName,
         profileType: user.profileType,
         location,
-        interests: user.interests.map((i: any) => i.interestText),
+        interests: user.interests.map((i: { interestText: string }) => i.interestText),
         relevanceScore,
       };
     });
 
     // Sort by relevance score descending
-    results.sort((a: any, b: any) => b.relevanceScore - a.relevanceScore);
+    results.sort((a: { relevanceScore: number }, b: { relevanceScore: number }) => b.relevanceScore - a.relevanceScore);
 
     return NextResponse.json({
       success: true,

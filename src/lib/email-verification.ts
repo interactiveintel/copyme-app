@@ -39,7 +39,7 @@ export async function issueEmailVerification(
   const result = await sendMail({ to: email, subject, html, text });
 
   if (!result.ok) {
-    // eslint-disable-next-line no-console
+     
     console.warn("[email-verification] send failed:", result.error, " url:", url);
     return { sent: false, error: result.error };
   }
