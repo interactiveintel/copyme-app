@@ -17,7 +17,20 @@ if (dsn) {
   Sentry.init({
     dsn,
     environment: process.env.SENTRY_ENVIRONMENT || process.env.VERCEL_ENV || "development",
-    release: process.env.VERCEL_GIT_COMMIT_SHA || undefined,
+
+    // B6 — release tagging. Short SHA is unambiguous in our scale and reads
+    // nicely in the Sentry UI ("a1b2c3d" vs the 40-char form). Falls back to
+    // NEXT_PUBLIC_GIT_SHA (forwarded in next.config.ts for parity with the
+    // browser bundle), then "local-dev" so we never crash when the env vars
+    // aren't set (local `next dev`, fork builds).
+    release:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ??
+      process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ??
+      "local-dev",
+
+    // B6 — `dist` distinguishes preview deployments that share a SHA but
+    // were built into different bundles (rebuild, env-only redeploy).
+    dist: process.env.VERCEL_DEPLOYMENT_ID || undefined,
 
     // Sample 20% of transactions in production, 100% in preview/dev so we can
     // actually see traces during testing.

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { sendMail, digestTemplate, type DigestSummary } from "@/lib/mailer";
+import {
+  sendMail,
+  digestTemplate,
+  buildDigestUnsubscribeUrl,
+  signDigestUnsubscribeToken,
+  type DigestSummary,
+} from "@/lib/mailer";
+import { redis } from "@/lib/redis";
 
 // ---------------------------------------------------------------------------
 // GET /api/cron/daily-digest
@@ -73,10 +80,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Build a per-receiver map: receiverId -> senderId -> { count, latest preview }
+    // Build a per-receiver map: receiverId -> senderId -> { count, latest preview, latestAt }
     const byReceiver = new Map<
       string,
-      Map<string, { count: number; latest: string | null; type: string }>
+      Map<string, { count: number; latest: string | null; type: string; latestAt: Date }>
     >();
     for (const m of unread) {
       let peers = byReceiver.get(m.receiverId);
@@ -90,10 +97,12 @@ export async function GET(request: NextRequest) {
           count: 1,
           latest: m.content,
           type: m.type,
+          latestAt: m.createdAt,
         });
       } else {
         existing.count += 1;
-        // Messages are ordered desc → first seen is latest; subsequent are older
+        // Messages are ordered desc → first seen is latest; subsequent are older.
+        // latestAt stays as the first (most recent) timestamp.
       }
     }
 
@@ -125,12 +134,26 @@ export async function GET(request: NextRequest) {
 
     let sent = 0;
     let skippedNoEmail = 0;
+    let skippedOptedOut = 0;
 
     for (const [receiverId, peers] of byReceiver.entries()) {
       if (!verifiedReceivers.has(receiverId)) {
         skippedNoEmail += 1;
         continue;
       }
+
+      // Honor the Redis opt-out flag. Set by /api/notifications/unsubscribe
+      // when the user clicks the footer link in a previous digest. We swallow
+      // Redis errors here so a transient outage doesn't block the whole run —
+      // if Redis is down the user just gets one extra digest.
+      const optedOut = await redis
+        .get(`digest:opt-out:${receiverId}`)
+        .catch(() => null);
+      if (optedOut === "1") {
+        skippedOptedOut += 1;
+        continue;
+      }
+
       const receiverName = nameById.get(receiverId) ?? "";
       const receiverStreak =
         users.find((u) => u.id === receiverId)?.streakDays ?? 0;
@@ -140,6 +163,7 @@ export async function GET(request: NextRequest) {
         .map(([senderId, info]) => ({
           peerName: nameById.get(senderId) ?? "Someone",
           unreadCount: info.count,
+          // Slice generously here — the template trims to ≤80 chars.
           lastPreview:
             info.type === "text"
               ? info.latest?.slice(0, 120) ?? null
@@ -148,15 +172,23 @@ export async function GET(request: NextRequest) {
                 : info.type === "voice"
                   ? "Sent a voice message"
                   : "Sent a video message",
+          lastMessageAt: info.latestAt,
         }));
 
       const total = peerRows.reduce((a, p) => a + p.unreadCount, 0);
+
+      // Sign a 30-day unsubscribe token scoped to this user.
+      const unsubscribeUrl = buildDigestUnsubscribeUrl(
+        signDigestUnsubscribeToken(receiverId),
+      );
+
       const { subject, html, text } = digestTemplate({
         displayName: receiverName,
         unreadFromPeers: peerRows,
         totalUnread: total,
         streakDays: receiverStreak,
         appHref: appHref(),
+        unsubscribeUrl,
       });
 
       // TODO: resolve the recipient's plaintext email from emailEncrypted
@@ -173,6 +205,7 @@ export async function GET(request: NextRequest) {
       data: {
         sent,
         skippedNoEmail,
+        skippedOptedOut,
         scannedReceivers: byReceiver.size,
         windowHours: DIGEST_UNREAD_CUTOFF_MS / (60 * 60 * 1000),
       },

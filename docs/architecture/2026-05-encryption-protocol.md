@@ -69,3 +69,66 @@ cost is bounded and acceptable.
 | S-144 | Safety-number screen + change alerts |
 | S-145 | Privacy controls UI (presence, receipts, last-seen, transcripts) |
 | S-146 | Data-export ZIP (GDPR Art. 15) |
+
+## Implementation status — 2026-05-12 (Tier B1)
+
+Tier B1 swapped the WebCrypto stand-in for the real Signal Protocol via
+`@signalapp/libsignal-client@0.94.0`. The relevant files:
+
+* `src/lib/e2e/libsignal.ts` — real Signal stack: X3DH initial agreement,
+  Double Ratchet, PQXDH (Kyber 1024 augmentation), per-recipient sessions.
+  Exports `ensureIdentity`, `getPreKeyBundle`, `encryptForRecipient`,
+  `decryptFromSender`, `safetyNumber`. Round-trip tested end-to-end in
+  `scripts/test-e2e.mjs` (Alice ↔ Bob: X3DH first message, Whisper-typed
+  ratchet messages once a reply lands, bidirectional ratcheting).
+* `src/lib/e2e/store.ts` — pluggable KV backing the protocol stores.
+  IndexedDB (`copyme-signal` database) when `indexedDB` is defined,
+  in-memory `MemoryKv` everywhere else (Node tests, server-side use).
+  All five Signal stores are wired: `IdentityKeyStore`, `PreKeyStore`,
+  `SignedPreKeyStore`, `KyberPreKeyStore`, `SessionStore`.
+* `src/lib/e2e/keys.ts` and `src/lib/e2e/cipher.ts` — the original
+  WebCrypto stand-in is **kept** as a fallback for browser/Edge contexts
+  where the libsignal native addon cannot load. Callers consult
+  `LIBSIGNAL_AVAILABLE` (or `libsignalAvailable()`) and pick a path.
+* `next.config.ts` — adds `serverExternalPackages: ["@signalapp/libsignal-client"]`
+  so Webpack does not try to bundle the native `.node` prebuilds into the
+  client chunk.
+
+### Runtime constraint
+
+`@signalapp/libsignal-client` 0.94.0 is a **native Node addon**, not wasm.
+That means:
+
+* The libsignal path runs **only in the Node runtime** (`export const runtime = "nodejs"`
+  on any Server Component / Route Handler that imports `libsignal.ts`).
+* The Edge runtime cannot load it.
+* The browser cannot load it (no wasm build at this version).
+
+Because the long-term Signal model requires private key material to live
+on the device, the browser path will eventually need a wasm port (Signal
+distribute one for the desktop client; expected to land in a future
+`@signalapp/libsignal-client` release). Until then the **WebCrypto
+fallback in `cipher.ts`/`keys.ts` is the active code path for PWA
+clients** and the libsignal layer is used by server-side ratchet helpers
+and tests. Migration story: when libsignal-wasm ships, the browser
+detects `LIBSIGNAL_AVAILABLE === true`, fresh users get libsignal
+identities into `copyme-signal`, and the legacy `copyme-e2e` IndexedDB
+records are migrated lazily on first send.
+
+### What now matches Signal proper vs what's still scaffolded
+
+| Capability | Status |
+|---|---|
+| Identity key (X25519, IdentityKeyPair) | libsignal-backed |
+| Signed pre-key (Curve25519 sig over EC pub) | libsignal-backed |
+| One-time pre-keys | libsignal-backed (1 per `getPreKeyBundle()`) |
+| PQ pre-key (Kyber 1024, signed) | libsignal-backed |
+| X3DH initial agreement | libsignal-backed via `processPreKeyBundle` |
+| Double Ratchet (forward + future secrecy) | libsignal-backed via `signalEncrypt`/`signalDecrypt` |
+| Out-of-order message handling | libsignal-backed (skipped-key cache lives inside SessionRecord) |
+| Safety number (60-digit Signal-style) | libsignal-backed via `Fingerprint.displayableFingerprint` |
+| Sealed sender | not yet wired — placeholder noted in `libsignal.ts` |
+| Sender Keys (group messaging) | not started; needed when groups ship |
+| Pre-key replenishment policy | scaffolded (caller responsibility — refill below 10) |
+| Multi-device linking | not started (S-144 follow-up) |
+| Browser path | **WebCrypto fallback** (no wasm libsignal yet) |

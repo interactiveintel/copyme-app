@@ -9,6 +9,34 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+
+  // B6 — Sentry release tagging.
+  //
+  // Vercel sets VERCEL_GIT_COMMIT_SHA / VERCEL_ENV / VERCEL_DEPLOYMENT_ID on
+  // the build runtime, but they are server-only by default. Re-expose them
+  // under NEXT_PUBLIC_* names so the browser bundle (instrumentation-client.ts
+  // → Sentry.init({ release })) can read them at build time. Without this
+  // forwarding, client-side errors would lack a release tag and would pool
+  // across versions, making regression triage impossible at our shipping
+  // cadence (multiple releases/day).
+  //
+  // Chose `env:` over Sentry's auto-inject because it's a one-line change
+  // that works for any client-side caller that wants the SHA, not just
+  // Sentry — keeps the abstraction in our config rather than vendor magic.
+  env: {
+    NEXT_PUBLIC_GIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA,
+    NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV,
+    NEXT_PUBLIC_VERCEL_DEPLOYMENT_ID: process.env.VERCEL_DEPLOYMENT_ID,
+  },
+
+  // B1 (libsignal): the official `@signalapp/libsignal-client` ships as a
+  // native Node addon (see `prebuilds/<platform>/*.node`). It MUST NOT be
+  // bundled into the client chunk and MUST NOT be webpack-traced — Next has
+  // to leave it as an external `require(...)` so the right prebuild is
+  // dlopen'd at runtime in the Node runtime on Vercel. The Edge runtime
+  // cannot load it; any code path that imports `src/lib/e2e/libsignal.ts`
+  // must opt into the Node runtime via `export const runtime = "nodejs"`.
+  serverExternalPackages: ["@signalapp/libsignal-client"],
 };
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,19 @@ if (dsn) {
       process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ||
       process.env.NEXT_PUBLIC_VERCEL_ENV ||
       "development",
-    release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || undefined,
+
+    // B6 — release tagging. Vercel does NOT auto-expose VERCEL_GIT_COMMIT_SHA
+    // to the client bundle, so next.config.ts forwards it as
+    // NEXT_PUBLIC_GIT_SHA at build time. Short SHA matches server/edge inits
+    // so events from all three runtimes group under the same release in
+    // Sentry. "local-dev" fallback keeps `next dev` clean.
+    release:
+      process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ??
+      process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ??
+      "local-dev",
+
+    // B6 — `dist` distinguishes preview deployments that share a SHA.
+    dist: process.env.NEXT_PUBLIC_VERCEL_DEPLOYMENT_ID || undefined,
 
     // Session replay is opt-in and noisy at scale — leave off until we
     // explicitly want it.

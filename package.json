@@ -13,13 +13,22 @@
     "test:phone": "node scripts/test-phone.mjs",
     "test:ruleof7": "node scripts/test-ruleof7.mjs",
     "test:realtime": "node scripts/test-realtime.mjs",
-    "test:all": "npm run test:phone && npm run test:ruleof7 && npm run test:realtime"
+    "test:auth": "node scripts/test-auth.mjs",
+    "test:age-gate": "node scripts/test-age-gate.mjs",
+    "test:translation": "node scripts/test-translation.mjs",
+    "test:sniff": "node scripts/test-sniff.mjs",
+    "test:exif-strip": "node scripts/test-exif-strip.mjs",
+    "test:ads-auction": "node scripts/test-ads-auction.mjs",
+    "test:ab-test": "node scripts/test-ab-test.mjs",
+    "test:e2e": "node scripts/test-e2e.mjs",
+    "test:all": "npm run test:phone && npm run test:ruleof7 && npm run test:realtime && npm run test:auth && npm run test:age-gate && npm run test:translation && npm run test:sniff && npm run test:exif-strip && npm run test:ads-auction && npm run test:ab-test && npm run test:e2e"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
     "@sentry/nextjs": "^10.49.0",
+    "@signalapp/libsignal-client": "^0.94.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.20.0",
