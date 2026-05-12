@@ -38,6 +38,10 @@ export default function SignupPage() {
   // step 3 — profile
   const [displayName, setDisplayName] = useState("");
   const [birthdate, setBirthdate] = useState("");
+  /** Optional avatar — uploaded to Vercel Blob via /api/auth/uploads/avatar
+   *  after the account is created. The blob URL is then PUT to /api/users/me/avatar. */
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   // step 4 — contacts
   const [contactsRaw, setContactsRaw] = useState("");
@@ -146,6 +150,24 @@ export default function SignupPage() {
         return;
       }
       storeSession(data);
+
+      // Optional avatar upload (after session exists so /api/uploads/avatar
+      // authenticates). Failure here is non-fatal — UI falls back to the
+      // deterministic gradient.
+      if (avatarFile) {
+        try {
+          const fd = new FormData();
+          fd.append("file", avatarFile);
+          await fetch("/api/uploads/avatar", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${data.accessToken}` },
+            body: fd,
+          });
+        } catch {
+          /* ignore — user keeps their default gradient */
+        }
+      }
+
       setStep("contacts");
     } catch {
       setError("Network error. Try again.");
@@ -281,8 +303,45 @@ export default function SignupPage() {
                     Almost there
                   </h1>
                   <p className="text-sm text-slate-500 mb-4">
-                    Pick a display name and confirm your birthdate.
+                    Pick a display name, confirm your birthdate, and (optionally) add a photo.
                   </p>
+
+                  {/* Avatar — optional. Falls back to a generated gradient. */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="relative">
+                      {avatarPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={avatarPreview}
+                          alt="Avatar preview"
+                          className="w-16 h-16 rounded-full object-cover border border-slate-200"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-xl font-bold">
+                          {displayName.trim().charAt(0).toUpperCase() || "?"}
+                        </div>
+                      )}
+                    </div>
+                    <label className="text-xs font-medium text-purple-600 hover:text-purple-700 cursor-pointer">
+                      {avatarPreview ? "Change photo" : "Add a photo (optional)"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          if (f.size > 2 * 1024 * 1024) {
+                            setError("Photo too large — keep it under 2 MB.");
+                            return;
+                          }
+                          setAvatarFile(f);
+                          setAvatarPreview(URL.createObjectURL(f));
+                        }}
+                      />
+                    </label>
+                  </div>
+
                   <label className="block">
                     <span className="text-xs font-medium text-slate-600">Display name</span>
                     <input

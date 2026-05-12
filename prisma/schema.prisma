@@ -96,6 +96,9 @@ model User {
   vapEnabled        Boolean     @default(false) @map("vap_enabled")
   preferredCurrency Currency    @default(USD) @map("preferred_currency")
   passwordHash      String      @map("password_hash")
+  /// Vercel Blob URL for the user's avatar (S-105 / A1). Null until first
+  /// upload; UI falls back to a deterministic gradient.
+  avatarUrl         String?     @map("avatar_url") @db.VarChar(500)
   emailVerifiedAt   DateTime?   @map("email_verified_at")
   lastActivityAt    DateTime?   @map("last_activity_at")
   streakDays        Int         @default(0) @map("streak_days")

@@ -88,14 +88,23 @@ export async function POST(req: NextRequest) {
   // S-194 launch cleanup. Phone-only users will never use it.
   const placeholderPassword = randomBytes(48).toString("base64");
 
+  // If the client uploaded an avatar before completing sign-up, the blob URL
+  // is in `avatarUrl`. Otherwise we leave it null — UI falls back to the
+  // deterministic gradient.
+  const avatarUrlClean =
+    avatarUrl && /^https:\/\/[a-z0-9.-]+\.vercel-storage\.com\//i.test(avatarUrl)
+      ? avatarUrl
+      : null;
+
   const user = await prisma.user.create({
     data: {
       displayName: trimmed,
       phoneHash,
       passwordHash: placeholderPassword,
+      avatarUrl: avatarUrlClean,
       referredById,
     },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, avatarUrl: true },
   });
 
   const tokens = await issueSession({
@@ -109,7 +118,7 @@ export async function POST(req: NextRequest) {
     user: {
       id: user.id,
       displayName: user.displayName,
-      avatarUrl: avatarUrl || defaultAvatarFor(user.displayName),
+      avatarUrl: user.avatarUrl || defaultAvatarFor(user.displayName),
     },
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,

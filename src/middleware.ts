@@ -11,6 +11,8 @@ const PUBLIC_PREFIXES = [
   "/api/cron/", // cron routes auth themselves via CRON_SECRET
   "/api/webhooks/", // webhook routes verify their own provider signatures
   "/api/pitch/", // pitch routes are public — investor data room
+  "/api/avatars/", // deterministic fallback avatars (A1)
+  "/api/transparency/", // public EU DSA ad archive (S-238)
 ];
 
 function isPublicRoute(pathname: string): boolean {
