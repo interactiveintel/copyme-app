@@ -27,9 +27,9 @@
 > messaging, secure chat, encrypted, ai assistant, rule of 7, communication,
 > privacy, copyme, intentional, slow social
 
-**Support URL:** https://copyme-app.vercel.app/press
-**Privacy URL:** https://copyme-app.vercel.app/privacy
-**Marketing URL:** https://copyme-app.vercel.app/
+**Support URL:** https://copyme1.com/press
+**Privacy URL:** https://copyme1.com/privacy
+**Marketing URL:** https://copyme1.com/
 
 ## Categories
 

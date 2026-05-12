@@ -107,7 +107,7 @@ export default function OG() {
             fontSize: 22,
           }}
         >
-          <div>copyme-app.vercel.app</div>
+          <div>copyme1.com</div>
           <div style={{ display: "flex", gap: 24 }}>
             <span>📱 Free</span>
             <span>🔒 End-to-end encrypted</span>

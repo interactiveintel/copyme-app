@@ -28,21 +28,21 @@ re-summarized here — its content has flowed into all of the above.
 
 | Surface | URL |
 |---|---|
-| Landing | https://copyme-app.vercel.app/ |
-| App | https://copyme-app.vercel.app/app |
-| Pricing | https://copyme-app.vercel.app/pricing |
-| Business | https://copyme-app.vercel.app/business |
-| Self-serve ad creator | https://copyme-app.vercel.app/business/ads |
-| Press kit | https://copyme-app.vercel.app/press |
-| Privacy | https://copyme-app.vercel.app/privacy |
-| Terms | https://copyme-app.vercel.app/terms |
-| Investor data room (public) | https://copyme-app.vercel.app/pitch |
-| Raw metrics JSON | https://copyme-app.vercel.app/api/pitch/metrics |
-| 30-day daily series JSON | https://copyme-app.vercel.app/api/pitch/export |
-| OG social preview | https://copyme-app.vercel.app/opengraph-image |
-| Logo | https://copyme-app.vercel.app/icon.svg |
-| Robots | https://copyme-app.vercel.app/robots.txt |
-| Sitemap | https://copyme-app.vercel.app/sitemap.xml |
+| Landing | https://copyme1.com/ |
+| App | https://copyme1.com/app |
+| Pricing | https://copyme1.com/pricing |
+| Business | https://copyme1.com/business |
+| Self-serve ad creator | https://copyme1.com/business/ads |
+| Press kit | https://copyme1.com/press |
+| Privacy | https://copyme1.com/privacy |
+| Terms | https://copyme1.com/terms |
+| Investor data room (public) | https://copyme1.com/pitch |
+| Raw metrics JSON | https://copyme1.com/api/pitch/metrics |
+| 30-day daily series JSON | https://copyme1.com/api/pitch/export |
+| OG social preview | https://copyme1.com/opengraph-image |
+| Logo | https://copyme1.com/icon.svg |
+| Robots | https://copyme1.com/robots.txt |
+| Sitemap | https://copyme1.com/sitemap.xml |
 | GitHub | https://github.com/interactiveintel/copyme-app |
 | v1.0.0 release | https://github.com/interactiveintel/copyme-app/releases/tag/v1.0.0 |
 | Vercel project | https://vercel.com/interactiveintel-1940s-projects/copyme-app |

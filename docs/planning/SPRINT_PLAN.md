@@ -1,6 +1,6 @@
 # CopyMe (CpM) — Master Sprint Plan
 
-**Repo:** `github.com/interactiveintel/copyme-app` · **Live:** `copyme-app.vercel.app` · **Tag baseline:** `v4.1.3`
+**Repo:** `github.com/interactiveintel/copyme-app` · **Live:** `copyme1.com` · **Tag baseline:** `v4.1.3`
 **Owners:** Paul Pereira (InteractiveIntel, USA) · Jože Kralj (Pimdom d.o.o., Slovenia)
 **Plan author:** Claude · **Plan date:** 2026-05-09 · **Plan format:** 1-hour micro-sprints for Claude Code execution
 

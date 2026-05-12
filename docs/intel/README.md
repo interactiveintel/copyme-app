@@ -45,7 +45,7 @@ absence of any Western "super app" combining communication + AI discovery +
 payments. (Source: `CopyMe_Full_Competitive_Analysis.docx` §3)
 
 **Status (2026-05-10):**
-- Production app live at https://copyme-app.vercel.app (tag v4.1.3 baseline)
+- Production app live at https://copyme1.com (tag v4.1.3 baseline)
 - All Sprint 0 + Phase 1 sprints scaffolded (per `COPYME_SPRINT_PLAN.md`)
 - Auth, Rule-of-7 enforcement, Yogi AI, ads marketplace, Stripe — live or
   scaffolded

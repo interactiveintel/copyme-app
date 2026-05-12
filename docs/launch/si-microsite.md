@@ -2,8 +2,8 @@
 
 ## Microsite
 
-**URL:** https://copyme-app.vercel.app/si/
-**Hreflang:** `<link rel="alternate" hreflang="sl" href="https://copyme-app.vercel.app/si/" />`
+**URL:** https://copyme1.com/si/
+**Hreflang:** `<link rel="alternate" hreflang="sl" href="https://copyme1.com/si/" />`
 **Hero:** "Karta komunikacije tvojega sveta"
 **Subhead:** "Pravilo 7 — Revolucionaren sistem omejitev. Manj je več. Sporočila dobijo težo."
 

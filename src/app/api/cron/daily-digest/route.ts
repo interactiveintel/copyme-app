@@ -36,7 +36,7 @@ function appHref(): string {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}/app`;
   }
-  return "https://copyme-app.vercel.app/app";
+  return "https://copyme1.com/app";
 }
 
 export async function GET(request: NextRequest) {

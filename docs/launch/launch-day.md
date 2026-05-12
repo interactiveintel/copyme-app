@@ -25,7 +25,7 @@
 
 * Slack: `#copyme-launch` (Paul + Jože + Claude)
 * Phone tree: Paul → Jože → fallback (counsel)
-* Status page: status.copyme-app.vercel.app
+* Status page: status.copyme1.com
 
 ## Roll-back trigger
 

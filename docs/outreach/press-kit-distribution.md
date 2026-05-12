@@ -48,8 +48,8 @@ Pre-brief 7 SI + 7 US outlets and 2 podcasters with the press kit
 > and it's our bet that constraints — not infinite feeds — make digital
 > communication better.
 >
-> Press kit: https://copyme-app.vercel.app/press
-> Live demo: https://copyme-app.vercel.app/
+> Press kit: https://copyme1.com/press
+> Live demo: https://copyme1.com/
 >
 > Happy to walk you through it before the embargo lifts.
 >

@@ -38,7 +38,7 @@ const config: CapacitorConfig = {
   // updates don't require a store re-submission. Switch to bundled assets
   // once we land app-bound code reviews (TestFlight + Play Internal).
   server: {
-    url: process.env.COPYME_PWA_URL ?? "https://copyme-app.vercel.app",
+    url: process.env.COPYME_PWA_URL ?? "https://copyme1.com",
     cleartext: false,
   },
   plugins: {

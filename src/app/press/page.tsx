@@ -151,7 +151,7 @@ export default function PressPage() {
               ["Founded", FOUNDED],
               ["Headquarters", "Miami, FL · Ljubljana, SI"],
               ["Stage", "Pre-seed / seed (open to angel)"],
-              ["Live URL", "copyme-app.vercel.app"],
+              ["Live URL", "copyme1.com"],
               ["Free to use", "Yes — Pro tier $9/mo, Business $29/mo"],
               ["Privacy", "GDPR-compliant, EU + US"],
             ]}

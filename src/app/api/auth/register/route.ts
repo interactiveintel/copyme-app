@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       const appHref =
         process.env.NEXT_PUBLIC_APP_URL
           ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/app`
-          : "https://copyme-app.vercel.app/app";
+          : "https://copyme1.com/app";
       const { subject, text, html } = welcomeTemplate(user.displayName, appHref);
       sendMail({ to: body.email, subject, text, html }).catch((err) => {
         console.warn("[register] welcome email failed:", err);

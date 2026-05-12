@@ -10,7 +10,7 @@
 | Brand: "CopyMe", "Rule of 7", "CpM" | Paul + Jože | CopyMe, Inc. |
 | Logo SVGs (current + legacy + globe variants) | Paul + Jože | CopyMe, Inc. |
 | OG images, press kit | Paul | CopyMe, Inc. |
-| `copyme-app.vercel.app` deployment | Paul (Vercel account) | CopyMe, Inc. |
+| `copyme1.com` deployment | Paul (Vercel account) | CopyMe, Inc. |
 | GitHub org `interactiveintel` ownership of repo | Paul | CopyMe, Inc. (transferred) |
 | Domain `copyme.app` (when registered) | n/a | CopyMe, Inc. directly |
 

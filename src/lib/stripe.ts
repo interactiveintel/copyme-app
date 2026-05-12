@@ -10,7 +10,7 @@
 //   STRIPE_SECRET_KEY        sk_live_... or sk_test_... (test mode is fine)
 //   STRIPE_WEBHOOK_SECRET    whsec_... — used to verify webhook signatures
 //   NEXT_PUBLIC_APP_URL      base URL for success/cancel redirects (optional;
-//                            falls back to https://copyme-app.vercel.app)
+//                            falls back to https://copyme1.com)
 // ---------------------------------------------------------------------------
 
 import { createHmac, timingSafeEqual } from "crypto";
@@ -28,7 +28,7 @@ function appBase(): string {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "https://copyme-app.vercel.app";
+  return "https://copyme1.com";
 }
 
 // ---------------------------------------------------------------------------

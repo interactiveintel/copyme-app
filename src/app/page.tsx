@@ -10,7 +10,7 @@ import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://copyme-app.vercel.app",
+    process.env.NEXT_PUBLIC_APP_URL || "https://copyme1.com",
   ),
   title: "CopyMe — Communication That Matters · Your World's chart of Communication",
   description:
