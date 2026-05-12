@@ -53,10 +53,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Validate receiver exists -------------------------------------------
+    // --- Validate receiver exists + grab their locale for translation -------
     const receiver = await prisma.user.findUnique({
       where: { id: body.receiverId },
-      select: { id: true },
+      select: { id: true, preferredLocale: true },
     });
     if (!receiver) {
       return NextResponse.json(
@@ -65,12 +65,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Get sender tier for limit checks -----------------------------------
+    // --- Get sender tier + locale -------------------------------------------
     const sender = await prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { accountTier: true },
+      select: { accountTier: true, preferredLocale: true },
     });
     const tier = sender?.accountTier ?? "basic";
+    const senderLocale = sender?.preferredLocale ?? "en";
+    const receiverLocale = receiver.preferredLocale;
 
     // --- Validate text content (Rule of 7: max 70 words) — S-111 ------------
     if (body.content) {
@@ -152,6 +154,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- Translation (A3) ---------------------------------------------------
+    // If the receiver prefers a different locale from the sender, ask
+    // Claude Haiku for a translation. Helpers short-circuit on identical
+    // locales, very short text, cache hit, or daily budget exhaustion —
+    // failure path returns the original (translatedText=null).
+    let languageOriginal: string | null = null;
+    let languageTranslated: string | null = null;
+    let translatedText: string | null = null;
+
+    if (body.type === "text" && body.content && senderLocale !== receiverLocale) {
+      const { translate, detectLocaleHeuristic } = await import("@/lib/translation");
+      languageOriginal = senderLocale === "auto" ? detectLocaleHeuristic(body.content) : senderLocale;
+      const tr = await translate({
+        text: body.content,
+        fromLocale: languageOriginal,
+        toLocale: receiverLocale,
+        userId: auth.userId,
+      });
+      if (tr.text !== body.content) {
+        languageTranslated = receiverLocale;
+        translatedText = tr.text;
+      }
+    }
+
     // --- Create the message -------------------------------------------------
     // We stamp deliveredAt at creation time because our message fan-out is
     // polling-based (no realtime socket). The message has "arrived" at the
@@ -167,6 +193,9 @@ export async function POST(request: NextRequest) {
         mediaUrls: body.mediaUrls ?? undefined,
         durationSeconds: body.durationSeconds ?? null,
         deliveredAt: new Date(),
+        languageOriginal,
+        languageTranslated,
+        translatedText,
       },
     });
 

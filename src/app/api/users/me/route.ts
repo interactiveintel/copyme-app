@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
         accountTier: true,
         vapEnabled: true,
         preferredCurrency: true,
+        preferredLocale: true,
+        avatarUrl: true,
         lastActivityAt: true,
         streakDays: true,
         streakLastDayAt: true,
@@ -64,6 +66,8 @@ interface UpdateProfileBody {
   displayName?: string;
   profileType?: string;
   preferredCurrency?: string;
+  /** BCP-47 locale (e.g. "en", "sl", "es"). Controls incoming translation (A3). */
+  preferredLocale?: string;
   location?: {
     globalArea?: string;
     countryPhoneCode?: string;
@@ -149,6 +153,16 @@ export async function PUT(request: NextRequest) {
     if (body.displayName !== undefined) userUpdate.displayName = body.displayName;
     if (body.profileType !== undefined) userUpdate.profileType = body.profileType;
     if (body.preferredCurrency !== undefined) userUpdate.preferredCurrency = body.preferredCurrency;
+    if (body.preferredLocale !== undefined) {
+      // Whitelist BCP-47 short codes we ship UI for + any 2-letter tag.
+      if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(body.preferredLocale)) {
+        return NextResponse.json(
+          { success: false, error: { code: "INVALID_LOCALE", message: "Use a BCP-47 tag like 'en' or 'en-US'" } },
+          { status: 400 },
+        );
+      }
+      userUpdate.preferredLocale = body.preferredLocale;
+    }
 
     // --- Update user base fields --------------------------------------------
     if (Object.keys(userUpdate).length > 0) {

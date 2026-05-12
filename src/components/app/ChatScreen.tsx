@@ -41,6 +41,10 @@ interface ApiMessage {
   createdAt: string;
   deliveredAt?: string | null;
   readAt?: string | null;
+  /** A3: present when the message was auto-translated on send. */
+  languageOriginal?: string | null;
+  languageTranslated?: string | null;
+  translatedText?: string | null;
   sender?: { id: string; displayName: string };
   receiver?: { id: string; displayName: string };
 }
@@ -293,8 +297,23 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                       }`}
                     >
                       <p className={`text-sm leading-relaxed ${isSent ? "text-white" : "text-slate-800"}`}>
-                        {msg.content}
+                        {translateOn && msg.translatedText ? msg.translatedText : msg.content}
                       </p>
+                      {msg.translatedText && (
+                        <button
+                          type="button"
+                          onClick={() => setTranslateOn(!translateOn)}
+                          className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${
+                            isSent ? "text-white/70 hover:text-white" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                          aria-label={translateOn ? "Show original" : "Translate"}
+                        >
+                          <Globe size={10} />
+                          {translateOn
+                            ? `original · ${msg.languageOriginal ?? ""}`
+                            : `translate · ${msg.languageOriginal ?? "auto"} → ${msg.languageTranslated ?? ""}`}
+                        </button>
+                      )}
                     </div>
                   )}
 
