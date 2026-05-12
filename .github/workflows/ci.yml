@@ -6,16 +6,11 @@ on:
   pull_request:
     branches: [main]
 
-# Provide a placeholder DATABASE_URL at the job level so prisma.config.ts
-# (which is loaded by `prisma generate` in the postinstall hook) doesn't
-# throw before npm ci finishes. The real production DB lives in Vercel's
-# env config; CI only needs Prisma to generate the client, not connect.
 env:
-  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-  DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/ci
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/copyme_ci
+  DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/copyme_ci
   NEXT_TELEMETRY_DISABLED: "1"
-  # A placeholder JWT_SECRET so lib/auth.ts module-load doesn't throw
-  # when next build collects page data on API routes that import it.
+  # Placeholder JWT_SECRET (≥32 chars) for lib/auth module-load.
   JWT_SECRET: ci-secret-32-chars-not-for-production-use-x
 
 jobs:
@@ -23,6 +18,23 @@ jobs:
     name: Lint, type-check, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # Static pages call Prisma at build time; we need a real-enough Postgres
+    # to apply migrations and respond to queries with empty results.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: copyme_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +50,10 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      # A4: lint + typecheck now hard-gate. Generated dirs + scripts/*.cjs
-      # are ignored by eslint.config.mjs.
+      - name: Apply migrations to CI Postgres
+        run: npx prisma migrate deploy
+
+      # A4: lint + typecheck hard-gate. Generated dirs ignored via eslint.config.mjs.
       - name: Lint
         run: npm run lint
 
