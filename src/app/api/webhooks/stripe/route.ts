@@ -5,7 +5,7 @@ import { stripeWebhookConfigured, verifyStripeSignature } from "@/lib/stripe";
 // ---------------------------------------------------------------------------
 // POST /api/webhooks/stripe
 //
-// Receives Stripe webhook events. Two flows live here:
+// Receives Stripe webhook events. Three flows live here:
 //
 //   1) Ad payments (mode=payment).
 //      `checkout.session.completed` with metadata.adId → flip the ad from
@@ -19,8 +19,18 @@ import { stripeWebhookConfigured, verifyStripeSignature } from "@/lib/stripe";
 //                                 is the storage slot for Pro until we
 //                                 introduce a real `pro` enum value)
 //          business → business_7
+//      Same handler also persists the Stripe customer + subscription ids on
+//      the User row (C8 follow-up) so /api/billing/refund and
+//      /api/billing/cancel can look them up later without the caller having
+//      to pass them in.
 //      Idempotent: if the user is already at-or-above the requested tier,
-//      we no-op (still 200 to stop Stripe from retrying).
+//      we still write through the customer/subscription ids (in case the
+//      first time we missed them) and no-op the tier flip.
+//
+//   3) Subscription deletion (`customer.subscription.deleted`) — when Stripe
+//      tells us a subscription is gone (cancellation took effect, refund
+//      flow ended it, dunning expired it), we drop the matching user back
+//      to the `basic` tier and clear their stripe_subscription_id.
 //
 // Public route — must be in middleware's PUBLIC_PREFIXES so it bypasses the
 // Bearer-token check.
@@ -36,6 +46,20 @@ interface StripeCheckoutSessionEvent {
       payment_status?: string;
       client_reference_id?: string | null;
       metadata?: Record<string, string>;
+      // Subscription-mode sessions carry these once payment completes.
+      customer?: string | null;
+      subscription?: string | null;
+    };
+  };
+}
+
+interface StripeSubscriptionDeletedEvent {
+  id: string;
+  type: string;
+  data: {
+    object: {
+      id: string;
+      customer?: string | null;
     };
   };
 }
@@ -75,21 +99,47 @@ async function handleSubscriptionCheckout(
     return NextResponse.json({ success: true, data: { ignored: "unknown_plan" } });
   }
 
+  // C8 follow-up — capture the Stripe ids the refund + cancel endpoints
+  // need. Both nullable in the event payload (Stripe sometimes sends the
+  // session before the subscription is materialized for async payment
+  // methods); we only write fields we actually have.
+  const customerId = session.customer ?? null;
+  const subscriptionId = session.subscription ?? null;
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, accountTier: true },
+      select: {
+        id: true,
+        accountTier: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+      },
     });
     if (!user) {
       console.warn(`[stripe webhook] subscription session references unknown user ${userId}`);
       return NextResponse.json({ success: true, data: { ignored: "user_not_found" } });
     }
 
+    // Always write through the Stripe ids when present, even if the tier
+    // flip is a no-op — the very first paid checkout for an existing
+    // already-upgraded user (e.g. seeded data) needs the ids stored too.
+    const stripeIdUpdate: { stripeCustomerId?: string; stripeSubscriptionId?: string } = {};
+    if (customerId && user.stripeCustomerId !== customerId) {
+      stripeIdUpdate.stripeCustomerId = customerId;
+    }
+    if (subscriptionId && user.stripeSubscriptionId !== subscriptionId) {
+      stripeIdUpdate.stripeSubscriptionId = subscriptionId;
+    }
+
     const currentRank = TIER_RANK[user.accountTier] ?? 0;
     const targetRank = TIER_RANK[targetTier] ?? 0;
     if (currentRank >= targetRank) {
+      if (Object.keys(stripeIdUpdate).length > 0) {
+        await prisma.user.update({ where: { id: userId }, data: stripeIdUpdate });
+      }
       console.log(
-        `[stripe webhook] user ${userId} already at tier ${user.accountTier} >= target ${targetTier}; no-op`,
+        `[stripe webhook] user ${userId} already at tier ${user.accountTier} >= target ${targetTier}; tier no-op (stripe ids ${Object.keys(stripeIdUpdate).length > 0 ? "updated" : "unchanged"})`,
       );
       return NextResponse.json({
         success: true,
@@ -99,9 +149,9 @@ async function handleSubscriptionCheckout(
 
     await prisma.user.update({
       where: { id: userId },
-      data: { accountTier: targetTier },
+      data: { accountTier: targetTier, ...stripeIdUpdate },
     });
-    console.log(`[stripe webhook] user ${userId} upgraded to ${targetTier} (plan=${plan})`);
+    console.log(`[stripe webhook] user ${userId} upgraded to ${targetTier} (plan=${plan}, customer=${customerId ?? "n/a"}, sub=${subscriptionId ?? "n/a"})`);
     return NextResponse.json({
       success: true,
       data: { userId, plan, tier: targetTier, eventType: "checkout.session.completed" },
@@ -110,6 +160,49 @@ async function handleSubscriptionCheckout(
     console.error("[stripe webhook] subscription update failed:", error);
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "Subscription tier update failed" } },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleSubscriptionDeleted(
+  sub: StripeSubscriptionDeletedEvent["data"]["object"],
+): Promise<NextResponse> {
+  // We can match on either id — subscription_id is more specific (one-to-one)
+  // but we accept customer_id as a fallback for the rare case where Stripe
+  // re-creates the subscription (new id) before our checkout webhook lands.
+  const subscriptionId = sub.id;
+  const customerId = sub.customer ?? null;
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: subscriptionId
+        ? { stripeSubscriptionId: subscriptionId }
+        : customerId
+          ? { stripeCustomerId: customerId }
+          : { id: "__never__" },
+      select: { id: true, accountTier: true },
+    });
+    if (!user) {
+      console.warn(
+        `[stripe webhook] subscription.deleted for unknown sub=${subscriptionId} customer=${customerId ?? "n/a"}`,
+      );
+      return NextResponse.json({ success: true, data: { ignored: "user_not_found" } });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { accountTier: "basic", stripeSubscriptionId: null },
+    });
+    console.log(`[stripe webhook] user ${user.id} dropped to basic on subscription.deleted (sub=${subscriptionId})`);
+    return NextResponse.json({
+      success: true,
+      data: { userId: user.id, eventType: "customer.subscription.deleted" },
+    });
+  } catch (error) {
+    console.error("[stripe webhook] subscription.deleted handling failed:", error);
+    return NextResponse.json(
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Subscription deletion handling failed" } },
       { status: 500 },
     );
   }
@@ -173,7 +266,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let event: StripeCheckoutSessionEvent;
+  let event: StripeCheckoutSessionEvent | StripeSubscriptionDeletedEvent;
   try {
     event = JSON.parse(rawBody) as StripeCheckoutSessionEvent;
   } catch {
@@ -183,13 +276,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // We only act on checkout.session.completed for now. Returning 200 on
-  // unknown types is the right move — Stripe stops retrying once we ack.
+  // Two event types matter to us. Returning 200 on unknown types is the
+  // right move — Stripe stops retrying once we ack.
+  if (event.type === "customer.subscription.deleted") {
+    return handleSubscriptionDeleted(
+      (event as StripeSubscriptionDeletedEvent).data.object,
+    );
+  }
   if (event.type !== "checkout.session.completed") {
     return NextResponse.json({ success: true, data: { ignored: event.type } });
   }
 
-  const session = event.data.object;
+  const session = (event as StripeCheckoutSessionEvent).data.object;
 
   // S-243 — subscription mode bumps the user's accountTier. Ad-payment
   // sessions stay on the existing branch.

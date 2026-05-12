@@ -1,18 +1,21 @@
 // POST /api/billing/cancel — cancel the caller's Stripe subscription (S-243).
 //
-// Body shape (one of the two):
-//   { subscriptionId: "sub_xxx" }
-//   { customerId: "cus_xxx" }   // we'll resolve the most-recent active sub
+// Body shape (all fields optional now that we persist the IDs server-side):
+//   { subscriptionId?: "sub_xxx", customerId?: "cus_xxx", when?: "now"|"period_end" }
 //
-// Note: the User row doesn't carry stripeCustomerId today (no schema
-// changes per the sprint plan). The frontend reads the id from a Customer
-// Portal session or asks the user to copy it; for now this endpoint just
-// proxies the cancel call so the wiring is in place. The webhook will
-// eventually downgrade `accountTier` back to `basic` when Stripe sends
-// `customer.subscription.deleted` (a follow-up task).
+// Resolution order for the subscription id:
+//   1. body.subscriptionId           (caller knows it)
+//   2. user.stripeSubscriptionId     (persisted by checkout webhook — C8)
+//   3. body.customerId → list active subs from Stripe
+//   4. user.stripeCustomerId → list active subs from Stripe
+//
+// On successful cancel we DON'T touch the User row's tier directly — the
+// `customer.subscription.deleted` webhook does that, so both paths converge
+// on a single source of truth.
 
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -48,13 +51,26 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as CancelBody;
   let subscriptionId = body.subscriptionId;
 
-  if (!subscriptionId && body.customerId) {
-    subscriptionId = (await listLatestActiveSubscription(stripeKey, body.customerId)) ?? undefined;
+  // Fall back to the persisted ids before going to Stripe — the User row is
+  // authoritative for the active subscription once C8 lands.
+  if (!subscriptionId) {
+    const user = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { stripeSubscriptionId: true, stripeCustomerId: true },
+    });
+    if (user?.stripeSubscriptionId) {
+      subscriptionId = user.stripeSubscriptionId;
+    } else {
+      const customerId = body.customerId ?? user?.stripeCustomerId ?? null;
+      if (customerId) {
+        subscriptionId = (await listLatestActiveSubscription(stripeKey, customerId)) ?? undefined;
+      }
+    }
   }
 
   if (!subscriptionId) {
     return NextResponse.json(
-      { error: "NO_ACTIVE_SUBSCRIPTION", hint: "Pass subscriptionId or customerId" },
+      { error: "NO_ACTIVE_SUBSCRIPTION", hint: "No subscription on file for this account." },
       { status: 400 },
     );
   }

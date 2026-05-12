@@ -5,13 +5,15 @@
 // checkout (handled in /api/billing/checkout via metadata.deferActivation).
 //
 // Flow:
-//   1. Find the user's most recent paid subscription. We don't yet store the
-//      Stripe customer id on the User row — until the schema change lands,
-//      we gracefully degrade with 503 + a support email.
-//   2. Verify the purchase date is within the 14-day window.
-//   3. Call Stripe POST /v1/refunds against the payment intent / charge.
-//   4. Cancel the subscription via Stripe DELETE /v1/subscriptions/<id>.
-//   5. Drop the user back to the basic tier and log a breadcrumb.
+//   1. Look up the user's stored stripeCustomerId (persisted by the
+//      checkout.session.completed webhook). If absent, the user never
+//      completed a paid checkout — return 404 NO_SUBSCRIPTION.
+//   2. Find the most recent subscription for that customer.
+//   3. Verify the purchase date is within the 14-day window.
+//   4. Call Stripe POST /v1/refunds against the payment intent / charge.
+//   5. Cancel the subscription via Stripe DELETE /v1/subscriptions/<id>.
+//   6. Drop the user back to the basic tier, clear stripeSubscriptionId,
+//      and log a breadcrumb.
 //
 // Idempotent: if a refund already exists for the subscription's payment, we
 // return 200 with { alreadyRefunded: true } so the UI can render a calm
@@ -94,41 +96,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "STRIPE_NOT_CONFIGURED" }, { status: 503 });
   }
 
-  // Look up the user — we need their tier (to drop back to basic) and,
-  // ideally, a stored Stripe customer id. Until the schema change ships,
-  // we don't have customerId on the User row, so we gracefully degrade.
+  // Look up the user — we need their tier (to drop back to basic) plus the
+  // stored Stripe customer id (persisted by the checkout webhook).
   const user = await prisma.user.findUnique({
     where: { id: auth.userId },
-    select: { id: true, accountTier: true },
+    select: { id: true, accountTier: true, stripeCustomerId: true },
   });
   if (!user) {
     return NextResponse.json({ error: "USER_NOT_FOUND" }, { status: 404 });
   }
 
-  // The User model does not currently store a Stripe customer id (no schema
-  // change is permitted in this sprint — see prisma/schema.prisma). Without
-  // it we can't safely look up the right subscription on Stripe, so we
-  // degrade with a clear 503 directing the user to support.
-  const customerId: string | null = null;
+  const customerId = user.stripeCustomerId;
   if (!customerId) {
+    // No paid checkout has ever completed for this user, so there's nothing
+    // for us to refund. Surface the same NO_SUBSCRIPTION error the
+    // post-lookup branch returns — the UI can render one consistent
+    // empty-state for both cases. SUPPORT_EMAIL kept in the body for the
+    // rare migration-data case where the user has a real subscription that
+    // pre-dates the C8 schema change.
     return NextResponse.json(
       {
-        error: "REFUND_LOOKUP_UNAVAILABLE",
-        message:
-          "Refund flow requires Stripe customer ID lookup, not yet stored on User row — manual support@copyme1.com.",
+        error: "NO_SUBSCRIPTION",
+        message: "No paid subscription found for this account.",
         supportEmail: SUPPORT_EMAIL,
       },
-      { status: 503 },
+      { status: 404 },
     );
   }
 
-  // ---- Below is unreachable until the User row carries `stripeCustomerId`,
-  // ---- but we wire the full flow so the moment that field is added the
-  // ---- endpoint is functional. The shape mirrors what S-244's spec asks for.
-
   // 1. Find the most recent subscription for this customer.
   const subsRes = await stripeFetch(
-    `subscriptions?customer=${encodeURIComponent(customerId as string)}&limit=1&status=all`,
+    `subscriptions?customer=${encodeURIComponent(customerId)}&limit=1&status=all`,
     { method: "GET", key: stripeKey },
   );
   if (!subsRes.ok) {
@@ -255,10 +253,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 5. Drop the user back to basic + breadcrumb.
+  // 5. Drop the user back to basic + clear stripeSubscriptionId + breadcrumb.
+  // (The webhook for `customer.subscription.deleted` also does this, but
+  // doing it here too means the UI can refresh immediately without waiting
+  // for the webhook round-trip.)
   await prisma.user.update({
     where: { id: user.id },
-    data: { accountTier: "basic" },
+    data: { accountTier: "basic", stripeSubscriptionId: null },
   }).catch((e) => reportError(e, { context: "billing.refund.tier_reset", userId: user.id }));
 
   addBreadcrumb("billing.refund_completed", {

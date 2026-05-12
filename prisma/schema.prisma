@@ -111,6 +111,13 @@ model User {
   referralCode      String?     @unique @map("referral_code") @db.VarChar(16)
   /// User who invited this user (set once on register from ?ref=...).
   referredById      String?     @map("referred_by_id") @db.Uuid
+  /// Stripe customer id, set on first paid checkout and persisted across
+  /// subscriptions. Lets billing/refund + billing/cancel look up payments
+  /// without the caller having to pass the id (closes the C8 503 caveat).
+  stripeCustomerId      String? @unique @map("stripe_customer_id") @db.VarChar(64)
+  /// Stripe subscription id for the user's CURRENT active subscription.
+  /// Cleared by customer.subscription.deleted.
+  stripeSubscriptionId  String? @map("stripe_subscription_id") @db.VarChar(64)
   createdAt         DateTime    @default(now()) @map("created_at")
 
   // Relations
@@ -148,6 +155,7 @@ model User {
 
   @@index([accountTier])
   @@index([lastActivityAt])
+  @@index([stripeSubscriptionId])
   @@map("users")
 }
 
