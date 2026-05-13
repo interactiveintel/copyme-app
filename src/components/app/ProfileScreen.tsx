@@ -335,11 +335,11 @@ export default function ProfileScreen() {
 
   const locationEntries = activeProfile.location
     ? [
-        { level: "Global", value: activeProfile.location.globalArea },
-        { level: "Country", value: activeProfile.location.countryPhoneCode },
-        { level: "Region", value: activeProfile.location.region },
-        { level: "City", value: activeProfile.location.cityZip },
-        { level: "Local", value: activeProfile.location.localDescription },
+        { level: t("profile.location.global"), value: activeProfile.location.globalArea },
+        { level: t("profile.location.country"), value: activeProfile.location.countryPhoneCode },
+        { level: t("profile.location.region"), value: activeProfile.location.region },
+        { level: t("profile.location.city"), value: activeProfile.location.cityZip },
+        { level: t("profile.location.local"), value: activeProfile.location.localDescription },
       ].filter((l) => l.value)
     : [];
 
@@ -354,7 +354,7 @@ export default function ProfileScreen() {
         <div className="relative z-10">
           <AppBrand className="mb-2" />
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t("profile.header.title")}</h1>
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => {
@@ -399,7 +399,7 @@ export default function ProfileScreen() {
             )}
             <div className="flex items-center gap-1.5 mt-1">
               <Crown size={12} className="text-amber-400" />
-              <span className="text-xs font-medium text-amber-400 capitalize">{tier} Plan</span>
+              <span className="text-xs font-medium text-amber-400 capitalize">{tier} {t("profile.planSuffix")}</span>
             </div>
           </div>
         </div>
@@ -412,9 +412,9 @@ export default function ProfileScreen() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Users, label: "Contacts", value: isDemo ? String(demoStats.contacts) : "—" },
-            { icon: MessageSquare, label: "Groups", value: isDemo ? String(demoStats.groups) : "—" },
-            { icon: Crown, label: "Plan", value: tier },
+            { icon: Users, label: t("profile.stats.contacts"), value: isDemo ? String(demoStats.contacts) : "—" },
+            { icon: MessageSquare, label: t("profile.stats.groups"), value: isDemo ? String(demoStats.groups) : "—" },
+            { icon: Crown, label: t("profile.planSuffix"), value: tier },
           ].map((stat, i) => (
             <GlassCard key={i}>
               <div className="p-3 text-center">
@@ -432,7 +432,7 @@ export default function ProfileScreen() {
             <div className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <MapPin size={14} className="text-purple-400" />
-                <span className="text-sm font-semibold text-slate-900">Location</span>
+                <span className="text-sm font-semibold text-slate-900">{t("profile.section.location")}</span>
               </div>
               <div className="space-y-2.5">
                 {[
@@ -460,7 +460,7 @@ export default function ProfileScreen() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <MapPin size={14} className="text-purple-400" />
-                  <span className="text-sm font-semibold text-slate-900">Location</span>
+                  <span className="text-sm font-semibold text-slate-900">{t("profile.section.location")}</span>
                 </div>
                 <button
                   onClick={() => setLocationVisible(!locationVisible)}
@@ -487,8 +487,8 @@ export default function ProfileScreen() {
           <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={14} className="text-purple-400" />
-              <span className="text-sm font-semibold text-slate-900">Interests</span>
-              <span className="text-[10px] text-slate-400 ml-auto">{editMode ? editInterests.length : interests.length}/7 slots</span>
+              <span className="text-sm font-semibold text-slate-900">{t("profile.section.interests")}</span>
+              <span className="text-[10px] text-slate-400 ml-auto">{t("profile.interests.slots", { n: editMode ? editInterests.length : interests.length })}</span>
             </div>
             {editMode ? (
               <>
@@ -627,9 +627,9 @@ export default function ProfileScreen() {
         <GlassCard>
           <div className="p-5 text-center">
             <Crown size={28} className="text-amber-400 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-900 mb-1">Unlock Premium</p>
-            <p className="text-xs text-slate-500 mb-4">Get unlimited messages, more contacts, and AI features</p>
-            <GradientButton className="mx-auto">Upgrade Plan</GradientButton>
+            <p className="text-sm font-semibold text-slate-900 mb-1">{t("profile.upgrade.title")}</p>
+            <p className="text-xs text-slate-500 mb-4">{t("profile.upgrade.subtitle")}</p>
+            <GradientButton className="mx-auto">{t("profile.upgrade.cta")}</GradientButton>
           </div>
         </GlassCard>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, ChevronRight, MapPin, Lightbulb, FileText } from "lucide-react";
 import AIBadge from "../ui/AIBadge";
+import { useLocale } from "@/lib/i18n/client";
 
 interface OnboardingAIProps {
   step: number;
@@ -35,15 +36,16 @@ export default function OnboardingAI({
   currentData,
   onApplySuggestion,
 }: OnboardingAIProps) {
+  const { t } = useLocale();
   const [expanded, setExpanded] = useState(false);
 
   const stepIcons = [MapPin, Lightbulb, FileText];
   const StepIcon = stepIcons[step] || Sparkles;
 
   const stepTitles = [
-    "Location suggestions based on your phone code",
-    "AI-recommended interests for you",
-    "AI-polished description preview",
+    t("onboarding.ai.stepTitle.location"),
+    t("onboarding.ai.stepTitle.interests"),
+    t("onboarding.ai.stepTitle.description"),
   ];
 
   return (
@@ -101,7 +103,7 @@ export default function OnboardingAI({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-slate-900">
-                        AI Suggestions
+                        {t("onboarding.ai.suggestions")}
                       </span>
                       <AIBadge variant="inline" />
                     </div>
@@ -132,7 +134,7 @@ export default function OnboardingAI({
                       className="space-y-2"
                     >
                       <p className="text-xs text-slate-500 mb-3">
-                        Based on your phone code, you might be in...
+                        {t("onboarding.ai.locationLead")}
                       </p>
                       {locationSuggestions.map((loc, i) => (
                         <motion.button
@@ -178,7 +180,7 @@ export default function OnboardingAI({
                       exit={{ opacity: 0, y: -10 }}
                     >
                       <p className="text-xs text-slate-500 mb-3">
-                        Tap to add suggested interests
+                        {t("onboarding.ai.interestLead")}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {interestSuggestions.map((interest, i) => (
@@ -214,7 +216,7 @@ export default function OnboardingAI({
                       exit={{ opacity: 0, y: -10 }}
                     >
                       <p className="text-xs text-slate-500 mb-3">
-                        AI-generated description preview
+                        {t("onboarding.ai.descLead")}
                       </p>
                       <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 mb-4">
                         <p className="text-xs text-slate-600 leading-relaxed italic">
@@ -231,7 +233,7 @@ export default function OnboardingAI({
                         whileTap={{ scale: 0.98 }}
                       >
                         <Sparkles size={14} />
-                        Apply Suggestion
+                        {t("onboarding.ai.applySuggestion")}
                       </motion.button>
                     </motion.div>
                   )}

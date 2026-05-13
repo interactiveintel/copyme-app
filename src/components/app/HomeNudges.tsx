@@ -195,7 +195,7 @@ export default function HomeNudges() {
       {push.status === "denied" && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
           <BellOff size={12} />
-          Notifications are blocked in your browser settings. Enable them there to re-activate.
+          {t("nudges.push.denied")}
         </div>
       )}
 

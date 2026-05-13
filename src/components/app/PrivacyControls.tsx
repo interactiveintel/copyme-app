@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, Mic, ScanLine, Activity } from "lucide-react";
+import { useLocale } from "@/lib/i18n/client";
 
 // Privacy controls panel (S-145). One screen consolidating opt-outs that
 // existed scattered across S-124, S-125, S-135. Each row links to the
@@ -35,58 +36,62 @@ export function writePrefs(p: PrivacyPrefs): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
 }
 
+// Row keys are stable across locales; the displayed label/hint are looked
+// up via t() at render time so the panel re-renders when the user switches
+// language.
 const ROWS: Array<{
   key: keyof PrivacyPrefs;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
   termsAnchor: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }> = [
   {
     key: "presence",
-    label: "Show online status",
-    hint: "Other users see when you're active.",
+    labelKey: "privacy.row.presence.label",
+    hintKey: "privacy.row.presence.hint",
     termsAnchor: "/terms#privacy",
     icon: Activity,
   },
   {
     key: "lastSeen",
-    label: "Show last-seen time",
-    hint: "Others see how recently you were online. Default: off.",
+    labelKey: "privacy.row.lastSeen.label",
+    hintKey: "privacy.row.lastSeen.hint",
     termsAnchor: "/terms#privacy",
     icon: Eye,
   },
   {
     key: "readReceipts",
-    label: "Read receipts",
-    hint: "Mutual: turn off and you won't see others' either.",
+    labelKey: "privacy.row.readReceipts.label",
+    hintKey: "privacy.row.readReceipts.hint",
     termsAnchor: "/terms#privacy",
     icon: EyeOff,
   },
   {
     key: "typing",
-    label: "Show 'typing…'",
-    hint: "Others see when you're composing a reply.",
+    labelKey: "privacy.row.typing.label",
+    hintKey: "privacy.row.typing.hint",
     termsAnchor: "/terms#privacy",
     icon: Activity,
   },
   {
     key: "transcripts",
-    label: "Auto-transcribe my voice clips",
-    hint: "Background AI transcript stored alongside your clips for accessibility.",
+    labelKey: "privacy.row.transcripts.label",
+    hintKey: "privacy.row.transcripts.hint",
     termsAnchor: "/terms#ai-features",
     icon: Mic,
   },
   {
     key: "discoverable",
-    label: "Findable via interest search",
-    hint: "Lets people discover you via shared interest tags.",
+    labelKey: "privacy.row.discoverable.label",
+    hintKey: "privacy.row.discoverable.hint",
     termsAnchor: "/terms#discovery",
     icon: ScanLine,
   },
 ];
 
 export default function PrivacyControls() {
+  const { t } = useLocale();
   const [prefs, setPrefs] = useState<PrivacyPrefs>(DEFAULTS);
 
   useEffect(() => setPrefs(readPrefs()), []);
@@ -103,11 +108,11 @@ export default function PrivacyControls() {
         <div key={row.key} className="px-4 py-3 flex items-start gap-3">
           <row.icon size={18} className="text-purple-500 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-slate-900">{row.label}</div>
+            <div className="text-sm font-medium text-slate-900">{t(row.labelKey)}</div>
             <div className="text-xs text-slate-500">
-              {row.hint}{" "}
+              {t(row.hintKey)}{" "}
               <a href={row.termsAnchor} className="text-purple-600 hover:underline">
-                Read in Terms
+                {t("privacy.readInTerms")}
               </a>
             </div>
           </div>
