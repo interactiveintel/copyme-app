@@ -18,6 +18,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
+import { useLocale } from "@/lib/i18n/client";
 import type { MockProfile } from "@/lib/mock-data";
 
 interface ContactProfileSheetProps {
@@ -43,6 +44,7 @@ export default function ContactProfileSheet({
   onClose,
   onMessage,
 }: ContactProfileSheetProps) {
+  const { t } = useLocale();
   const sharedInterests = profile.interests.filter((interest) =>
     MY_INTERESTS.some(
       (mine) =>
@@ -91,14 +93,16 @@ export default function ContactProfileSheet({
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
             <span className="text-[11px] text-white/80 font-medium">
-              {profile.online ? "Online now" : `Last seen ${profile.lastSeen}`}
+              {profile.online
+                ? t("profile.online")
+                : t("profile.lastSeen", { when: profile.lastSeen })}
             </span>
           </div>
 
           {/* Profile completion bar */}
           <div className="mt-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-white/60">Profile</span>
+              <span className="text-[10px] text-white/60">{t("profile.completion")}</span>
               <span className="text-[10px] text-white/80 font-semibold">{profile.profileCompletion}%</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-white/20">
@@ -164,15 +168,15 @@ export default function ContactProfileSheet({
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="flex flex-col items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100">
               <span className="text-lg font-bold text-slate-800">{profile.stats.contacts}</span>
-              <span className="text-[10px] text-slate-400">Contacts</span>
+              <span className="text-[10px] text-slate-400">{t("profile.stats.contacts")}</span>
             </div>
             <div className="flex flex-col items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100">
               <span className="text-lg font-bold text-slate-800">{profile.stats.groups}</span>
-              <span className="text-[10px] text-slate-400">Groups</span>
+              <span className="text-[10px] text-slate-400">{t("profile.stats.groups")}</span>
             </div>
             <div className="flex flex-col items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100">
               <span className="text-lg font-bold text-slate-800">{profile.stats.messagesSent}</span>
-              <span className="text-[10px] text-slate-400">Messages</span>
+              <span className="text-[10px] text-slate-400">{t("profile.stats.messages")}</span>
             </div>
           </div>
 
@@ -187,7 +191,7 @@ export default function ContactProfileSheet({
                   {connectionScore}%
                 </span>
                 <span className="text-xs font-medium text-purple-400">
-                  Value Match
+                  {t("profile.valueMatch")}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
@@ -209,7 +213,7 @@ export default function ContactProfileSheet({
             </div>
             <div className="flex items-center gap-2.5">
               <Calendar size={14} className="text-slate-400 shrink-0" />
-              <span className="text-xs text-slate-600">Member since {profile.memberSince}</span>
+              <span className="text-xs text-slate-600">{t("profile.memberSince", { date: profile.memberSince })}</span>
             </div>
             {profile.socialLinks && profile.socialLinks.length > 0 && (
               <div className="flex items-center gap-2.5">
@@ -234,7 +238,7 @@ export default function ContactProfileSheet({
               <div className="flex items-center gap-2 mb-2.5">
                 <Sparkles size={14} className="text-purple-500" />
                 <h3 className="text-sm font-semibold text-slate-700">
-                  Shared Interests
+                  {t("profile.sharedInterests")}
                 </h3>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -254,7 +258,7 @@ export default function ContactProfileSheet({
           {uniqueInterests.length > 0 && (
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-slate-700 mb-2.5">
-                Their Interests
+                {t("profile.theirInterests")}
               </h3>
               <div className="flex flex-wrap gap-2">
                 {uniqueInterests.map((interest) => (
@@ -273,13 +277,13 @@ export default function ContactProfileSheet({
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-2.5">
               <BarChart3 size={14} className="text-purple-500" />
-              <h3 className="text-sm font-semibold text-slate-700">Rule of 7 Status</h3>
+              <h3 className="text-sm font-semibold text-slate-700">{t("profile.ruleOf7Status")}</h3>
             </div>
             <div className="space-y-2">
               {[
-                { label: "Messages", value: profile.stats.ruleOf7.messages },
-                { label: "Contacts", value: profile.stats.ruleOf7.contacts },
-                { label: "Interests", value: profile.stats.ruleOf7.interests },
+                { label: t("profile.stats.messages"), value: profile.stats.ruleOf7.messages },
+                { label: t("profile.stats.contacts"), value: profile.stats.ruleOf7.contacts },
+                { label: t("profile.stats.interests"), value: profile.stats.ruleOf7.interests },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
                   <span className="text-[11px] text-slate-500 w-16">{item.label}</span>
@@ -305,7 +309,7 @@ export default function ContactProfileSheet({
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
             <div className="flex items-center gap-2">
               <Clock size={14} className="text-slate-400" />
-              <span className="text-xs text-slate-500">Messages left</span>
+              <span className="text-xs text-slate-500">{t("profile.messagesLeft")}</span>
             </div>
             <div className="flex gap-1 ml-auto">
               {Array.from({ length: 7 }).map((_, i) => (

@@ -508,7 +508,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
                         </div>
                       )}
                     </div>
-                    <GradientButton size="sm">Connect</GradientButton>
+                    <GradientButton size="sm">{t("cta.connect")}</GradientButton>
                   </div>
                 </GlassCard>
               </motion.div>
