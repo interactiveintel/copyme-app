@@ -69,12 +69,12 @@ interface AdItem {
 }
 
 const AD_CATEGORIES = [
-  { id: "for-you", label: "For You", emoji: "✨" },
-  { id: "trending", label: "Trending", emoji: "🔥" },
-  { id: "learning", label: "Learning", emoji: "📚" },
-  { id: "lifestyle", label: "Lifestyle", emoji: "🌿" },
-  { id: "career", label: "Career", emoji: "🚀" },
-  { id: "entertainment", label: "Fun", emoji: "🎭" },
+  { id: "for-you", labelKey: "ads.category.forYou", emoji: "✨" },
+  { id: "trending", labelKey: "ads.category.trending", emoji: "🔥" },
+  { id: "learning", labelKey: "ads.category.learning", emoji: "📚" },
+  { id: "lifestyle", labelKey: "ads.category.lifestyle", emoji: "🌿" },
+  { id: "career", labelKey: "ads.category.career", emoji: "🚀" },
+  { id: "entertainment", labelKey: "ads.category.fun", emoji: "🎭" },
 ];
 
 const allAds: AdItem[] = [
@@ -464,7 +464,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             <h2 className="text-sm font-semibold text-slate-500">{t("inbox.ad.title")}</h2>
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 text-[9px] font-semibold text-purple-600">
               <Sparkles size={9} />
-              AI Curated
+              {t("inbox.ad.subtitle")}
             </span>
           </div>
           <button
@@ -639,7 +639,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                 {selectedAd.trending && (
                   <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">
                     <Zap size={10} className="text-yellow-300" />
-                    <span className="text-[9px] font-bold text-white">TRENDING</span>
+                    <span className="text-[9px] font-bold text-white">{t("ads.badge.trending")}</span>
                   </div>
                 )}
                 <span className="text-4xl mb-1">{selectedAd.emoji}</span>
@@ -654,7 +654,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                 <div className="flex items-start gap-2 p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 mb-3">
                   <Sparkles size={14} className="text-purple-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-0.5">Why CopyMe Agent picked this</p>
+                    <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-0.5">{t("ads.detail.aiPicked")}</p>
                     <p className="text-xs text-purple-700/80 leading-relaxed">{selectedAd.aiReason}</p>
                   </div>
                 </div>
@@ -665,7 +665,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                   className="flex items-center gap-1.5 text-xs font-medium text-purple-500 hover:text-purple-700 transition-colors mb-4"
                 >
                   <ExternalLink size={12} />
-                  Visit Website
+                  {t("ads.detail.visitWebsite")}
                 </button>
 
                 {/* Brand + rating row */}
@@ -673,7 +673,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                   <div>
                     <h3 className="text-base font-bold text-slate-900">{selectedAd.brand}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-slate-400">Sponsored</span>
+                      <span className="text-[10px] text-slate-400">{t("ads.detail.sponsored")}</span>
                       <span className="text-[10px] text-slate-300">·</span>
                       <span className="text-[10px] text-purple-400">{selectedAd.expiresLabel}</span>
                     </div>
@@ -708,7 +708,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                 {/* Related recommendations */}
                 {selectedAd.relatedAds && selectedAd.relatedAds.length > 0 && (
                   <div className="mb-4">
-                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">You might also like</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">{t("ads.detail.youMightAlsoLike")}</p>
                     <div className="flex gap-2">
                       {selectedAd.relatedAds.map((relId) => {
                         const related = allAds.find((a) => a.id === relId);
@@ -760,10 +760,10 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             <div className="px-4 pt-12 pb-3 border-b border-slate-100">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h1 className="text-xl font-bold text-slate-900">Ad Marketplace</h1>
+                  <h1 className="text-xl font-bold text-slate-900">{t("ads.marketplace.title")}</h1>
                   <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                     <Sparkles size={10} className="text-purple-400" />
-                    Curated daily by CopyMe Agent
+                    {t("ads.marketplace.subtitle")}
                   </p>
                 </div>
                 <button
@@ -787,7 +787,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                     }`}
                   >
                     <span>{cat.emoji}</span>
-                    {cat.label}
+                    {t(cat.labelKey)}
                   </button>
                 ))}
               </div>
@@ -812,7 +812,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                         <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                         {ad.trending && (
                           <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-white/20 text-[8px] font-bold text-white flex items-center gap-0.5">
-                            <Zap size={7} />HOT
+                            <Zap size={7} />{t("ads.badge.hot")}
                           </span>
                         )}
                         <span className="text-2xl mb-0.5">{ad.emoji}</span>
