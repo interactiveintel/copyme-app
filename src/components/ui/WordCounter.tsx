@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocale } from "@/lib/i18n/client";
 
 interface WordCounterProps {
   text: string;
@@ -14,6 +15,7 @@ function countWords(text: string): number {
 }
 
 export default function WordCounter({ text, maxWords = 70 }: WordCounterProps) {
+  const { t } = useLocale();
   const count = countWords(text);
   const ratio = count / maxWords;
 
@@ -34,7 +36,7 @@ export default function WordCounter({ text, maxWords = 70 }: WordCounterProps) {
         transition={{ duration: 0.15 }}
         className={`text-xs tabular-nums transition-colors duration-200 ${colorClass}`}
       >
-        {count}/{maxWords} words
+        {count}/{maxWords} {t("chat.wordcounter.suffix")}
       </motion.span>
     </AnimatePresence>
   );

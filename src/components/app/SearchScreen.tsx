@@ -17,6 +17,7 @@ import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import AppBrand from "./AppBrand";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/client";
 import { MOCK_PROFILES } from "@/lib/mock-data";
 
 interface SearchLocation {
@@ -137,6 +138,7 @@ function SearchResultCard({
   index,
   onContact,
 }: SearchResultCardProps) {
+  const { t } = useLocale();
   const [whyOpen, setWhyOpen] = useState(false);
   const percent = scoreToPercent(user.relevanceScore);
   const locationText = formatLocation(user.location);
@@ -217,7 +219,7 @@ function SearchResultCard({
                   onClick={() => setWhyOpen((v) => !v)}
                   whileTap={{ scale: 0.9 }}
                   aria-expanded={whyOpen}
-                  aria-label="Why this match?"
+                  aria-label={t("search.action.whyMatch")}
                   className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center"
                 >
                   <motion.span
@@ -239,7 +241,7 @@ function SearchResultCard({
               onClick={() => onContact?.(user.id)}
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors"
             >
-              Send first message
+              {t("search.action.sendFirst")}
               <ArrowRight size={12} />
             </button>
           </div>
@@ -281,6 +283,7 @@ function SearchResultCard({
 // ---------------------------------------------------------------------------
 export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
   const { authFetch } = useAuth();
+  const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [aiMode, setAiMode] = useState(false);
@@ -362,7 +365,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSearch();
             }}
-            placeholder="Search for people, interests..."
+            placeholder={t("search.placeholder")}
             className="w-full bg-slate-100 border border-slate-200 rounded-2xl pl-11 pr-12 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 transition-colors"
           />
           <button

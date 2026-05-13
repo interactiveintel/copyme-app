@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocale } from "@/lib/i18n/client";
 import {
   Search,
   Plus,
@@ -296,6 +297,7 @@ function apiAdToItem(ad: ApiAd, idx: number): AdItem {
 export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const { user, authFetch } = useAuth();
   const { addContact } = useContacts();
+  const { t } = useLocale();
   const [search, setSearch] = useState("");
   const [showSmartMatch, setShowSmartMatch] = useState(false);
   const [liveAds, setLiveAds] = useState<AdItem[]>([]);
@@ -437,7 +439,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
       {/* Header */}
       <div className="px-4 pt-10 pb-4">
         <AppBrand className="mb-2" />
-        <h1 className="text-2xl font-bold text-slate-900 mb-4">Messages</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">{t("inbox.header.title")}</h1>
 
         {/* Search bar */}
         <div className="relative">
@@ -446,7 +448,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations..."
+            placeholder={t("inbox.search.placeholder")}
             className="w-full bg-slate-100 border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 transition-colors"
           />
         </div>
@@ -459,7 +461,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
       <div className="px-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-slate-500">AD Inbox</h2>
+            <h2 className="text-sm font-semibold text-slate-500">{t("inbox.ad.title")}</h2>
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 text-[9px] font-semibold text-purple-600">
               <Sparkles size={9} />
               AI Curated
@@ -541,8 +543,8 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-4">
               <Search size={32} className="text-slate-300" />
             </div>
-            <p className="text-slate-400 text-sm">No results found</p>
-            <p className="text-slate-300 text-xs mt-1">Try a different search term</p>
+            <p className="text-slate-400 text-sm">{t("inbox.empty.title")}</p>
+            <p className="text-slate-300 text-xs mt-1">{t("inbox.empty.subtitle")}</p>
           </div>
         ) : (
           <div className="space-y-1">

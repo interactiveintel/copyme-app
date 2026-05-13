@@ -26,6 +26,7 @@ import GradientButton from "../ui/GradientButton";
 import AppBrand from "./AppBrand";
 import ReferralBanner from "./ReferralBanner";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/client";
 import { MOCK_PROFILES } from "@/lib/mock-data";
 
 interface Profile {
@@ -95,6 +96,7 @@ function CircularProgress({ value, max, label, color }: { value: number; max: nu
 
 export default function ProfileScreen() {
   const { user, authFetch, logout } = useAuth();
+  const { t } = useLocale();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationVisible, setLocationVisible] = useState(true);
@@ -602,19 +604,19 @@ export default function ProfileScreen() {
               <CircularProgress
                 value={isDemo ? demoRuleOf7.messages : 0}
                 max={7}
-                label="Messages"
+                label={t("profile.stats.messages")}
                 color="gradMsg"
               />
               <CircularProgress
                 value={isDemo ? demoRuleOf7.contacts : 0}
                 max={7}
-                label="Contacts"
+                label={t("profile.stats.contacts")}
                 color="gradCon"
               />
               <CircularProgress
                 value={isDemo ? demoRuleOf7.interests : interests.length}
                 max={7}
-                label="Interests"
+                label={t("profile.stats.interests")}
                 color="gradInt"
               />
             </div>
@@ -741,7 +743,7 @@ export default function ProfileScreen() {
               ) : (
                 <>
                   <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-lg font-bold text-slate-900">Settings</h3>
+                    <h3 className="text-lg font-bold text-slate-900">{t("profile.settings.title")}</h3>
                     <button
                       onClick={() => setSettingsOpen(false)}
                       className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
@@ -756,14 +758,14 @@ export default function ProfileScreen() {
                       href="/privacy"
                       className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
                     >
-                      <span>Privacy policy</span>
+                      <span>{t("profile.settings.privacy")}</span>
                       <span className="text-xs text-slate-400">→</span>
                     </Link>
                     <Link
                       href="/terms"
                       className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
                     >
-                      <span>Terms of service</span>
+                      <span>{t("profile.settings.terms")}</span>
                       <span className="text-xs text-slate-400">→</span>
                     </Link>
                     {user && (
@@ -775,7 +777,7 @@ export default function ProfileScreen() {
                         className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
                       >
                         <span className="flex items-center gap-2">
-                          <LogOut size={14} className="text-slate-500" /> Sign out
+                          <LogOut size={14} className="text-slate-500" /> {t("profile.settings.signout")}
                         </span>
                         <span className="text-xs text-slate-400">→</span>
                       </button>
