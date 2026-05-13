@@ -34,10 +34,12 @@ export function betaInviteRequired(): boolean {
   // Both the server-side and NEXT_PUBLIC_ variants flip the gate; this lets
   // us toggle it from a single env-var change without redeploying just to
   // expose it to the client bundle.
-  return (
-    process.env.BETA_INVITE_REQUIRED === "1" ||
-    process.env.NEXT_PUBLIC_BETA_INVITE_REQUIRED === "1"
-  );
+  // `.trim()` defends against trailing whitespace that creeps in when the
+  // value gets set via shell echo / CI heredocs (we got bitten by "1\n"
+  // once — see v4.12.1 ship notes).
+  const a = (process.env.BETA_INVITE_REQUIRED ?? "").trim();
+  const b = (process.env.NEXT_PUBLIC_BETA_INVITE_REQUIRED ?? "").trim();
+  return a === "1" || b === "1";
 }
 
 export function generateInviteCode(): string {
