@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Bell, BellOff, X, Share2, Copy, Check, Gift } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/client";
 import { useWebPush } from "@/lib/use-web-push";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ interface ReferralStatus {
 
 export default function HomeNudges() {
   const { user, authFetch } = useAuth();
+  const { t } = useLocale();
   const push = useWebPush();
   const [streak, setStreak] = useState<number | null>(null);
   const [ctaDismissed, setCtaDismissed] = useState<boolean>(() =>
@@ -148,10 +150,10 @@ export default function HomeNudges() {
         >
           <Flame size={14} className="text-amber-500" />
           <span className="text-xs font-semibold text-amber-700">
-            {streak}-day streak
+            {t("nudges.streak.label", { n: streak })}
           </span>
           <span className="text-[10px] text-amber-500/80">
-            {streak === 1 ? "Nice — keep going" : `Don’t break it`}
+            {streak === 1 ? t("nudges.streak.encourage1") : t("nudges.streak.encouragePlural")}
           </span>
         </motion.div>
       )}
@@ -168,16 +170,16 @@ export default function HomeNudges() {
               <Bell size={14} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-900">Turn on notifications</p>
+              <p className="text-xs font-semibold text-slate-900">{t("nudges.push.title")}</p>
               <p className="text-[11px] text-slate-500">
-                Get a ping when a message arrives. No spam.
+                {t("nudges.push.subtitle")}
               </p>
             </div>
             <button
               onClick={push.enable}
               className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
             >
-              Enable
+              {t("nudges.push.cta")}
             </button>
             <button
               onClick={dismissPushCta}
@@ -212,7 +214,7 @@ export default function HomeNudges() {
               <p className="text-xs font-semibold text-slate-900">
                 {referral.invitedCount > 0
                   ? `You've invited ${referral.invitedCount} ${referral.invitedCount === 1 ? "friend" : "friends"} 🎉`
-                  : "Invite a friend"}
+                  : t("nudges.invite.title")}
               </p>
               <p className="text-[11px] text-slate-500 truncate">
                 Code <span className="font-mono font-semibold text-purple-700">{referral.code}</span>
@@ -224,7 +226,7 @@ export default function HomeNudges() {
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white bg-gradient-to-r from-purple-500 to-pink-500"
             >
               {copied ? <Check size={11} /> : (typeof navigator !== "undefined" && "share" in navigator ? <Share2 size={11} /> : <Copy size={11} />)}
-              {copied ? "Copied" : "Share"}
+              {copied ? t("nudges.invite.copied") : t("nudges.invite.share")}
             </button>
             <button
               onClick={dismissInviteCta}

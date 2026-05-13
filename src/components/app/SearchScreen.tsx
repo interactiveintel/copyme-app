@@ -40,10 +40,10 @@ interface SearchScreenProps {
 }
 
 const filters = [
-  { id: "near", label: "Near Me", icon: MapPin },
-  { id: "interests", label: "Same Interests", icon: Users },
-  { id: "business", label: "Business", icon: Briefcase },
-  { id: "education", label: "Education", icon: GraduationCap },
+  { id: "near", labelKey: "search.filter.nearMe", icon: MapPin },
+  { id: "interests", labelKey: "search.filter.sameInterests", icon: Users },
+  { id: "business", labelKey: "search.filter.business", icon: Briefcase },
+  { id: "education", labelKey: "search.filter.education", icon: GraduationCap },
 ] as const;
 
 // Score breakdown from /api/search/users:
@@ -350,7 +350,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
     <div className="flex flex-col h-full pb-20">
       <div className="px-4 pt-10 pb-4">
         <AppBrand className="mb-2" />
-        <h1 className="text-2xl font-bold text-slate-900 mb-4">Discover</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">{t("search.header.title")}</h1>
 
         {/* Search input */}
         <div className="relative">
@@ -381,7 +381,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
         <div className="flex items-center justify-between mt-4 mb-3">
           <div className="flex items-center gap-2">
             <Sparkles size={14} className="text-purple-400" />
-            <span className="text-sm text-slate-500">AI Mode</span>
+            <span className="text-sm text-slate-500">{t("search.aiMode")}</span>
           </div>
           <button
             onClick={() => setAiMode(!aiMode)}
@@ -418,7 +418,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
                 }`}
               >
                 <Icon size={13} />
-                {f.label}
+                {t(f.labelKey)}
               </motion.button>
             );
           })}
@@ -451,7 +451,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
         ) : results.length === 0 && !searched ? (
           <>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Suggested Connections
+              {t("search.section.suggested")}
             </h2>
             {suggestedConnections.map((user, i) => (
               <motion.div
