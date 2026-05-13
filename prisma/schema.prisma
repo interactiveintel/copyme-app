@@ -695,3 +695,51 @@ model VapTransaction {
   @@index([status])
   @@map("vap_transactions")
 }
+
+// ---------------------------------------------------------------------------
+// Beta invite-code gate (v4.12.0).
+//
+// When BETA_INVITE_REQUIRED env var is set, /api/auth/phone/complete and
+// /api/auth/register reject signups that don't supply a valid InviteCode.
+// Codes can be one-shot (max_uses=1) or multi-use; redemption is tracked
+// per-user so the same code can't burn through multiple slots from one
+// account.
+// ---------------------------------------------------------------------------
+
+model InviteCode {
+  id          String    @id @default(uuid()) @db.Uuid
+  code        String    @unique @db.VarChar(32)
+  /// Admin user id that minted the code. Null for system / seed-script
+  /// codes.
+  mintedById  String?   @map("minted_by_id") @db.Uuid
+  /// Free-form note ("VIP friend of founder", "Slack outreach batch 1").
+  note        String?   @db.VarChar(120)
+  /// Maximum redemptions. 1 = single-use; large numbers for shared
+  /// codes (e.g. a single press code).
+  maxUses     Int       @default(1) @map("max_uses")
+  /// Materialized counter — kept in sync with redemptions.length so the
+  /// validate path can early-exit without joining.
+  usedCount   Int       @default(0) @map("used_count")
+  /// Optional expiry. Null = never.
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  redemptions InviteCodeRedemption[]
+
+  @@map("invite_codes")
+}
+
+model InviteCodeRedemption {
+  id           String     @id @default(uuid()) @db.Uuid
+  inviteCodeId String     @map("invite_code_id") @db.Uuid
+  /// User who redeemed it (the new account). FK omitted because users
+  /// can be deleted but we want the redemption-history retained.
+  userId       String     @map("user_id") @db.Uuid
+  redeemedAt   DateTime   @default(now()) @map("redeemed_at")
+
+  inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([inviteCodeId])
+  @@map("invite_code_redemptions")
+}

@@ -14,6 +14,7 @@ const PUBLIC_PREFIXES = [
   "/api/avatars/", // deterministic fallback avatars (A1)
   "/api/transparency/", // public EU DSA ad archive (S-238)
   "/api/status", // public health endpoint — twin to /status page
+  "/api/auth/invite/", // beta invite-code preflight (no account yet)
 ];
 
 function isPublicRoute(pathname: string): boolean {

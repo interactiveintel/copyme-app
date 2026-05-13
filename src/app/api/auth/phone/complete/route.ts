@@ -13,6 +13,11 @@ import { consumeSignupTicket } from "@/lib/otp/signup-ticket";
 import { checkAge } from "@/lib/age-gate";
 import { issueSession } from "@/lib/sessions";
 import { prisma } from "@/lib/db";
+import {
+  betaInviteRequired,
+  validateInviteCode,
+  redeemInviteCode,
+} from "@/lib/invite-code";
 
 export const runtime = "nodejs";
 
@@ -31,6 +36,7 @@ export async function POST(req: NextRequest) {
     birthdate?: string;
     avatarUrl?: string;
     referralCode?: string;
+    inviteCode?: string;
   };
   try {
     body = await req.json();
@@ -38,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "INVALID_BODY" }, { status: 400 });
   }
 
-  const { signupTicket, displayName, countryIso2, birthdate, avatarUrl, referralCode } = body;
+  const { signupTicket, displayName, countryIso2, birthdate, avatarUrl, referralCode, inviteCode } = body;
   if (!signupTicket || !displayName || !countryIso2 || !birthdate) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
@@ -65,6 +71,24 @@ export async function POST(req: NextRequest) {
       },
       { status: 403 },
     );
+  }
+
+  // Beta gate (v4.12.0). Validate BEFORE consuming the OTP ticket so a
+  // user with a typo in their invite code can fix it without re-doing
+  // the SMS step.
+  let inviteCodeId: string | null = null;
+  if (betaInviteRequired()) {
+    if (!inviteCode) {
+      return NextResponse.json({ error: "INVITE_CODE_REQUIRED" }, { status: 403 });
+    }
+    const v = await validateInviteCode(inviteCode);
+    if (!v.valid) {
+      return NextResponse.json(
+        { error: "INVITE_CODE_INVALID", reason: v.reason },
+        { status: 403 },
+      );
+    }
+    inviteCodeId = v.codeId;
   }
 
   // Consume the ticket → phoneHash.
@@ -106,6 +130,15 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true, displayName: true, avatarUrl: true },
   });
+
+  // Redeem the invite code now that the user row exists. Best-effort: a
+  // race that loses on the increment shouldn't undo the signup — the
+  // user is already in. We log the race so ops can spot pattern abuse.
+  if (inviteCodeId) {
+    redeemInviteCode(inviteCodeId, user.id).catch((err) => {
+      console.warn("[phone/complete] invite-code redeem race:", err instanceof Error ? err.message : err);
+    });
+  }
 
   const tokens = await issueSession({
     userId: user.id,

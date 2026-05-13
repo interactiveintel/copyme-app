@@ -10,6 +10,11 @@ import { issueEmailVerification } from "@/lib/email-verification";
 // breadcrumb if a future flow needs to re-add a signup-time email.
 import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { resolveReferralCode } from "@/lib/referral";
+import {
+  betaInviteRequired,
+  validateInviteCode,
+  redeemInviteCode,
+} from "@/lib/invite-code";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -22,6 +27,8 @@ interface RegisterBody {
   password: string;
   /** Optional referral code from a friend's invite link. */
   ref?: string;
+  /** Beta invite code (required when BETA_INVITE_REQUIRED). */
+  inviteCode?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -51,6 +58,27 @@ export async function POST(request: NextRequest) {
         { success: false, error: { code: "WEAK_PASSWORD", message: "Password must be at least 8 characters" } },
         { status: 400 },
       );
+    }
+
+    // --- Beta gate (v4.12.0) ------------------------------------------------
+    // Check the invite code BEFORE any DB writes (duplicate scan, hash) so
+    // a bad code returns fast.
+    let inviteCodeId: string | null = null;
+    if (betaInviteRequired()) {
+      if (!body.inviteCode) {
+        return NextResponse.json(
+          { success: false, error: { code: "INVITE_CODE_REQUIRED", message: "An invite code is required during beta." } },
+          { status: 403 },
+        );
+      }
+      const v = await validateInviteCode(body.inviteCode);
+      if (!v.valid) {
+        return NextResponse.json(
+          { success: false, error: { code: "INVITE_CODE_INVALID", message: `Invite code rejected (${v.reason}).` } },
+          { status: 403 },
+        );
+      }
+      inviteCodeId = v.codeId;
     }
 
     // --- Hash identifiers for uniqueness ------------------------------------
@@ -101,6 +129,15 @@ export async function POST(request: NextRequest) {
         createdAt: true,
       },
     });
+
+    // --- Redeem invite code -------------------------------------------------
+    // Best-effort same as phone/complete: a race that loses on increment
+    // doesn't undo the signup.
+    if (inviteCodeId) {
+      redeemInviteCode(inviteCodeId, user.id).catch((err) => {
+        console.warn("[register] invite-code redeem race:", err instanceof Error ? err.message : err);
+      });
+    }
 
     // --- Fire verification email (non-blocking best-effort) ---------------
     // The welcome email is deferred to first verification (see

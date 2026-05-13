@@ -19,9 +19,16 @@ import type { ValidationResult } from "@/lib/phone/validate";
 // /api/auth/phone/complete on account creation.
 // ---------------------------------------------------------------------------
 
-type Step = "phone" | "code" | "profile" | "contacts" | "done";
+type Step = "invite" | "phone" | "code" | "profile" | "contacts" | "done";
 
 const REFERRAL_STORAGE_KEY = "copyme.signup.ref";
+const INVITE_STORAGE_KEY = "copyme.signup.inviteCode";
+
+// Beta gate (v4.12.0). Server-authoritative; the public flag mirror lets
+// us decide whether to render the invite step before the user starts.
+function betaInviteRequired(): boolean {
+  return process.env.NEXT_PUBLIC_BETA_INVITE_REQUIRED === "1";
+}
 
 function getStoredCountry(): string {
   if (typeof window === "undefined") return "si";
@@ -49,9 +56,17 @@ export default function SignupPage() {
 function SignupPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState<Step>("phone");
+  // When the beta gate is on, start at the invite step; otherwise straight
+  // to phone (existing behavior). The Stepper component below knows about
+  // the new step too.
+  const initialStep: Step = betaInviteRequired() ? "invite" : "phone";
+  const [step, setStep] = useState<Step>(initialStep);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // step 0 (gated) — invite code
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteValidated, setInviteValidated] = useState<boolean>(false);
 
   // Capture ?ref=<code> on first render and persist across the OTP round-trip.
   useEffect(() => {
@@ -64,6 +79,53 @@ function SignupPageInner() {
       }
     }
   }, [searchParams]);
+
+  // Restore an invite code from a prior session (page reload between steps).
+  // Doesn't auto-advance — user re-confirms by clicking Continue on the
+  // invite step.
+  useEffect(() => {
+    if (typeof window === "undefined" || !betaInviteRequired()) return;
+    const stored = localStorage.getItem(INVITE_STORAGE_KEY);
+    if (stored) setInviteCode(stored);
+  }, []);
+
+  async function submitInvite() {
+    const trimmed = inviteCode.trim();
+    if (!trimmed) {
+      setError("Enter your invite code.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/auth/invite/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.valid) {
+        const reason = data?.reason ?? "INVALID";
+        setError(
+          reason === "EXPIRED"
+            ? "That invite code has expired."
+            : reason === "EXHAUSTED"
+              ? "That invite code has already been used."
+              : reason === "RATE_LIMITED"
+                ? "Too many attempts — try again in a moment."
+                : "We don't recognize that code. Double-check and try again.",
+        );
+        return;
+      }
+      try { localStorage.setItem(INVITE_STORAGE_KEY, trimmed); } catch { /* ignore */ }
+      setInviteValidated(true);
+      setStep("phone");
+    } catch {
+      setError("Couldn't reach the server. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // step 1 — phone
   const [phone, setPhone] = useState<ValidationResult | null>(null);
@@ -175,6 +237,7 @@ function SignupPageInner() {
           countryIso2: phone.country.iso2,
           birthdate,
           ...(referralCode ? { referralCode } : {}),
+          ...(inviteValidated && inviteCode ? { inviteCode: inviteCode.trim() } : {}),
         }),
       });
       const data = await r.json();
@@ -289,6 +352,47 @@ function SignupPageInner() {
               transition={{ duration: 0.25 }}
               className="mt-6"
             >
+              {step === "invite" && (
+                <div>
+                  <h1 className="text-lg font-semibold text-slate-900 mb-1 inline-flex items-center gap-2">
+                    <Sparkles size={18} className="text-purple-500" />
+                    You&apos;re invited
+                  </h1>
+                  <p className="text-sm text-slate-500 mb-4">
+                    CopyMe is in private beta. Enter the invite code from the
+                    person who told you about us.
+                  </p>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitInvite();
+                    }}
+                    placeholder="BETA-XXXXXXX"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={32}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-mono tracking-wide placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
+                  />
+                  <Button onClick={submitInvite} busy={busy} disabled={!inviteCode.trim()}>
+                    Continue
+                    <ArrowRight size={16} />
+                  </Button>
+                  <p className="text-xs text-slate-400 mt-3 text-center">
+                    Don&apos;t have one yet?{" "}
+                    <a
+                      href="mailto:hello@copyme1.com?subject=Beta%20access"
+                      className="text-purple-600 hover:underline"
+                    >
+                      ask us for one
+                    </a>
+                    .
+                  </p>
+                </div>
+              )}
+
               {step === "phone" && (
                 <div>
                   <h1 className="text-lg font-semibold text-slate-900 mb-1 inline-flex items-center gap-2">
