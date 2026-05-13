@@ -22,6 +22,7 @@ import ChatAIAssistant from "./ChatAIAssistant";
 import ContactProfileSheet from "./ContactProfileSheet";
 import SmartReplyChips from "./SmartReplyChips";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/client";
 import { usePolling } from "@/lib/use-polling";
 import { useMessageStream, type StreamEvent } from "@/hooks/useMessageStream";
 import { MOCK_CHAT_MESSAGES, MOCK_PROFILES } from "@/lib/mock-data";
@@ -58,6 +59,7 @@ function formatTime(dateStr: string): string {
 
 export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenProps) {
   const { user, authFetch, accessToken } = useAuth();
+  const { t } = useLocale();
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [translateOn, setTranslateOn] = useState(false);
@@ -493,7 +495,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                   handleSend();
                 }
               }}
-              placeholder="Type a message..."
+              placeholder={t("chat.composer.placeholder")}
               rows={1}
               className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 pr-10 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 resize-none transition-colors"
             />

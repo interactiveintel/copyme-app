@@ -8,6 +8,7 @@ import {
   Megaphone,
   User,
 } from "lucide-react";
+import { useLocale } from "@/lib/i18n/client";
 
 type Tab = "home" | "search" | "agenti" | "ads" | "profile";
 
@@ -17,12 +18,12 @@ interface BottomNavProps {
   unreadCount?: number;
 }
 
-const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
-  { id: "home", label: "Home", icon: MessageSquare },
-  { id: "search", label: "Search", icon: Search },
-  { id: "agenti", label: "Yogi", icon: Sparkles },
-  { id: "ads", label: "Ads", icon: Megaphone },
-  { id: "profile", label: "Profile", icon: User },
+const tabs: { id: Tab; labelKey: string; icon: typeof MessageSquare }[] = [
+  { id: "home", labelKey: "nav.home", icon: MessageSquare },
+  { id: "search", labelKey: "nav.search", icon: Search },
+  { id: "agenti", labelKey: "nav.yogi", icon: Sparkles },
+  { id: "ads", labelKey: "nav.ads", icon: Megaphone },
+  { id: "profile", labelKey: "nav.profile", icon: User },
 ];
 
 export default function BottomNav({
@@ -30,6 +31,7 @@ export default function BottomNav({
   onTabChange,
   unreadCount = 0,
 }: BottomNavProps) {
+  const { t } = useLocale();
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50">
       {/* Glass backdrop */}
@@ -90,7 +92,7 @@ export default function BottomNav({
                     : "text-slate-400"
                 }`}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </span>
 
               {/* Active indicator dot */}

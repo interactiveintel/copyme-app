@@ -12,6 +12,7 @@ import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
 import YogiInboxScreen from "@/components/app/YogiInboxScreen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { LocaleProvider } from "@/lib/i18n/client";
 
 type Screen = "auth" | "onboarding" | "inbox" | "chat" | "search" | "agenti" | "profile";
 type Tab = "home" | "search" | "agenti" | "ads" | "profile";
@@ -162,7 +163,9 @@ function AppContent() {
 export default function AppPage() {
   return (
     <AuthProvider>
-      <AppContent />
+      <LocaleProvider>
+        <AppContent />
+      </LocaleProvider>
     </AuthProvider>
   );
 }
