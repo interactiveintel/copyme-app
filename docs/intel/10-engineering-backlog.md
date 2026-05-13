@@ -1,7 +1,7 @@
 # 10 — Engineering Backlog: What's Left to Code for Full Functionality
 
 **Anchor doc:** `Production model instructions.docx` (2026-04-04).
-**Last updated:** 2026-05-12, after v4.9.0 closed the C8 Stripe-customer-id caveat (refund flow now end-to-end functional).
+**Last updated:** 2026-05-13, after v4.13.0 opened public signup (G3 launch). Tiers A + B + C all done. Beta-prep workstream all done. Public signup live on copyme1.com.
 
 This document answers the question "what next has to be coded to make
 CopyMe fully functional?" It cross-checks every gap the original
@@ -89,7 +89,7 @@ These finish the original spec. Without them, CopyMe is "functional" but not "fu
 | ~~**B4**~~ | ✅ **DONE in v4.7.0** — Daily-digest template polished: gradient header, brand wordmark SVG, mobile-responsive table layout, up to 7 conversations (Rule of 7), streak chip, single CTA with UTM tags, plain-text fallback. New `/api/notifications/unsubscribe` (HMAC-SHA256 token, 30d TTL, Redis opt-out flag — no migration needed). Cron honors the flag. | shipped | done |
 | **B5** | **Stripe webhook hardening.** Verify HMAC, idempotency key, replay window check. Already present in `/api/webhooks/stripe`; coverage gap remaining (B2 didn't cover it because it requires HMAC-mocking gear). | mostly covered by B2 |
 | ~~**B6**~~ | ✅ **DONE in v4.7.0** — Sentry release tag wired in all 3 inits (server / edge / client via `instrumentation-client.ts`). Client-side reach via `next.config.ts env:` forwarding `VERCEL_GIT_COMMIT_SHA → NEXT_PUBLIC_GIT_SHA` + `VERCEL_ENV → NEXT_PUBLIC_VERCEL_ENV` + `VERCEL_DEPLOYMENT_ID → NEXT_PUBLIC_VERCEL_DEPLOYMENT_ID`. Synthetic-error route at `/api/_debug/throw` (gated by `COPYME_DEBUG_THROW=1` in prod) returns release/env/eventId for one-curl verification. | shipped | done |
-| **B7** | **Backup + DR drill** — execute first one. Doc is in `docs/ops/dr.md`; just needs the first execution + log entry. | docs/ops/dr.md drill log | (operational, not coding) |
+| **B7** | **Backup + DR drill** — execute first one. Doc is in `docs/ops/dr.md`; just needs the first execution + log entry. **Still open as of G3 launch — operational, ~1hr.** | docs/ops/dr.md drill log | (operational, not coding) |
 
 **Tier B total: ~10–13 days of one engineer.**
 
@@ -111,6 +111,44 @@ Phase 2 = Yogi top-level surface + AI search + surveys + ad marketplace + paid t
 | ~~**C10**~~ | ✅ **DONE in v4.8.0** — Locale routing via `src/app/[locale]/(layout|page).tsx` with `generateStaticParams` + per-locale `generateMetadata`. New `lib/i18n/server.ts` (`tFor` + `isSupportedLocale`). `Hero.tsx`, `Navbar.tsx`, `Footer.tsx` accept optional `t?: (key) => string` (falls back to English when omitted, so `/` is byte-identical). `Footer.tsx` adds language-switcher row with native names. | shipped | done — S-254 |
 
 **Tier C total: shipped in v4.8.0 (parallel agents — wall-clock minutes). Phase 2 LIVE target (per FEEDBACK_3 plan): 2026-08-31 — surface work complete; remaining is launch ops + marketing.**
+
+### Beta-prep + G3 launch ships (v4.11.0 → v4.13.0)
+
+Workstream that ran after Tier C closed. Not in the original backlog
+because the original assumed beta launch would be its own phase —
+these landed as a single session of operational + launch-prep code.
+
+| ID | What shipped | Files |
+|---|---|---|
+| ~~**P1**~~ | ✅ **DONE in v4.11.0** — Public status page + JSON twin. `src/lib/health.ts` runs parallel DB/Redis/Blob probes (each timeboxed 3s, classified ok/degraded/down). `/status` is a server-rendered HTML page with 30s meta-refresh and zero client JS; `/api/status` returns the same snapshot as JSON. HTTP code mirrors the worst service (503 on down). Public — no auth. | `src/lib/health.ts`, `src/app/api/status/route.ts`, `src/app/status/page.tsx`, `src/middleware.ts` |
+| ~~**P2**~~ | ✅ **DONE in v4.11.1** — Welcome email now fires at first email verification (not at signup). Phone-first signups now get one too. Migration adds `email_verification_tokens.email` so the verify endpoint can address the welcome send. Single trigger point regardless of signup flow. | `prisma/migrations/20260513050000_email_verify_token_email`, `src/lib/email-verification.ts`, `src/app/api/auth/email/verify/route.ts` |
+| ~~**P3**~~ | ✅ **DONE in v4.12.0** — Beta invite-code gate. New `InviteCode` + `InviteCodeRedemption` models. `betaInviteRequired()` env-flag check, `validateInviteCode()` / `redeemInviteCode()` (transactional, race-safe) / `mintInviteCode()`. Three endpoints: public preflight `/api/auth/invite/check`, admin `/api/admin/invites` (mint + list). Validation wired into both `/api/auth/phone/complete` and `/api/auth/register`. UI gate in `/signup` (new "invite" step before phone when flag is on). | `prisma/migrations/20260513052000_invite_codes`, `src/lib/invite-code.ts`, `src/app/api/auth/invite/check/route.ts`, `src/app/api/admin/invites/route.ts`, `src/app/signup/page.tsx`, two signup endpoints |
+| ~~**P4**~~ | ✅ **DONE in v4.12.1–v4.12.4** — G2 cohort opened operationally: 70 single-use codes minted via `scripts/seed-invite-codes.mjs`, env-var `"1\n"` bug fixed in `betaInviteRequired()` (`.trim()` guard), `scripts/delete-users.mjs` shipped for ops cleanup, hand-off playbook for co-founder at `docs/ops/g2-cohort-handoff.md`. | `scripts/seed-invite-codes.mjs`, `scripts/delete-users.mjs`, `docs/ops/g2-cohort-handoff.md` |
+| ~~**P5**~~ | ✅ **DONE in v4.13.0** — Opened public signup at G3. Removed both gate env vars on Vercel. Beta gate stays dormant: schema, library, endpoints, and UI all in place — re-flipping the flags re-engages the gate without a migration. | (no diff beyond an empty commit to trigger redeploy) |
+
+### i18n breadth (v4.10.0 → v4.10.8)
+
+Ran as a parallel workstream after Tier C. The bare `t()` in
+`src/lib/i18n/index.ts` only covered landing components after C10 —
+v4.10.x extended coverage through the entire authenticated shell.
+
+| Pass | What shipped |
+|---|---|
+| v4.10.0 | `LocaleProvider` + `useLocale` hook; BottomNav + chat composer placeholder. |
+| v4.10.1 | InboxScreen, ProfileScreen, SearchScreen, WordCounter. |
+| v4.10.2 | SearchScreen leftovers (header/AI Mode/filter chips/section) + HomeNudges streak/push/invite. |
+| v4.10.3 | ContactProfileSheet + global Connect button. |
+| v4.10.4 | Send Message CTA + plural copy fixes (singular/plural via JS branching). |
+| v4.10.5 | AdMarketplace overlay + ad detail sheet. |
+| v4.10.6 | OnboardingScreen + shared `cta.*` button namespace. |
+| v4.10.7 | AuthScreen (sign-in / register / forgot password) — first surface non-EN users see. |
+| v4.10.8 | OnboardingAI helper + HomeNudges blocked state + PrivacyControls (orphan but ready) + ProfileScreen extras. **Slovenian-complete end-to-end.** |
+
+**Cumulative i18n:** 154 keys × 5 locales = **770 string entries** across
+13 components. The whole authenticated journey (Auth → Onboarding →
+Inbox → Chat → Search → Profile → AdMarketplace → Contact sheets) is
+localized for SI/ES/DE/FR. Out of scope: server-side validation error
+messages (would need a translatable error-key system).
 
 ### Tier D — Phase 3 features (Years 3–5; regulator-gated)
 
@@ -172,22 +210,29 @@ Important enough to call out so we don't sneak it in:
 
 ## Part 5 — How this maps to the gates in `07-production-readiness.md`
 
-| Gate | Date | What needs to be coded by then |
+| Gate | Original date | Status |
 |---|---|---|
-| **G1** — Phase 1 core complete (internal alpha) | 2026-05-22 | **A1 + A2 + A3 + A4 + A5** |
-| **G2** — Customer-ready (70-user beta opens) | 2026-06-02 | + **B1 + B2 + B3 + B4 + B6** |
-| **G3** — Public launch | 2026-06-09 | beta soak passes + 7-day status green |
-| **Phase 2 LIVE** | 2026-08-31 | **Tier C** (all of C1–C10) |
-| **Phase 3 closed beta** | Q2 2027 | partner-gated, then **Tier D** (D1–D15) |
+| ~~**G1**~~ — Phase 1 core complete (internal alpha) | 2026-05-22 | ✅ Reached early — Tier A all done by v4.6.0 |
+| ~~**G2**~~ — Customer-ready (70-user beta) | 2026-06-02 | ✅ Reached early — beta gate built (v4.12.0), 70 codes minted, then **opted-out and went straight to G3** |
+| ~~**G3**~~ — Public launch | 2026-06-09 | ✅ **LIVE on 2026-05-13** at v4.13.0 — gate off, anyone can sign up at copyme1.com/signup |
+| **Phase 2 LIVE** | 2026-08-31 | ✅ Code-complete in v4.8.0 — only launch ops + marketing remain |
+| **Phase 3 closed beta** | Q2 2027 | Partner-gated (S-302). When BaaS term sheet signs → start **Tier D** (D1–D15) |
 
 ---
 
 ## Closing line
 
 > The original `Production model instructions.docx` listed 18 sub-items
-> across 5 categories that stood between "demo" and "production." **16 of
-> them are closed.** The remaining 2 (real-time delivery + media upload
-> pipeline) are Tier A1 + A5 above. Add Tier B (libsignal proper + tests +
-> moderation UI + Sentry tagging + DR drill) and Phase 1 is genuinely
-> production-grade. Everything beyond that is feature work, not
-> readiness work.
+> across 5 categories that stood between "demo" and "production." **All
+> 18 are closed.** Tier A (MVP completers), Tier B (quality + hardening),
+> Tier C (Phase 2 surfaces), v4.10.x (i18n breadth), and v4.11–v4.13.0
+> (beta-prep + G3 launch) all shipped. The site is public on
+> copyme1.com; anyone can sign up.
+>
+> What's left:
+> * **B7 disaster-recovery drill** — operational, ~1hr, not coding.
+> * **Tier D (wallet/cards/payments)** — partner-gated on S-302
+>   (BaaS term sheet). Cannot start until that signs.
+>
+> Everything else is feature work, launch ops, or marketing —
+> not engineering readiness.
