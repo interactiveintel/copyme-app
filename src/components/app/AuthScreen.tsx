@@ -7,6 +7,7 @@ import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import WordCounter from "../ui/WordCounter";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/client";
 
 interface AuthScreenProps {
   onLogin: () => void;
@@ -28,6 +29,7 @@ const countryCodes = [
 
 export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const { login, register } = useAuth();
+  const { t } = useLocale();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [countryCode, setCountryCode] = useState("+1");
@@ -147,7 +149,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
             Me
           </span>
         </h1>
-        <p className="text-slate-400 text-sm mt-2">Connect. Share. Belong.</p>
+        <p className="text-slate-400 text-sm mt-2">{t("auth.tagline")}</p>
       </motion.div>
 
       {/* Auth card */}
@@ -161,20 +163,20 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
           <div className="p-6">
             {/* Tab switcher */}
             <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
-              {(["login", "register"] as const).map((t) => (
+              {(["login", "register"] as const).map((tabKey) => (
                 <button
-                  key={t}
+                  key={tabKey}
                   onClick={() => {
-                    setTab(t);
+                    setTab(tabKey);
                     setErrors({});
                   }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 capitalize ${
-                    tab === t
+                    tab === tabKey
                       ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
-                  {t === "login" ? "Sign In" : "Create Account"}
+                  {tabKey === "login" ? t("auth.tab.signIn") : t("auth.tab.createAccount")}
                 </button>
               ))}
             </div>
@@ -204,7 +206,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                 >
                   {/* Phone */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Phone Number</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.phone")}</label>
                     <div className="flex gap-2">
                       <select
                         value={countryCode}
@@ -223,7 +225,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                           type="tel"
                           value={loginPhone}
                           onChange={(e) => setLoginPhone(e.target.value)}
-                          placeholder="Phone number"
+                          placeholder={t("auth.placeholder.phoneNumber")}
                           className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
                         />
                       </div>
@@ -244,14 +246,14 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
 
                   {/* Password */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Password</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.password")}</label>
                     <div className="relative">
                       <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type={showPassword ? "text" : "password"}
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="Enter password"
+                        placeholder={t("auth.placeholder.enterPassword")}
                         className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-12 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                       <button
@@ -286,12 +288,12 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                       }}
                       className="text-xs bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80"
                     >
-                      Forgot password?
+                      {t("auth.forgotPassword")}
                     </button>
                   </div>
 
                   <GradientButton onClick={handleLogin} className="w-full" size="lg" disabled={loading}>
-                    {loading ? "Signing In..." : "Sign In"}
+                    {loading ? t("auth.signing") : t("auth.tab.signIn")}
                   </GradientButton>
                 </motion.div>
               ) : (
@@ -305,7 +307,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                   {/* Display Name */}
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs text-white/50">Display Name</label>
+                      <label className="text-xs text-white/50">{t("auth.label.displayName")}</label>
                       <WordCounter text={regName} maxWords={7} />
                     </div>
                     <div className="relative">
@@ -314,7 +316,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                         type="text"
                         value={regName}
                         onChange={(e) => setRegName(e.target.value)}
-                        placeholder="Your display name"
+                        placeholder={t("auth.placeholder.displayName")}
                         className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                     </div>
@@ -334,7 +336,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
 
                   {/* Phone */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Phone Number</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.phone")}</label>
                     <div className="flex gap-2">
                       <select
                         value={countryCode}
@@ -353,7 +355,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                           type="tel"
                           value={regPhone}
                           onChange={(e) => setRegPhone(e.target.value)}
-                          placeholder="Phone number"
+                          placeholder={t("auth.placeholder.phoneNumber")}
                           className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
                         />
                       </div>
@@ -367,7 +369,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
 
                   {/* Email */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Email</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.email")}</label>
                     <div className="relative">
                       <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
@@ -387,14 +389,14 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
 
                   {/* Password */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Password</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.password")}</label>
                     <div className="relative">
                       <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type={showPassword ? "text" : "password"}
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="Min 8 characters"
+                        placeholder={t("auth.placeholder.minPassword")}
                         className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-12 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                       <button
@@ -413,7 +415,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                   </div>
 
                   <GradientButton onClick={handleRegister} className="w-full" size="lg" disabled={loading}>
-                    {loading ? "Creating Account..." : "Create Account"}
+                    {loading ? t("auth.creating") : t("auth.tab.createAccount")}
                   </GradientButton>
                 </motion.div>
               )}
@@ -449,18 +451,18 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-100 p-6"
             >
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Forgot password?</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">{t("auth.forgotPassword")}</h3>
               <p className="text-xs text-slate-500 mb-5">
-                Enter the email you used to sign up. We&apos;ll send a reset link.
+                {t("auth.forgot.subtitle")}
               </p>
 
               {forgotSent ? (
                 <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 mb-2">
                   <p className="text-sm font-semibold text-emerald-900 mb-1">
-                    Check your inbox
+                    {t("auth.forgot.checkInbox")}
                   </p>
                   <p className="text-xs text-emerald-700">
-                    If that email is on an account, a reset link is on its way.
+                    {t("auth.forgot.checkInboxSubtitle")}
                   </p>
                 </div>
               ) : (
@@ -485,7 +487,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     size="md"
                     disabled={forgotLoading}
                   >
-                    {forgotLoading ? "Sending..." : "Send reset link"}
+                    {forgotLoading ? t("auth.forgot.sending") : t("auth.forgot.sendReset")}
                   </GradientButton>
                 </form>
               )}
@@ -495,7 +497,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                 onClick={() => setForgotOpen(false)}
                 className="w-full mt-3 text-xs text-slate-400 hover:text-slate-600"
               >
-                Close
+                {t("cta.close")}
               </button>
             </motion.div>
           </motion.div>
