@@ -213,7 +213,9 @@ export default function HomeNudges() {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-900">
                 {referral.invitedCount > 0
-                  ? `You've invited ${referral.invitedCount} ${referral.invitedCount === 1 ? "friend" : "friends"} 🎉`
+                  ? referral.invitedCount === 1
+                    ? t("nudges.invite.invitedOne")
+                    : t("nudges.invite.invitedOther", { n: referral.invitedCount })
                   : t("nudges.invite.title")}
               </p>
               <p className="text-[11px] text-slate-500 truncate">

@@ -195,8 +195,9 @@ export default function ContactProfileSheet({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                {sharedInterests.length} shared interest
-                {sharedInterests.length !== 1 ? "s" : ""} connect you
+                {sharedInterests.length === 1
+                  ? t("profile.sharedConnect.one")
+                  : t("profile.sharedConnect.other", { n: sharedInterests.length })}
               </p>
             </div>
           </div>
@@ -333,7 +334,7 @@ export default function ContactProfileSheet({
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white text-sm font-semibold shadow-lg shadow-purple-500/20"
           >
             <MessageCircle size={16} />
-            Send Message
+            {t("chat.sendMessage")}
           </button>
         </div>
       </motion.div>
