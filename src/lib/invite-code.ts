@@ -1,4 +1,4 @@
-// Beta invite-code gate (v4.12.0).
+// Beta invite-code gate (v4.12.0; G2 cohort flipped on at v4.12.1).
 //
 // Three primitives:
 //   - betaInviteRequired()       env-flag check, used by signup endpoints
