@@ -8,6 +8,7 @@ import GradientButton from "../ui/GradientButton";
 import WordCounter from "../ui/WordCounter";
 import OnboardingAI from "./OnboardingAI";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/client";
 
 interface OnboardingScreenProps {
   onComplete: () => void;
@@ -26,10 +27,18 @@ const countryCodes = [
   { code: "+254", country: "KE" },
 ];
 
-const descCategories = ["Education", "Business", "Religion", "Other"];
+// Internal id stays English so existing comparisons (e.g. `descCategory ===
+// "Education"`) keep working; display label is looked up via labelKey.
+const descCategories = [
+  { id: "Education", labelKey: "onboarding.descCat.education" },
+  { id: "Business", labelKey: "onboarding.descCat.business" },
+  { id: "Religion", labelKey: "onboarding.descCat.religion" },
+  { id: "Other", labelKey: "onboarding.descCat.other" },
+];
 
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const { authFetch } = useAuth();
+  const { t } = useLocale();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -52,9 +61,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [descType, setDescType] = useState("");
 
   const steps = [
-    { icon: MapPin, title: "Your Location", subtitle: "Help others find you nearby" },
-    { icon: Sparkles, title: "Your Interests", subtitle: "Connect with like-minded people" },
-    { icon: UserRound, title: "About You", subtitle: "Tell the world your story" },
+    { icon: MapPin, title: t("onboarding.step.location.title"), subtitle: t("onboarding.step.location.subtitle") },
+    { icon: Sparkles, title: t("onboarding.step.interests.title"), subtitle: t("onboarding.step.interests.subtitle") },
+    { icon: UserRound, title: t("onboarding.step.about.title"), subtitle: t("onboarding.step.about.subtitle") },
   ];
 
   const updateInterest = (index: number, value: string) => {
@@ -121,7 +130,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                   {/* Global Area */}
                   <div className="mb-4">
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs text-slate-500">Global Area</label>
+                      <label className="text-xs text-slate-500">{t("onboarding.label.globalArea")}</label>
                       <WordCounter text={globalArea} maxWords={5} />
                     </div>
                     <input
@@ -135,7 +144,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* Country */}
                   <div className="mb-4">
-                    <label className="text-xs text-slate-500 mb-1.5 block">Country (Phone Code)</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.countryCode")}</label>
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
@@ -152,7 +161,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                   {/* Region */}
                   <div className="mb-4">
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs text-slate-500">Region / State</label>
+                      <label className="text-xs text-slate-500">{t("onboarding.label.region")}</label>
                       <WordCounter text={region} maxWords={5} />
                     </div>
                     <input
@@ -166,7 +175,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* City/ZIP */}
                   <div className="mb-4">
-                    <label className="text-xs text-slate-500 mb-1.5 block">City / ZIP Code</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.cityZip")}</label>
                     <input
                       type="text"
                       value={cityZip}
@@ -178,7 +187,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* Local Desc */}
                   <div className="mb-4">
-                    <label className="text-xs text-slate-500 mb-1.5 block">Local Description</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.localDescription")}</label>
                     <input
                       type="text"
                       value={localDesc}
@@ -194,7 +203,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                     className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
                   >
                     {locationVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    <span>Location {locationVisible ? "visible" : "hidden"} to others</span>
+                    <span>{locationVisible ? t("onboarding.location.visible") : t("onboarding.location.hidden")}</span>
                     <div className={`w-10 h-5 rounded-full relative transition-colors ${locationVisible ? "bg-gradient-to-r from-indigo-500 to-purple-500" : "bg-slate-200"}`}>
                       <motion.div
                         className="absolute top-0.5 w-4 h-4 rounded-full bg-white"
@@ -260,25 +269,25 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                   <div className="flex justify-center mb-2">
                     <div className="w-24 h-24 rounded-full border-2 border-dashed border-purple-500/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-purple-400/70 transition-colors">
                       <Upload size={20} className="text-purple-400/60" />
-                      <span className="text-[10px] text-white/40">Upload Photo</span>
+                      <span className="text-[10px] text-white/40">{t("onboarding.uploadPhoto")}</span>
                     </div>
                   </div>
 
                   {/* Category */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Category</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.category")}</label>
                     <div className="flex gap-2 flex-wrap">
                       {descCategories.map((cat) => (
                         <button
-                          key={cat}
-                          onClick={() => setDescCategory(cat)}
+                          key={cat.id}
+                          onClick={() => setDescCategory(cat.id)}
                           className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                            descCategory === cat
+                            descCategory === cat.id
                               ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white"
                               : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
                           }`}
                         >
-                          {cat}
+                          {t(cat.labelKey)}
                         </button>
                       ))}
                     </div>
@@ -286,7 +295,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* Level */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Level</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.level")}</label>
                     <input
                       type="text"
                       value={descLevel}
@@ -298,7 +307,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* Location */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Location</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.locationField")}</label>
                     <input
                       type="text"
                       value={descLocation}
@@ -310,7 +319,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* Institution */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Institution</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.institution")}</label>
                     <input
                       type="text"
                       value={descInstitution}
@@ -322,7 +331,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
                   {/* Type Description */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">Description</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">{t("onboarding.label.description")}</label>
                     <input
                       type="text"
                       value={descType}
@@ -374,19 +383,19 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         <div className="flex items-center justify-between mt-8 gap-4">
           {step > 0 ? (
             <GradientButton variant="secondary" onClick={() => setStep(step - 1)}>
-              <ChevronLeft size={18} /> Back
+              <ChevronLeft size={18} /> {t("cta.back")}
             </GradientButton>
           ) : (
             <div />
           )}
 
           <button onClick={onComplete} className="text-sm text-slate-400 hover:text-slate-600 transition-colors">
-            Skip
+            {t("cta.skip")}
           </button>
 
           {step < 2 ? (
             <GradientButton onClick={() => setStep(step + 1)}>
-              Next <ChevronRight size={18} />
+              {t("cta.next")} <ChevronRight size={18} />
             </GradientButton>
           ) : (
             <GradientButton
@@ -421,7 +430,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                 }
               }}
             >
-              {saving ? "Saving..." : "Get Started"} <ChevronRight size={18} />
+              {saving ? t("cta.saving") : t("cta.getStarted")} <ChevronRight size={18} />
             </GradientButton>
           )}
         </div>
