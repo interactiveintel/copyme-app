@@ -31,7 +31,11 @@ export async function issueEmailVerification(
   const expiresAt = new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1000);
 
   await prisma.emailVerificationToken.create({
-    data: { userId, tokenHash, expiresAt },
+    // Persisted alongside the token so the verify endpoint can send a
+    // welcome email at the moment of first verification — the User row
+    // only holds emailHash + emailEncrypted, neither of which is
+    // round-trippable from the verify path.
+    data: { userId, tokenHash, expiresAt, email },
   });
 
   const url = buildEmailVerificationUrl(raw);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import prisma from "@/lib/db";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
+import { sendMail, welcomeTemplate } from "@/lib/mailer";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/email/verify
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         userId: true,
+        email: true,
         expiresAt: true,
         verifiedAt: true,
       },
@@ -68,6 +70,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Capture the pre-update verifiedAt so we know whether this is the
+    // user's FIRST email verification (welcome-email trigger) vs. a
+    // re-verification after an email change.
+    const userBefore = await prisma.user.findUnique({
+      where: { id: token.userId },
+      select: { emailVerifiedAt: true },
+    });
+    const isFirstVerification = !userBefore?.emailVerifiedAt;
+
     const now = new Date();
     const [, user] = await prisma.$transaction([
       prisma.emailVerificationToken.update({
@@ -80,6 +91,21 @@ export async function POST(request: NextRequest) {
         select: { id: true, displayName: true, emailVerifiedAt: true },
       }),
     ]);
+
+    // Welcome-email trigger — only on first verification + only if we have
+    // a deliverable address on the token row (older in-flight tokens may
+    // pre-date the email column from migration 20260513050000).
+    // Best-effort: never fail verification because the welcome failed.
+    if (isFirstVerification && token.email) {
+      const appHref =
+        process.env.NEXT_PUBLIC_APP_URL
+          ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/app`
+          : "https://copyme1.com/app";
+      const { subject, text, html } = welcomeTemplate(user.displayName, appHref);
+      sendMail({ to: token.email, subject, text, html }).catch((err) => {
+        console.warn("[verify] welcome email failed:", err);
+      });
+    }
 
     return NextResponse.json({
       success: true,
