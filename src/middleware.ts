@@ -13,6 +13,7 @@ const PUBLIC_PREFIXES = [
   "/api/pitch/", // pitch routes are public — investor data room
   "/api/avatars/", // deterministic fallback avatars (A1)
   "/api/transparency/", // public EU DSA ad archive (S-238)
+  "/api/status", // public health endpoint — twin to /status page
 ];
 
 function isPublicRoute(pathname: string): boolean {
