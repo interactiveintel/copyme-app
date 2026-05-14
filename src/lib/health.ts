@@ -41,6 +41,14 @@ const DEGRADED_THRESHOLD_MS = 1500;
 // Per-check timeout. A check that doesn't return inside this window is
 // reported as down — and we don't block the page on it.
 const TIMEOUT_MS = 3000;
+// In-function snapshot cache TTL. Vercel's edge cache already memoizes
+// the route response, but on edge-cache miss every concurrent request to
+// the same warm function instance would otherwise probe DB / Redis / Blob
+// from scratch — and Vercel Blob's `list()` has its own per-second rate
+// limit that we'd trip with even modest concurrency. Short in-function
+// cache prevents that storm. Each Vercel Function instance keeps its own
+// snapshot, so we still get fresh-per-region samples, just not per-request.
+const SNAPSHOT_TTL_MS = 5000;
 
 function now(): number {
   return Date.now();
@@ -124,15 +132,18 @@ function worstOf(...statuses: ServiceStatus[]): ServiceStatus {
   return "ok";
 }
 
-export async function snapshot(): Promise<HealthSnapshot> {
-  // Run all three checks in parallel — total page latency is bounded by
-  // the slowest one (or TIMEOUT_MS, whichever is shorter).
+// Module-scoped snapshot cache + in-flight de-dupe. Both protect against
+// "thundering herd" — concurrent edge-cache misses on the same warm
+// function instance no longer fan out to N parallel probes.
+let cachedSnapshot: { snap: HealthSnapshot; expiresAt: number } | null = null;
+let inFlight: Promise<HealthSnapshot> | null = null;
+
+async function probeAll(): Promise<HealthSnapshot> {
   const [database, redisCheck, blob] = await Promise.all([
     checkDatabase(),
     checkRedis(),
     checkBlob(),
   ]);
-
   return {
     status: worstOf(database.status, redisCheck.status, blob.status),
     timestamp: new Date().toISOString(),
@@ -144,4 +155,24 @@ export async function snapshot(): Promise<HealthSnapshot> {
       blob,
     },
   };
+}
+
+export async function snapshot(): Promise<HealthSnapshot> {
+  const now = Date.now();
+  if (cachedSnapshot && cachedSnapshot.expiresAt > now) {
+    return cachedSnapshot.snap;
+  }
+  // De-dupe concurrent refresh attempts.
+  if (inFlight) return inFlight;
+
+  inFlight = (async () => {
+    try {
+      const snap = await probeAll();
+      cachedSnapshot = { snap, expiresAt: Date.now() + SNAPSHOT_TTL_MS };
+      return snap;
+    } finally {
+      inFlight = null;
+    }
+  })();
+  return inFlight;
 }
