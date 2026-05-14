@@ -9,23 +9,25 @@ import WordCounter from "../ui/WordCounter";
 import OnboardingAI from "./OnboardingAI";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
+import { COUNTRIES } from "@/lib/phone/countries";
 
 interface OnboardingScreenProps {
   onComplete: () => void;
 }
 
-const countryCodes = [
-  { code: "+1", country: "US" },
-  { code: "+44", country: "UK" },
-  { code: "+91", country: "IN" },
-  { code: "+86", country: "CN" },
-  { code: "+81", country: "JP" },
-  { code: "+49", country: "DE" },
-  { code: "+33", country: "FR" },
-  { code: "+55", country: "BR" },
-  { code: "+234", country: "NG" },
-  { code: "+254", country: "KE" },
-];
+// Picker options derived from the canonical lib/phone/countries.ts list.
+// Pinned countries (Slovenia, US) come first; the rest are alphabetical.
+const countryCodes = [...COUNTRIES]
+  .sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    if (a.pinned && b.pinned) return (a.pinnedRank ?? 99) - (b.pinnedRank ?? 99);
+    return a.name.localeCompare(b.name);
+  })
+  .map((c) => ({
+    code: `+${c.dialCode}`,
+    country: `${c.flag} ${c.iso2.toUpperCase()}`,
+  }));
 
 // Internal id stays English so existing comparisons (e.g. `descCategory ===
 // "Education"`) keep working; display label is looked up via labelKey.
@@ -44,7 +46,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   // Step 1: Location
   const [globalArea, setGlobalArea] = useState("");
-  const [countryCode, setCountryCode] = useState("+1");
+  const [countryCode, setCountryCode] = useState("+386");
   const [region, setRegion] = useState("");
   const [cityZip, setCityZip] = useState("");
   const [localDesc, setLocalDesc] = useState("");

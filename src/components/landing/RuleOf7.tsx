@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, X } from "lucide-react";
+import { STRINGS } from "@/lib/i18n";
 
 const principles = [
   "Cap the message — say what matters.",
@@ -13,55 +14,76 @@ const principles = [
   "Cap the group — rooms, not crowds.",
 ];
 
-const comparisonData = [
+// Comparison table: feature labels and string-cell values are i18n keys.
+// Booleans (true/false) render as check / X icons and stay locale-independent.
+type CellVal = true | false | string; // string is an i18n key starting with "landing.compare.val."
+interface CompareRow {
+  featureKey: string;
+  copyme: CellVal;
+  whatsapp: CellVal;
+  telegram: CellVal;
+  wechat: CellVal;
+}
+const comparisonData: CompareRow[] = [
   {
-    feature: "Message philosophy",
-    copyme: "Constrained",
-    whatsapp: "Unlimited",
-    telegram: "Unlimited",
-    wechat: "Unlimited",
+    featureKey: "landing.compare.row.philosophy",
+    copyme: "landing.compare.val.constrained",
+    whatsapp: "landing.compare.val.unlimited",
+    telegram: "landing.compare.val.unlimited",
+    wechat: "landing.compare.val.unlimited",
   },
   {
-    feature: "AI Discovery",
+    featureKey: "landing.compare.row.aiDiscovery",
     copyme: true,
     whatsapp: false,
     telegram: false,
     wechat: false,
   },
   {
-    feature: "Translation",
-    copyme: "100+ languages",
+    featureKey: "landing.compare.row.translation",
+    copyme: "landing.compare.val.languages100",
     whatsapp: false,
-    telegram: "Limited",
-    wechat: "Limited",
+    telegram: "landing.compare.val.limited",
+    wechat: "landing.compare.val.limited",
   },
   {
-    feature: "Built-in Payments",
+    featureKey: "landing.compare.row.payments",
     copyme: true,
-    whatsapp: "Limited",
+    whatsapp: "landing.compare.val.limited",
     telegram: false,
     wechat: true,
   },
   {
-    feature: "Smart Surveys",
+    featureKey: "landing.compare.row.surveys",
     copyme: true,
     whatsapp: false,
-    telegram: "Polls only",
+    telegram: "landing.compare.val.pollsOnly",
     wechat: false,
   },
 ];
 
-function CellValue({ value }: { value: boolean | string }) {
+function CellValue({ value, t }: { value: CellVal; t: (key: string) => string }) {
   if (value === true)
     return <Check size={18} className="text-accent-emerald mx-auto" />;
   if (value === false)
     return <X size={18} className="text-red-400 mx-auto" />;
   return (
-    <span className="text-sm text-slate-600">{value}</span>
+    <span className="text-sm text-slate-600">{t(value)}</span>
   );
 }
 
-export default function RuleOf7() {
+interface RuleOf7Props {
+  /** Optional translation lookup. When omitted, English literals are used
+   *  via identity fallback so the root `/` page renders the same as
+   *  pre-S-254. */
+  t?: (key: string) => string;
+}
+
+export default function RuleOf7({ t }: RuleOf7Props = {}) {
+  // Fallback: when no t is passed (root `/` page), look up the English
+  // string from STRINGS.en. Returning the bare key would surface ugly
+  // dot-paths in the UI.
+  const tt = t ?? ((key: string) => STRINGS.en[key] ?? key);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -190,7 +212,7 @@ export default function RuleOf7() {
               href="/terms#rule-of-7"
               className="group mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-secondary transition-colors"
             >
-              Read the Rule of 7 in Terms
+              {tt("landing.readRuleInTerms")}
               <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
             </Link>
           </motion.div>
@@ -204,7 +226,7 @@ export default function RuleOf7() {
           transition={{ duration: 0.6 }}
         >
           <h3 className="text-2xl font-bold text-center mb-8 text-slate-900">
-            How We <span className="gradient-text">Compare</span>
+            {tt("landing.compare.title")}
           </h3>
 
           <div className="overflow-x-auto">
@@ -212,7 +234,7 @@ export default function RuleOf7() {
               <thead>
                 <tr className="border-b border-slate-200">
                   <th className="py-4 px-4 text-left text-sm font-medium text-slate-400">
-                    Feature
+                    {tt("landing.compare.col.feature")}
                   </th>
                   <th className="py-4 px-4 text-sm font-semibold gradient-text">
                     CopyMe
@@ -231,23 +253,23 @@ export default function RuleOf7() {
               <tbody>
                 {comparisonData.map((row) => (
                   <tr
-                    key={row.feature}
+                    key={row.featureKey}
                     className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                   >
                     <td className="py-3 px-4 text-left text-sm text-slate-600">
-                      {row.feature}
+                      {tt(row.featureKey)}
                     </td>
                     <td className="py-3 px-4 font-medium">
-                      <CellValue value={row.copyme} />
+                      <CellValue value={row.copyme} t={tt} />
                     </td>
                     <td className="py-3 px-4">
-                      <CellValue value={row.whatsapp} />
+                      <CellValue value={row.whatsapp} t={tt} />
                     </td>
                     <td className="py-3 px-4">
-                      <CellValue value={row.telegram} />
+                      <CellValue value={row.telegram} t={tt} />
                     </td>
                     <td className="py-3 px-4">
-                      <CellValue value={row.wechat} />
+                      <CellValue value={row.wechat} t={tt} />
                     </td>
                   </tr>
                 ))}

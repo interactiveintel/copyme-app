@@ -8,31 +8,37 @@ import GradientButton from "../ui/GradientButton";
 import WordCounter from "../ui/WordCounter";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
+import { COUNTRIES } from "@/lib/phone/countries";
 
 interface AuthScreenProps {
   onLogin: () => void;
   onRegister: () => void;
 }
 
-const countryCodes = [
-  { code: "+1", country: "US" },
-  { code: "+44", country: "UK" },
-  { code: "+91", country: "IN" },
-  { code: "+86", country: "CN" },
-  { code: "+81", country: "JP" },
-  { code: "+49", country: "DE" },
-  { code: "+33", country: "FR" },
-  { code: "+55", country: "BR" },
-  { code: "+234", country: "NG" },
-  { code: "+254", country: "KE" },
-];
+// Picker options derived from the canonical lib/phone/countries.ts list.
+// Pinned countries (Slovenia, US) come first; the rest are alphabetical.
+// `code` carries the leading "+" for compatibility with the existing
+// state shape.
+const countryCodes = [...COUNTRIES]
+  .sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    if (a.pinned && b.pinned) return (a.pinnedRank ?? 99) - (b.pinnedRank ?? 99);
+    return a.name.localeCompare(b.name);
+  })
+  .map((c) => ({
+    code: `+${c.dialCode}`,
+    country: `${c.flag} ${c.iso2.toUpperCase()}`,
+  }));
 
 export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const { login, register } = useAuth();
   const { t } = useLocale();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
-  const [countryCode, setCountryCode] = useState("+1");
+  // Default to Slovenia per the dogfood test (matches lib/phone/countries.ts
+  // pinned ordering). Users from anywhere else change it via the picker.
+  const [countryCode, setCountryCode] = useState("+386");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 

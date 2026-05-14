@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, Monitor, Smartphone, X, Globe, Laptop } from "lucide-react";
+import { STRINGS } from "@/lib/i18n";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -13,12 +14,16 @@ interface BeforeInstallPromptEvent extends Event {
 interface DownloadButtonProps {
   variant?: "navbar" | "hero" | "icon-only";
   className?: string;
+  /** Optional translation lookup; falls back to STRINGS.en (English literal). */
+  t?: (key: string) => string;
 }
 
 export default function DownloadButton({
   variant = "hero",
   className = "",
+  t,
 }: DownloadButtonProps) {
+  const tt = t ?? ((key: string) => STRINGS.en[key] ?? key);
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -82,7 +87,7 @@ export default function DownloadButton({
           className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 shadow-sm transition-all hover:bg-slate-50 group ${className}`}
         >
           <Download size={16} className="text-accent-pink group-hover:scale-110 transition-transform" />
-          <span className="hidden sm:inline">Install</span>
+          <span className="hidden sm:inline">{tt("cta.install")}</span>
         </button>
         <InstallModal open={showModal} onClose={() => setShowModal(false)} />
       </>

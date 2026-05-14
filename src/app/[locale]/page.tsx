@@ -45,7 +45,7 @@ export default function LocaleHome() {
       <Navbar t={tt} />
       <Hero t={tt} />
       <Features />
-      <RuleOf7 />
+      <RuleOf7 t={tt} />
       <ExplainerVideo />
       <Pricing />
       <CTA />

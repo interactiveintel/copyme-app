@@ -56,7 +56,7 @@ export default function Navbar({ t }: NavbarProps = {}) {
 
           {/* CTA + Download Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <DownloadButton variant="navbar" />
+            <DownloadButton variant="navbar" t={t} />
             <Link
               href="/app"
               className="relative inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
