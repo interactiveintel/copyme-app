@@ -3,12 +3,18 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
+import { STRINGS } from "@/lib/i18n";
 
+// Tier metadata. Name / description / CTA are i18n keys; per-feature
+// bullet lists stay as English literals for now — they're numerical and
+// the team iterates on positioning frequently. We'll lock in feature
+// translations once pricing stabilizes.
 const tiers = [
   {
-    name: "Basic",
-    price: { weekly: "Free", annual: "Free" },
-    description: "Perfect for getting started with intentional messaging.",
+    nameKey: "landing.pricing.basic.name",
+    priceKey: "landing.pricing.basic.price",
+    price: { weekly: "literal", annual: "literal" }, // both render the same key
+    descKey: "landing.pricing.basic.desc",
     features: [
       "7 search results",
       "7 contacts",
@@ -17,13 +23,13 @@ const tiers = [
       "70-word messages",
       "Basic translation",
     ],
-    cta: "Get Started Free",
+    ctaKey: "landing.pricing.basic.cta",
     style: "outlined" as const,
   },
   {
-    name: "Business",
+    nameKey: "landing.pricing.business.name",
     price: { weekly: "$3 – $50/wk", annual: "$120 – $2,000/yr" },
-    description: "Scale your reach with expanded limits and smart tools.",
+    descKey: "landing.pricing.business.desc",
     features: [
       "70 – 700 search results",
       "70 – 700 contacts",
@@ -33,14 +39,15 @@ const tiers = [
       "Advanced analytics",
       "Voice & video calls",
     ],
-    cta: "Start Business Plan",
+    ctaKey: "landing.pricing.business.cta",
     style: "gradient-border" as const,
     popular: true,
   },
   {
-    name: "Enterprise",
-    price: { weekly: "Custom", annual: "$15K – $1M/yr" },
-    description: "E-commerce campaigns and massive reach for organizations.",
+    nameKey: "landing.pricing.enterprise.name",
+    priceKey: "landing.pricing.enterprise.priceWeekly",
+    price: { weekly: "literal", annual: "$15K – $1M/yr" },
+    descKey: "landing.pricing.enterprise.desc",
     features: [
       "7,000+ search results",
       "Unlimited contacts",
@@ -51,7 +58,7 @@ const tiers = [
       "SLA guarantee",
       "Priority everything",
     ],
-    cta: "Contact Sales",
+    ctaKey: "landing.pricing.enterprise.cta",
     style: "gradient-fill" as const,
   },
 ];
@@ -65,7 +72,13 @@ const cardVariants = {
   }),
 };
 
-export default function Pricing() {
+interface PricingProps {
+  /** Optional translation lookup; falls back to STRINGS.en. */
+  t?: (key: string) => string;
+}
+
+export default function Pricing({ t }: PricingProps = {}) {
+  const tt = t ?? ((key: string) => STRINGS.en[key] ?? key);
   const [isAnnual, setIsAnnual] = useState(false);
 
   return (
@@ -82,12 +95,12 @@ export default function Pricing() {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900">
-            Simple{" "}
-            <span className="gradient-text">Pricing</span>
-          </h2>
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900"
+            dangerouslySetInnerHTML={{ __html: tt("landing.pricing.title") }}
+          />
           <p className="mt-4 text-lg text-slate-500">
-            Start free. Scale when you need.
+            {tt("landing.pricing.subhead")}
           </p>
 
           {/* Toggle */}
@@ -100,7 +113,7 @@ export default function Pricing() {
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              7-Day
+              {tt("landing.pricing.toggle.weekly")}
             </button>
             <button
               onClick={() => setIsAnnual(true)}
@@ -110,7 +123,7 @@ export default function Pricing() {
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              Annual
+              {tt("landing.pricing.toggle.annual")}
             </button>
           </div>
         </motion.div>
@@ -119,7 +132,7 @@ export default function Pricing() {
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-start">
           {tiers.map((tier, i) => (
             <motion.div
-              key={tier.name}
+              key={tier.nameKey}
               custom={i}
               variants={cardVariants}
               initial="hidden"
@@ -133,7 +146,7 @@ export default function Pricing() {
               {tier.popular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
                   <span className="inline-flex items-center rounded-full px-4 py-1 text-xs font-semibold text-white gradient-bg-animated shadow-lg shadow-primary/25">
-                    Most Popular
+                    {tt("landing.pricing.popular")}
                   </span>
                 </div>
               )}
@@ -157,12 +170,16 @@ export default function Pricing() {
                     : "bg-white shadow-lg"
                 }`}
               >
-                <h3 className="text-xl font-bold text-slate-900">{tier.name}</h3>
-                <p className="mt-1 text-sm text-slate-500">{tier.description}</p>
+                <h3 className="text-xl font-bold text-slate-900">{tt(tier.nameKey)}</h3>
+                <p className="mt-1 text-sm text-slate-500">{tt(tier.descKey)}</p>
 
                 <div className="mt-6 mb-6">
                   <span className="text-3xl font-bold text-slate-900">
-                    {isAnnual ? tier.price.annual : tier.price.weekly}
+                    {/* If a tier has a translatable price token (Free / Custom),
+                        prefer it over the literal string from `tier.price`. */}
+                    {tier.priceKey && (isAnnual ? tier.price.annual === "literal" : tier.price.weekly === "literal")
+                      ? tt(tier.priceKey)
+                      : isAnnual ? tier.price.annual : tier.price.weekly}
                   </span>
                 </div>
 
@@ -185,7 +202,7 @@ export default function Pricing() {
                       : "gradient-bg-animated text-white hover:shadow-[0_0_30px_rgba(124,58,237,0.4)]"
                   }`}
                 >
-                  {tier.cta}
+                  {tt(tier.ctaKey)}
                 </a>
               </div>
             </motion.div>

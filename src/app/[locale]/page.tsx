@@ -44,11 +44,11 @@ export default function LocaleHome() {
     <main lang={locale} className="min-h-screen bg-white">
       <Navbar t={tt} />
       <Hero t={tt} />
-      <Features />
+      <Features t={tt} />
       <RuleOf7 t={tt} />
-      <ExplainerVideo />
-      <Pricing />
-      <CTA />
+      <ExplainerVideo t={tt} />
+      <Pricing t={tt} />
+      <CTA t={tt} />
       <Footer t={tt} />
     </main>
   );

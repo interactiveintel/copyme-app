@@ -6,12 +6,12 @@ import { motion } from "framer-motion";
 import { ArrowRight, Check, X } from "lucide-react";
 import { STRINGS } from "@/lib/i18n";
 
-const principles = [
-  "Cap the message — say what matters.",
-  "Cap the contacts — protect attention.",
-  "Cap retention — live in the present.",
-  "Cap the recording — listen with intent.",
-  "Cap the group — rooms, not crowds.",
+const principleKeys = [
+  "landing.ruleOf7.principle1",
+  "landing.ruleOf7.principle2",
+  "landing.ruleOf7.principle3",
+  "landing.ruleOf7.principle4",
+  "landing.ruleOf7.principle5",
 ];
 
 // Comparison table: feature labels and string-cell values are i18n keys.
@@ -88,7 +88,7 @@ export default function RuleOf7({ t }: RuleOf7Props = {}) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % principles.length);
+      setActiveIndex((prev) => (prev + 1) % principleKeys.length);
     }, 2800);
     return () => clearInterval(interval);
   }, []);
@@ -112,14 +112,14 @@ export default function RuleOf7({ t }: RuleOf7Props = {}) {
           className="text-center mb-16"
         >
           <p className="text-sm font-semibold tracking-wider text-accent-amber uppercase mb-4">
-            Our Philosophy
+            {tt("landing.ruleOf7.eyebrow")}
           </p>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900">
-            The{" "}
-            <span className="gradient-text">Rule of 7</span>
-          </h2>
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900"
+            dangerouslySetInnerHTML={{ __html: tt("landing.ruleOf7.title") }}
+          />
           <p className="mt-4 text-lg text-slate-500 max-w-2xl mx-auto">
-            Less noise. More meaning. A constraint system that transforms how you connect.
+            {tt("landing.ruleOf7.subhead")}
           </p>
         </motion.div>
 
@@ -150,13 +150,13 @@ export default function RuleOf7({ t }: RuleOf7Props = {}) {
                 transition={{ duration: 0.4 }}
                 className="text-xl sm:text-2xl font-semibold text-slate-900 max-w-md"
               >
-                {principles[activeIndex]}
+                {tt(principleKeys[activeIndex])}
               </motion.span>
             </div>
 
             {/* Dot indicators */}
             <div className="flex gap-2 mt-4">
-              {principles.map((_, i) => (
+              {principleKeys.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveIndex(i)}
@@ -179,7 +179,7 @@ export default function RuleOf7({ t }: RuleOf7Props = {}) {
             transition={{ duration: 0.6 }}
             className="space-y-4"
           >
-            {principles.map((principle, i) => (
+            {principleKeys.map((principle, i) => (
               <div
                 key={principle}
                 className={`flex items-center gap-4 p-4 rounded-xl transition-all duration-300 ${
@@ -202,7 +202,7 @@ export default function RuleOf7({ t }: RuleOf7Props = {}) {
                     i === activeIndex ? "text-slate-900" : "text-slate-500"
                   }`}
                 >
-                  {principle}
+                  {tt(principle)}
                 </span>
               </div>
             ))}

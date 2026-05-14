@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Play, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { STRINGS } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // ExplainerVideo — env-var-gated video embed.
@@ -17,7 +18,13 @@ import { useState } from "react";
 // embed during pre-launch.
 // ---------------------------------------------------------------------------
 
-export default function ExplainerVideo() {
+interface ExplainerVideoProps {
+  /** Optional translation lookup; falls back to STRINGS.en. */
+  t?: (key: string) => string;
+}
+
+export default function ExplainerVideo({ t }: ExplainerVideoProps = {}) {
+  const tt = t ?? ((key: string) => STRINGS.en[key] ?? key);
   const url = process.env.NEXT_PUBLIC_EXPLAINER_VIDEO_URL;
   const [playing, setPlaying] = useState(false);
 
@@ -30,12 +37,12 @@ export default function ExplainerVideo() {
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold mb-4 shadow-sm">
             <Sparkles size={12} className="text-purple-500" />
-            See it in 90 seconds
+            {tt("landing.video.badge")}
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight">
-            What does communication look like when{" "}
-            <span className="gradient-text">noise stops</span>?
-          </h2>
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight"
+            dangerouslySetInnerHTML={{ __html: tt("landing.video.title") }}
+          />
         </div>
 
         <motion.div
@@ -73,7 +80,7 @@ export default function ExplainerVideo() {
                 <Play size={28} className="text-purple-600 ml-1" />
               </div>
               <p className="text-white/90 text-sm font-medium">
-                {url ? "Play video" : "Watch the interactive demo"}
+                {url ? "Play video" : tt("landing.video.playLabel")}
               </p>
               {!url && (
                 <p className="text-white/50 text-[10px]">
@@ -85,11 +92,11 @@ export default function ExplainerVideo() {
         </motion.div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          Or{" "}
+          {tt("landing.video.tryApp.prefix")}
           <Link href="/app" className="text-purple-600 font-semibold hover:underline">
-            try the live app
+            {tt("landing.video.tryApp.link")}
           </Link>
-          {" — "}it&apos;s free.
+          {tt("landing.video.tryApp.suffix")}
         </p>
       </div>
     </section>

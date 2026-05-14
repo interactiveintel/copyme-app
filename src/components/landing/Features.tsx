@@ -9,52 +9,47 @@ import {
   BarChart3,
   Wallet,
 } from "lucide-react";
+import { STRINGS } from "@/lib/i18n";
 
 const features = [
   {
-    title: "Rule of 7",
-    description:
-      "A constraint system that replaces noise with meaning. Less is more, giving meaning to messages.",
+    titleKey: "landing.features.ruleOf7.title",
+    descKey: "landing.features.ruleOf7.desc",
     icon: Sparkles,
     gradient: "from-primary to-secondary",
     glow: "shadow-primary/20",
   },
   {
-    title: "AI Discovery",
-    description:
-      "Find people who share your passions using intelligent interest-based matching powered by advanced AI.",
+    titleKey: "landing.features.aiDiscovery.title",
+    descKey: "landing.features.aiDiscovery.desc",
     icon: Search,
     gradient: "from-primary-light to-accent-cyan",
     glow: "shadow-accent-cyan/20",
   },
   {
-    title: "Real-Time Translation",
-    description:
-      "Break language barriers with instant translation across 100+ languages. Chat with anyone, anywhere.",
+    titleKey: "landing.features.translation.title",
+    descKey: "landing.features.translation.desc",
     icon: Globe,
     gradient: "from-accent-emerald to-accent-cyan",
     glow: "shadow-accent-emerald/20",
   },
   {
-    title: "Voice & Video",
-    description:
-      "Crystal-clear WebRTC calls in short, intentional bursts. Quick, meaningful conversations that respect your time.",
+    titleKey: "landing.features.voiceVideo.title",
+    descKey: "landing.features.voiceVideo.desc",
     icon: Video,
     gradient: "from-accent-pink to-secondary",
     glow: "shadow-accent-pink/20",
   },
   {
-    title: "Smart Surveys",
-    description:
-      "AI-powered survey creation and analysis. Gather insights from your network with intelligent question design.",
+    titleKey: "landing.features.surveys.title",
+    descKey: "landing.features.surveys.desc",
     icon: BarChart3,
     gradient: "from-accent-amber to-accent-pink",
     glow: "shadow-accent-amber/20",
   },
   {
-    title: "VAP Payments",
-    description:
-      "Built-in payment system for seamless transactions. Send and receive payments right within your chats.",
+    titleKey: "landing.features.payments.title",
+    descKey: "landing.features.payments.desc",
     icon: Wallet,
     gradient: "from-accent-cyan to-primary",
     glow: "shadow-accent-cyan/20",
@@ -70,7 +65,13 @@ const cardVariants = {
   }),
 };
 
-export default function Features() {
+interface FeaturesProps {
+  /** Optional translation lookup; falls back to STRINGS.en. */
+  t?: (key: string) => string;
+}
+
+export default function Features({ t }: FeaturesProps = {}) {
+  const tt = t ?? ((key: string) => STRINGS.en[key] ?? key);
   return (
     <section id="features" className="relative py-24 sm:py-32 overflow-hidden">
       {/* Background orbs */}
@@ -86,14 +87,13 @@ export default function Features() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900">
-            Why{" "}
-            <span className="gradient-text">CopyMe</span>?
-          </h2>
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900"
+            dangerouslySetInnerHTML={{ __html: tt("landing.features.title") }}
+          />
           <div className="mt-4 mx-auto h-1 w-24 rounded-full bg-gradient-to-r from-primary via-secondary to-accent-pink" />
           <p className="mt-6 text-lg text-slate-500 max-w-2xl mx-auto">
-            A messaging platform built around intentionality. Every feature is
-            designed to make your conversations more meaningful.
+            {tt("landing.features.subhead")}
           </p>
         </motion.div>
 
@@ -101,7 +101,7 @@ export default function Features() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, i) => (
             <motion.div
-              key={feature.title}
+              key={feature.titleKey}
               custom={i}
               variants={cardVariants}
               initial="hidden"
@@ -122,10 +122,10 @@ export default function Features() {
                 </div>
 
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                  {feature.title}
+                  {tt(feature.titleKey)}
                 </h3>
                 <p className="text-sm leading-relaxed text-slate-500">
-                  {feature.description}
+                  {tt(feature.descKey)}
                 </p>
               </div>
             </motion.div>

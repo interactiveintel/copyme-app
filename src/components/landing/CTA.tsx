@@ -3,8 +3,22 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Play } from "lucide-react";
+import { STRINGS } from "@/lib/i18n";
 
-export default function CTA() {
+interface CTAProps {
+  /** Optional translation lookup; falls back to STRINGS.en. */
+  t?: (key: string) => string;
+}
+
+export default function CTA({ t }: CTAProps = {}) {
+  const tt = t ?? ((key: string) => STRINGS.en[key] ?? key);
+  // Substitute {n} into the social-proof phrase. We keep the embedded
+  // <span> styling baked in via dangerouslySetInnerHTML so the bold count
+  // pops the same way in every locale.
+  const socialProofHtml = tt("landing.cta.socialProof").replace(
+    /\{n\}/g,
+    "50,000+",
+  );
   return (
     <section id="cta" className="relative py-24 sm:py-32 overflow-hidden">
       {/* Background gradient mesh */}
@@ -19,14 +33,12 @@ export default function CTA() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-slate-900">
-            Ready to{" "}
-            <span className="gradient-text">Transform</span>{" "}
-            Your Communication?
-          </h2>
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-slate-900"
+            dangerouslySetInnerHTML={{ __html: tt("landing.cta.title") }}
+          />
           <p className="mt-4 text-lg text-slate-500 max-w-xl mx-auto">
-            CopyMe is live and free to use. Experience intentional messaging
-            built around meaning, not noise.
+            {tt("landing.cta.subhead")}
           </p>
 
           {/* CTA Buttons */}
@@ -35,7 +47,7 @@ export default function CTA() {
               href="/app"
               className="group inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 text-base font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
             >
-              Sign Up Now — It&apos;s Free
+              {tt("landing.cta.signupNow")}
               <ArrowRight
                 size={18}
                 className="transition-transform group-hover:translate-x-1"
@@ -48,7 +60,7 @@ export default function CTA() {
               <span className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center shadow-sm shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                 <Play size={12} className="text-white ml-0.5" />
               </span>
-              See How It Works
+              {tt("landing.cta.howItWorks")}
             </a>
           </div>
 
@@ -69,9 +81,10 @@ export default function CTA() {
                 />
               ))}
             </div>
-            <span className="text-sm text-slate-500">
-              Join <span className="text-slate-900 font-semibold">50,000+</span> users communicating with intention
-            </span>
+            <span
+              className="text-sm text-slate-500"
+              dangerouslySetInnerHTML={{ __html: socialProofHtml }}
+            />
           </div>
         </motion.div>
       </div>
