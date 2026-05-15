@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import CookieBanner from "@/components/common/CookieBanner";
+import ServiceWorkerRegistration from "@/components/common/ServiceWorkerRegistration";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-white text-slate-900">
         {children}
         <CookieBanner />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
