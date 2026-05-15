@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Monitor, Smartphone, X, Globe, Laptop } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { STRINGS } from "@/lib/i18n";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -121,7 +121,105 @@ export default function DownloadButton({
 
 // ---------------------------------------------------------------------------
 // Install Instructions Modal
+//
+// Shown when the browser hasn't fired `beforeinstallprompt` (yet, or at
+// all). Detects the user's platform via UA so we can lead with the ONE
+// instruction that applies, instead of dumping a generic 4-card menu that
+// looks like a button list. Other platforms collapse into a "show all"
+// section.
 // ---------------------------------------------------------------------------
+
+type PlatformKey = "chrome-desktop" | "chrome-android" | "safari-mac" | "safari-ios" | "edge" | "firefox" | "other";
+
+interface PlatformGuide {
+  key: PlatformKey;
+  label: string;
+  /** Step-by-step instructions — rendered as a numbered list. */
+  steps: string[];
+  /** Optional — text that calls out where to look. */
+  hint?: string;
+}
+
+const GUIDES: Record<PlatformKey, PlatformGuide> = {
+  "chrome-desktop": {
+    key: "chrome-desktop",
+    label: "Chrome on desktop",
+    steps: [
+      "Look at the right end of your address bar — you should see a small install icon (⊕).",
+      "Click it, then click \"Install\" in the dialog that appears.",
+      "If you don't see the icon: open Chrome's menu (the ⋮ at the top right) → \"Install CopyMe…\".",
+    ],
+    hint: "Chrome needs ~30 seconds of activity on the page before showing the install prompt. Browse around a bit if it doesn't appear immediately.",
+  },
+  "chrome-android": {
+    key: "chrome-android",
+    label: "Chrome on Android",
+    steps: [
+      "Tap the ⋮ menu at the top right of Chrome.",
+      "Tap \"Add to Home screen\" or \"Install app\".",
+      "Confirm in the dialog.",
+    ],
+  },
+  "safari-mac": {
+    key: "safari-mac",
+    label: "Safari on Mac",
+    steps: [
+      "In Safari's menu bar, click File → \"Add to Dock…\".",
+      "Confirm the name and icon, then click Add.",
+    ],
+    hint: "Safari doesn't expose programmatic install. \"Add to Dock\" is the official path on macOS Sonoma and later.",
+  },
+  "safari-ios": {
+    key: "safari-ios",
+    label: "Safari on iPhone or iPad",
+    steps: [
+      "Tap the Share button (square with an arrow) at the bottom of Safari.",
+      "Scroll down and tap \"Add to Home Screen\".",
+      "Tap Add in the top-right corner.",
+    ],
+  },
+  edge: {
+    key: "edge",
+    label: "Microsoft Edge",
+    steps: [
+      "Click the ⋯ menu at the top right of Edge.",
+      "Click Apps → \"Install this site as an app\".",
+      "Confirm in the dialog.",
+    ],
+  },
+  firefox: {
+    key: "firefox",
+    label: "Firefox",
+    steps: [
+      "Firefox doesn't currently support installing web apps.",
+      "To get the best experience, open CopyMe in Chrome, Edge, or Safari.",
+    ],
+  },
+  other: {
+    key: "other",
+    label: "Other browsers",
+    steps: [
+      "Look for an \"Install\" or \"Add to Home Screen\" option in your browser's menu.",
+      "If you don't see one, your browser may not support installable web apps.",
+      "Chrome, Edge, Safari, and Brave all support installing CopyMe.",
+    ],
+  },
+};
+
+function detectPlatform(): PlatformKey {
+  if (typeof navigator === "undefined") return "other";
+  const ua = navigator.userAgent;
+  // Order matters — Edge contains "Chrome" in its UA so check Edge first.
+  if (/Edg\//.test(ua)) return "edge";
+  if (/Firefox/.test(ua)) return "firefox";
+  const isAndroid = /Android/.test(ua);
+  const isIos = /iPad|iPhone|iPod/.test(ua);
+  if (/Chrome/.test(ua) && isAndroid) return "chrome-android";
+  if (/Chrome/.test(ua)) return "chrome-desktop";
+  if (/Safari/.test(ua) && isIos) return "safari-ios";
+  if (/Safari/.test(ua)) return "safari-mac";
+  return "other";
+}
 
 function InstallModal({
   open,
@@ -130,6 +228,19 @@ function InstallModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const [platform, setPlatform] = useState<PlatformKey>("other");
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setPlatform(detectPlatform());
+      setShowAll(false);
+    }
+  }, [open]);
+
+  const primary = GUIDES[platform];
+  const others = (Object.keys(GUIDES) as PlatformKey[]).filter((k) => k !== platform);
+
   return (
     <AnimatePresence>
       {open && (
@@ -145,13 +256,14 @@ function InstallModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring" as const, stiffness: 400, damping: 30 }}
-            className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 p-8"
+            className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 p-8 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+              aria-label="Close"
             >
               <X size={20} />
             </button>
@@ -166,74 +278,70 @@ function InstallModal({
             <h3 className="text-xl font-bold text-slate-900 text-center mb-2">
               Install <span className="gradient-text">CopyMe</span>
             </h3>
-            <p className="text-sm text-slate-400 text-center mb-8">
-              Add CopyMe to your device for the best experience
+            <p className="text-sm text-slate-500 text-center mb-2">
+              Looks like you&apos;re using <strong>{primary.label}</strong>.
+            </p>
+            <p className="text-xs text-slate-400 text-center mb-6">
+              Follow the steps below — these are instructions, not buttons. Your browser does the actual install.
             </p>
 
-            {/* Platform Instructions */}
-            <div className="space-y-3">
-              <PlatformCard
-                icon={<Globe size={20} />}
-                platform="Chrome / Edge"
-                instructions='Click the install icon (⊕) in the address bar, or Menu → "Install CopyMe"'
-                gradient="from-blue-500 to-green-500"
-              />
-              <PlatformCard
-                icon={<Laptop size={20} />}
-                platform="Safari (Mac)"
-                instructions='File → "Add to Dock" or Share → "Add to Home Screen"'
-                gradient="from-slate-400 to-slate-300"
-              />
-              <PlatformCard
-                icon={<Smartphone size={20} />}
-                platform="Mobile"
-                instructions='Tap Share → "Add to Home Screen" for an app-like experience'
-                gradient="from-accent-pink to-secondary"
-              />
-              <PlatformCard
-                icon={<Monitor size={20} />}
-                platform="Desktop"
-                instructions="Works on Windows, Mac, and Linux via Chrome, Edge, or Brave"
-                gradient="from-primary to-accent-cyan"
-              />
+            {/* Primary platform — numbered steps */}
+            <div className="rounded-2xl bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-purple-200 p-5 mb-4">
+              <ol className="space-y-3 list-none">
+                {primary.steps.map((step, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent-pink text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm text-slate-700 leading-relaxed">{step}</span>
+                  </li>
+                ))}
+              </ol>
+              {primary.hint && (
+                <p className="mt-4 pl-9 text-xs text-purple-600/80 italic leading-relaxed">
+                  💡 {primary.hint}
+                </p>
+              )}
             </div>
+
+            {/* Other platforms — collapsed by default */}
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="w-full text-xs text-slate-500 hover:text-slate-700 mb-3 underline-offset-2 hover:underline"
+            >
+              {showAll ? "Hide" : "Show"} other platforms
+            </button>
+            {showAll && (
+              <div className="space-y-2 mb-4">
+                {others.map((k) => (
+                  <details
+                    key={k}
+                    className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3 text-sm text-slate-700"
+                  >
+                    <summary className="cursor-pointer font-semibold text-slate-900">
+                      {GUIDES[k].label}
+                    </summary>
+                    <ol className="mt-3 space-y-2 list-decimal list-inside text-xs text-slate-500">
+                      {GUIDES[k].steps.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ol>
+                  </details>
+                ))}
+              </div>
+            )}
 
             {/* Open in browser button */}
             <Link
               href="/app"
-              className="mt-6 flex items-center justify-center gap-2 w-full rounded-full py-3 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
+              className="flex items-center justify-center gap-2 w-full rounded-full py-3 text-sm font-semibold text-white gradient-bg-animated transition-shadow hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
             >
-              Open CopyMe in Browser
+              Or open CopyMe in your browser
             </Link>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function PlatformCard({
-  icon,
-  platform,
-  instructions,
-  gradient,
-}: {
-  icon: React.ReactNode;
-  platform: string;
-  instructions: string;
-  gradient: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
-      <div
-        className={`flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center text-white`}
-      >
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-slate-900">{platform}</p>
-        <p className="text-xs text-slate-500 mt-0.5">{instructions}</p>
-      </div>
-    </div>
   );
 }
