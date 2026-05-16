@@ -19,17 +19,16 @@ export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
-    // Defer slightly so initial paint isn't competing with the SW handshake.
-    const t = setTimeout(() => {
-      navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
-        .catch((err) => {
-          // Don't throw — push notifications still work via use-web-push
-          // even if this initial registration fails for some reason.
-          console.warn("[sw] registration failed:", err);
-        });
-    }, 1000);
-    return () => clearTimeout(t);
+    // Register immediately so PWA install criteria are satisfied on first
+    // visit. Previously deferred 1s — that meant users who tapped Install
+    // right after page load saw no native prompt (SW not yet active).
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .catch((err) => {
+        // Don't throw — push notifications still work via use-web-push
+        // even if this initial registration fails for some reason.
+        console.warn("[sw] registration failed:", err);
+      });
   }, []);
 
   return null;

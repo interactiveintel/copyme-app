@@ -73,7 +73,7 @@ export default function DownloadButton({
           <Download size={18} />
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-accent-pink to-secondary animate-pulse-glow" />
         </button>
-        <InstallModal open={showModal} onClose={() => setShowModal(false)} />
+        <InstallModal open={showModal} onClose={() => setShowModal(false)} deferredPrompt={deferredPrompt} />
       </>
     );
   }
@@ -89,7 +89,7 @@ export default function DownloadButton({
           <Download size={16} className="text-accent-pink group-hover:scale-110 transition-transform" />
           <span className="hidden sm:inline">{tt("cta.install")}</span>
         </button>
-        <InstallModal open={showModal} onClose={() => setShowModal(false)} />
+        <InstallModal open={showModal} onClose={() => setShowModal(false)} deferredPrompt={deferredPrompt} />
       </>
     );
   }
@@ -114,7 +114,7 @@ export default function DownloadButton({
           </span>
         </span>
       </button>
-      <InstallModal open={showModal} onClose={() => setShowModal(false)} />
+      <InstallModal open={showModal} onClose={() => setShowModal(false)} deferredPrompt={deferredPrompt} />
     </>
   );
 }
@@ -129,7 +129,7 @@ export default function DownloadButton({
 // section.
 // ---------------------------------------------------------------------------
 
-type PlatformKey = "chrome-desktop" | "chrome-android" | "safari-mac" | "safari-ios" | "edge" | "firefox" | "other";
+type PlatformKey = "chrome-desktop" | "chrome-android" | "samsung-internet" | "safari-mac" | "safari-ios" | "edge" | "firefox" | "other";
 
 interface PlatformGuide {
   key: PlatformKey;
@@ -159,6 +159,17 @@ const GUIDES: Record<PlatformKey, PlatformGuide> = {
       "Tap \"Add to Home screen\" or \"Install app\".",
       "Confirm in the dialog.",
     ],
+    hint: "If \"Install app\" is missing from the menu: hard-refresh this page (pull down with two fingers, or close & reopen the tab), wait 3–5 seconds, then retry.",
+  },
+  "samsung-internet": {
+    key: "samsung-internet",
+    label: "Samsung Internet (default browser on Samsung phones)",
+    steps: [
+      "Tap the ☰ menu at the bottom right of Samsung Internet.",
+      "Tap \"Add page to\" → \"Home screen\".",
+      "Confirm the name and tap Add.",
+    ],
+    hint: "Samsung Internet often shows up labeled \"Chrome\" — but it has its own install flow. If you also have real Chrome installed, opening this site there will give you the native \"Install app\" prompt.",
   },
   "safari-mac": {
     key: "safari-mac",
@@ -209,7 +220,9 @@ const GUIDES: Record<PlatformKey, PlatformGuide> = {
 function detectPlatform(): PlatformKey {
   if (typeof navigator === "undefined") return "other";
   const ua = navigator.userAgent;
-  // Order matters — Edge contains "Chrome" in its UA so check Edge first.
+  // Order matters — these UA tokens overlap (Edge / Samsung / Opera all
+  // contain "Chrome"), so check the specific browsers first.
+  if (/SamsungBrowser/.test(ua)) return "samsung-internet";
   if (/Edg\//.test(ua)) return "edge";
   if (/Firefox/.test(ua)) return "firefox";
   const isAndroid = /Android/.test(ua);
@@ -221,20 +234,102 @@ function detectPlatform(): PlatformKey {
   return "other";
 }
 
+/**
+ * Live diagnostic snapshot of the four PWA install criteria. Surfaced
+ * inside the install modal as a collapsed "Why isn't this working?"
+ * panel — so when an install fails, the user (and a remote helper)
+ * can see exactly which criterion the browser is unhappy about.
+ */
+interface InstallDiagnostics {
+  https: boolean;
+  serviceWorker: "active" | "registered" | "none" | "unsupported";
+  manifestLinked: boolean;
+  manifestReachable: boolean | "checking";
+  beforeInstallPromptFired: boolean;
+  standalone: boolean;
+  userAgent: string;
+}
+
+function useInstallDiagnostics(deferredPrompt: unknown, open: boolean): InstallDiagnostics {
+  const [diag, setDiag] = useState<InstallDiagnostics>(() => ({
+    https: false,
+    serviceWorker: "unsupported",
+    manifestLinked: false,
+    manifestReachable: "checking",
+    beforeInstallPromptFired: false,
+    standalone: false,
+    userAgent: "",
+  }));
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    let cancelled = false;
+
+    (async () => {
+      const https = window.location.protocol === "https:";
+      const manifestLinked = !!document.querySelector('link[rel="manifest"]');
+      let manifestReachable: boolean | "checking" = false;
+      try {
+        const r = await fetch("/manifest.json", { cache: "no-store" });
+        manifestReachable = r.ok;
+      } catch {
+        manifestReachable = false;
+      }
+      let serviceWorker: InstallDiagnostics["serviceWorker"] = "unsupported";
+      if ("serviceWorker" in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration("/");
+          if (reg?.active) serviceWorker = "active";
+          else if (reg) serviceWorker = "registered";
+          else serviceWorker = "none";
+        } catch {
+          serviceWorker = "none";
+        }
+      }
+      const standalone =
+        window.matchMedia?.("(display-mode: standalone)").matches ||
+        (typeof (navigator as { standalone?: boolean }).standalone === "boolean" &&
+          (navigator as { standalone?: boolean }).standalone === true);
+
+      if (cancelled) return;
+      setDiag({
+        https,
+        serviceWorker,
+        manifestLinked,
+        manifestReachable,
+        beforeInstallPromptFired: !!deferredPrompt,
+        standalone,
+        userAgent: navigator.userAgent,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, deferredPrompt]);
+
+  return diag;
+}
+
 function InstallModal({
   open,
   onClose,
+  deferredPrompt,
 }: {
   open: boolean;
   onClose: () => void;
+  deferredPrompt: BeforeInstallPromptEvent | null;
 }) {
   const [platform, setPlatform] = useState<PlatformKey>("other");
   const [showAll, setShowAll] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
+  const diag = useInstallDiagnostics(deferredPrompt, open);
 
   useEffect(() => {
     if (open) {
       setPlatform(detectPlatform());
       setShowAll(false);
+      setShowDiag(false);
     }
   }, [open]);
 
@@ -304,6 +399,51 @@ function InstallModal({
               )}
             </div>
 
+            {/* Diagnostics — live PWA install criteria checklist */}
+            <button
+              type="button"
+              onClick={() => setShowDiag((v) => !v)}
+              className="w-full text-xs text-slate-500 hover:text-slate-700 mb-2 underline-offset-2 hover:underline"
+            >
+              {showDiag ? "Hide" : "Why isn't this working?"}
+            </button>
+            {showDiag && (
+              <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 mb-3 text-xs space-y-1.5 font-mono">
+                <DiagRow label="HTTPS" pass={diag.https} />
+                <DiagRow
+                  label="Service worker"
+                  pass={diag.serviceWorker === "active"}
+                  value={diag.serviceWorker}
+                />
+                <DiagRow label="Manifest linked in HTML" pass={diag.manifestLinked} />
+                <DiagRow
+                  label="Manifest reachable"
+                  pass={diag.manifestReachable === true}
+                  value={
+                    diag.manifestReachable === "checking"
+                      ? "checking..."
+                      : String(diag.manifestReachable)
+                  }
+                />
+                <DiagRow
+                  label="Native install prompt available"
+                  pass={diag.beforeInstallPromptFired}
+                  value={diag.beforeInstallPromptFired ? "yes" : "not fired"}
+                />
+                <DiagRow label="Already installed (standalone)" pass={diag.standalone} neutral />
+                <p className="text-[10px] text-slate-400 mt-2 break-all">
+                  UA: {diag.userAgent}
+                </p>
+                {!diag.beforeInstallPromptFired && diag.serviceWorker === "active" && diag.manifestReachable === true && (
+                  <p className="text-[11px] text-amber-700 mt-2">
+                    All criteria pass but the native prompt didn&apos;t fire. Try a hard-refresh
+                    (pull down with two fingers on mobile, or Cmd/Ctrl+Shift+R on desktop) — the
+                    browser may have cached an older manifest. Then wait ~5 seconds and click Install again.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Other platforms — collapsed by default */}
             <button
               type="button"
@@ -343,5 +483,31 @@ function InstallModal({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function DiagRow({
+  label,
+  pass,
+  value,
+  neutral,
+}: {
+  label: string;
+  pass: boolean;
+  value?: string;
+  neutral?: boolean;
+}) {
+  const icon = neutral ? "ℹ" : pass ? "✓" : "✗";
+  const color = neutral
+    ? "text-slate-400"
+    : pass
+      ? "text-emerald-600"
+      : "text-rose-600";
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`${color} font-bold w-3`}>{icon}</span>
+      <span className="text-slate-700 flex-1">{label}</span>
+      {value && <span className={color}>{value}</span>}
+    </div>
   );
 }
