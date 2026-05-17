@@ -69,6 +69,11 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const [showAIAssist, setShowAIAssist] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showVapSheet, setShowVapSheet] = useState(false);
+  // Image attachment (v4.14.1 — Paperclip button used to be inert;
+  // beta tester Joze couldn't send pictures).
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -215,6 +220,72 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
       }
     },
     [authFetch, fetchMessages],
+  );
+
+  // Image attachment: pick → /api/uploads/message-media (server sniffs
+  // + EXIF-strips bytes) → /api/messages/send with type:"image" and the
+  // returned blob URLs in mediaUrls. We only allow a single image per
+  // tap for now; multi-select can come later but every additional file
+  // multiplies the upload time on mobile.
+  const handleImagePick = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      setAttachError(null);
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!user || isMockContact) {
+        setAttachError("Sign in to send photos.");
+        if (imageInputRef.current) imageInputRef.current.value = "";
+        return;
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        setAttachError("Image must be under 25 MB.");
+        if (imageInputRef.current) imageInputRef.current.value = "";
+        return;
+      }
+      setImageUploading(true);
+      try {
+        const draftId = `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        const form = new FormData();
+        form.append("messageDraftId", draftId);
+        form.append("file_0", file);
+        const upRes = await authFetch("/api/uploads/message-media", {
+          method: "POST",
+          body: form,
+        });
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !upData.ok) {
+          setAttachError(
+            upData?.error === "FILE_TOO_LARGE"
+              ? "Image must be under 25 MB."
+              : upData?.error === "REJECTED"
+                ? "That image type isn't supported."
+                : "Couldn't upload. Try again.",
+          );
+          return;
+        }
+        const sendRes = await authFetch("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            receiverId: chatId,
+            type: "image",
+            mediaUrls: upData.urls,
+          }),
+        });
+        if (sendRes.ok) {
+          const data = await sendRes.json();
+          setMessages((prev) => [...prev, data.data]);
+        } else {
+          setAttachError("Couldn't send. Try again.");
+        }
+      } catch {
+        setAttachError("Network error. Try again.");
+      } finally {
+        setImageUploading(false);
+        if (imageInputRef.current) imageInputRef.current.value = "";
+      }
+    },
+    [authFetch, chatId, user, isMockContact],
   );
 
   const handleSend = async () => {
@@ -392,9 +463,19 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
 
                   {msg.type === "image" && (
                     <div className="rounded-2xl overflow-hidden p-[2px] bg-gradient-to-br from-indigo-500/40 via-purple-500/40 to-pink-500/40">
-                      <div className="w-52 h-36 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-                        <ImageIcon size={32} className="text-white/20" />
-                      </div>
+                      {msg.mediaUrls && msg.mediaUrls.length > 0 ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={msg.mediaUrls[0]}
+                          alt={msg.content ?? "Sent image"}
+                          className="w-52 max-h-72 rounded-2xl object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-52 h-36 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
+                          <ImageIcon size={32} className="text-white/20" />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -527,6 +608,12 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
           }}
         />
 
+        {attachError && (
+          <div className="mb-2 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200">
+            <p className="text-[11px] text-rose-700">{attachError}</p>
+          </div>
+        )}
+
         <div className="flex items-center gap-1 mb-1.5 justify-between px-1">
           {/* AI button */}
           <motion.button
@@ -544,12 +631,28 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
           <WordCounter text={message} maxWords={70} />
         </div>
         <div className="flex items-end gap-2">
-          {/* Attachment */}
+          {/* Attachment — opens an image picker. Hidden file input is
+              mounted below the action area so the button can trigger it.
+              Disabled for mock peers (no real userId to send to). */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            className="hidden"
+            onChange={handleImagePick}
+          />
           <motion.button
             whileTap={{ scale: 0.9 }}
-            className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0"
+            onClick={() => !isMockContact && imageInputRef.current?.click()}
+            disabled={isMockContact || imageUploading}
+            className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 disabled:opacity-50"
+            aria-label="Attach an image"
           >
-            <Paperclip size={18} className="text-slate-400" />
+            {imageUploading ? (
+              <span className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Paperclip size={18} className="text-slate-400" />
+            )}
           </motion.button>
 
           {/* VAP — Send / Request / Split. Disabled for mock peers since

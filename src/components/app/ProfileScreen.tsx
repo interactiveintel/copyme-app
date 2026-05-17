@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,6 +19,7 @@ import {
   LogOut,
   AlertTriangle,
   Trash2,
+  Camera,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
@@ -27,11 +28,11 @@ import AppBrand from "./AppBrand";
 import ReferralBanner from "./ReferralBanner";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
-import { MOCK_PROFILES } from "@/lib/mock-data";
 
 interface Profile {
   id: string;
   displayName: string;
+  avatarUrl?: string | null;
   profileType: string;
   accountTier: string;
   vapEnabled: boolean;
@@ -116,6 +117,11 @@ export default function ProfileScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteStage, setDeleteStage] = useState<"closed" | "confirm" | "deleting" | "done">("closed");
   const [deleteError, setDeleteError] = useState("");
+  // Avatar upload (v4.14.1 — beta tester Joze couldn't change his
+  // profile pic post-signup because this UI never existed).
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -301,6 +307,55 @@ export default function ProfileScreen() {
     setEditMode(false);
   };
 
+  // Upload a new avatar. Multipart → /api/uploads/avatar, which sniffs
+  // + EXIF-strips the bytes server-side and persists the Blob URL on
+  // the user row. On success we refetch /api/users/me so the new URL
+  // is reflected immediately without a page reload.
+  const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAvatarError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!user) {
+      setAvatarError("Sign in to upload a photo.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarError("Image must be under 2 MB.");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await authFetch("/api/uploads/avatar", {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setAvatarError(data?.error === "TOO_LARGE" ? "Image must be under 2 MB." : "Upload failed. Try a different image.");
+        return;
+      }
+      // Refetch the canonical profile so avatarUrl propagates everywhere
+      // that reads `profile`. Cheap because /api/users/me is fast.
+      const refreshed = await authFetch("/api/users/me");
+      if (refreshed.ok) {
+        const d = await refreshed.json();
+        setProfile(d.data);
+      } else {
+        // Optimistic fallback so the user sees their pic immediately even
+        // if the refetch flaked.
+        setProfile((prev) => (prev ? { ...prev, avatarUrl: data.url } : prev));
+      }
+    } catch {
+      setAvatarError("Network error. Try again.");
+    } finally {
+      setAvatarUploading(false);
+      // Clear the input so picking the same file twice still triggers onChange.
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
+
   const addInterest = () => {
     const text = newInterest.trim().toLowerCase();
     if (!text || editInterests.length >= 7) return;
@@ -400,22 +455,58 @@ export default function ProfileScreen() {
           </div>
 
           <div className="flex flex-col items-center">
-            {isDemo ? (
-              <div className="relative w-20 h-20">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-[3px]">
-                  <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/avatars/paul-1.jpg"
-                      alt={displayName}
-                      className="w-full h-full object-cover rounded-full"
-                    />
+            {/* Hidden file input — triggered by the camera badge overlay. */}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAvatarPick}
+            />
+            <div className="relative">
+              {isDemo ? (
+                <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-[3px]">
+                    <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/avatars/paul-1.jpg"
+                        alt={displayName}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    </div>
                   </div>
+                  <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white" />
                 </div>
-                <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white" />
-              </div>
-            ) : (
-              <Avatar name={displayName} size="xl" online showStatus />
+              ) : (
+                <Avatar
+                  name={displayName}
+                  size="xl"
+                  src={activeProfile.avatarUrl ?? undefined}
+                  online
+                  showStatus
+                />
+              )}
+              {/* Camera overlay — only for authenticated users. Tap to
+                  open the file picker. Spinner overlays while uploading. */}
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center border-2 border-white disabled:opacity-60"
+                  aria-label="Change profile photo"
+                >
+                  {avatarUploading ? (
+                    <span className="w-3 h-3 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Camera size={12} className="text-white" />
+                  )}
+                </button>
+              )}
+            </div>
+            {avatarError && (
+              <p className="mt-2 text-[11px] text-rose-500">{avatarError}</p>
             )}
             {editMode ? (
               <input
