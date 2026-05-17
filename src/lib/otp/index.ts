@@ -12,6 +12,14 @@ import { createHash, randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { addBreadcrumb } from "@/lib/observability";
+import { sendViaVerify, checkViaVerify } from "./verify-api";
+
+// When OTP_PROVIDER=twilio-verify, we delegate entirely to Twilio Verify:
+// Twilio generates the code, sends the SMS, and validates the submitted
+// code. We bypass our local phone_otp table for this path because Twilio
+// owns the state — duplicating it would create drift bugs.
+const isVerifyApiConfigured = (): boolean =>
+  (process.env.OTP_PROVIDER ?? "").trim().toLowerCase() === "twilio-verify";
 
 const OTP_LIFETIME_MS = 10 * 60 * 1000; // 10 min
 const OTP_MAX_ATTEMPTS = 5;
@@ -150,6 +158,12 @@ export interface SendOtpResult {
 /**
  * Issue an OTP for the given E.164 phone. Stores a hashed copy in
  * `phone_otps` and dispatches the SMS via primary→fallback.
+ *
+ * When OTP_PROVIDER=twilio-verify, delegates entirely to Twilio Verify
+ * (Twilio generates + sends + later validates the code). We still keep a
+ * minimal phone_otp row in that case purely as a cooldown ledger — the
+ * codeHash is a sentinel so the verify path knows to take the Verify
+ * branch.
  */
 export async function sendOtp(
   phoneE164: string,
@@ -166,6 +180,32 @@ export async function sendOtp(
     const cooldownUntil = new Date(recent.createdAt.getTime() + OTP_RESEND_COOLDOWN_MS);
     addBreadcrumb("otp.cooldown_blocked", { phoneHash });
     return { ok: false, reason: "COOLDOWN", provider: "n/a", cooldownUntil };
+  }
+
+  // --- Twilio Verify path -------------------------------------------------
+  if (isVerifyApiConfigured()) {
+    const result = await sendViaVerify(phoneE164);
+    // Write a sentinel cooldown row so the cooldown check above is
+    // honored on subsequent requests. The codeHash is fixed because
+    // Twilio Verify owns the real code — we never compare against this.
+    await prisma.phoneOtp.create({
+      data: {
+        phoneHash,
+        codeHash: "verify-api-managed",
+        ipHash: hashIp(ip),
+        expiresAt: new Date(now.getTime() + OTP_LIFETIME_MS),
+      },
+    });
+    addBreadcrumb("otp.send_attempt", {
+      provider: "twilio-verify",
+      ok: String(result.ok),
+    });
+    return {
+      ok: result.ok,
+      reason: result.ok ? undefined : result.reason,
+      provider: "twilio-verify",
+      cooldownUntil: new Date(now.getTime() + OTP_RESEND_COOLDOWN_MS),
+    };
   }
 
   const code = generateCode();
@@ -216,12 +256,49 @@ export interface VerifyOtpResult {
 /**
  * Verify a code. Increments the attempt counter on each call; consumes
  * the OTP on success.
+ *
+ * When OTP_PROVIDER=twilio-verify, defers to Twilio Verify's
+ * VerificationCheck API — Twilio owns the code state, attempt counter,
+ * and expiry. We still flip our local phone_otp row to consumed on
+ * success so the cooldown ledger reflects the resolved state.
  */
 export async function verifyOtp(
   phoneE164: string,
   code: string,
 ): Promise<VerifyOtpResult> {
   const phoneHash = hashPhone(phoneE164);
+
+  // --- Twilio Verify path -------------------------------------------------
+  if (isVerifyApiConfigured()) {
+    const result = await checkViaVerify(phoneE164, code);
+    if (result.ok) {
+      await prisma.phoneOtp.updateMany({
+        where: { phoneHash, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+      addBreadcrumb("otp.verify_ok", { phoneHash, via: "twilio-verify" });
+      return { ok: true };
+    }
+    addBreadcrumb("otp.verify_failed", {
+      phoneHash,
+      via: "twilio-verify",
+      reason: result.reason ?? "UNKNOWN",
+    });
+    // Map Verify-specific reasons onto our existing enum so downstream
+    // UI code doesn't need a separate codepath.
+    switch (result.reason) {
+      case "NO_VERIFICATION":
+        return { ok: false, reason: "NO_OTP" };
+      case "MAX_ATTEMPTS":
+        return { ok: false, reason: "MAX_ATTEMPTS" };
+      case "WRONG_CODE":
+        return { ok: false, reason: "WRONG_CODE" };
+      default:
+        return { ok: false, reason: "WRONG_CODE" };
+    }
+  }
+
+  // --- Legacy local-codeHash path -----------------------------------------
   const otp = await prisma.phoneOtp.findFirst({
     where: { phoneHash, consumedAt: null },
     orderBy: { createdAt: "desc" },
