@@ -417,13 +417,18 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                     })()}
                   </div>
                 </div>
-                {/* User avatar on sent messages */}
+                {/* User avatar on sent messages. Renders the deterministic
+                    gradient + initials variant of the signed-in user via
+                    the Avatar component. The previous hardcoded
+                    "/avatars/paul-1.jpg" was a dev-time placeholder that
+                    leaked Paul's face onto every other user's sent-message
+                    bubbles — caught by a real beta user (Joze Krajz) when
+                    his messages to Paul started showing Paul's photo on
+                    his own outgoing bubbles. */}
                 {isSent && (
-                  <img
-                    src="/avatars/paul-1.jpg"
-                    alt="You"
-                    className="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0 mt-1"
-                  />
+                  <div className="shrink-0 mt-1">
+                    <Avatar name={user?.displayName ?? "You"} size="sm" />
+                  </div>
                 )}
               </motion.div>
             );
