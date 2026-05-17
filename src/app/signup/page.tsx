@@ -316,6 +316,22 @@ function SignupPageInner() {
     deviceId: string;
     user: { id: string; displayName: string };
   }) {
+    // Two writes because the codebase has two consumers:
+    //   1. AuthProvider (`src/lib/auth-context.tsx`) reads ONE key
+    //      `copyme_auth` as JSON {user, accessToken, refreshToken}.
+    //      Without this, /app loads the AuthScreen instead of the
+    //      inbox after a successful phone-OTP sign-in.
+    //   2. Legacy business pages (/business/surveys/*) still read the
+    //      flat `copyme.access` token directly. Keep those working
+    //      until they migrate to useAuth().
+    localStorage.setItem(
+      "copyme_auth",
+      JSON.stringify({
+        user: data.user,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      }),
+    );
     localStorage.setItem("copyme.access", data.accessToken);
     localStorage.setItem("copyme.refresh", data.refreshToken);
     localStorage.setItem("copyme.session", data.sessionId);
