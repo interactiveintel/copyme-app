@@ -34,7 +34,7 @@ export interface StreamMessageEvent {
   receiverId: string;
   contactId: string;
   preview: string | null;
-  type_: "text" | "image" | "voice" | "video";
+  type_: "text" | "image" | "voice" | "video" | "vap_transfer" | "vap_request";
   createdAt: string;
 }
 

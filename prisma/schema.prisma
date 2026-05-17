@@ -56,6 +56,8 @@ enum MessageType {
   image
   voice
   video
+  vap_transfer
+  vap_request
 }
 
 enum VapTransactionType {
@@ -694,6 +696,44 @@ model VapTransaction {
   @@index([receiverId, createdAt])
   @@index([status])
   @@map("vap_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Tier D Phase 1 — VAP money requests + split-bill coordination.
+//
+// Requests are the "ask me to pay" object. Lifecycle: pending → paid |
+// declined | expired | canceled. Splits are just multiple requests
+// sharing the same `splitGroupId`. The actual money movement still
+// goes through VapTransaction; this table tracks intent + state.
+// ---------------------------------------------------------------------------
+
+model VapRequest {
+  id                       String   @id @default(uuid()) @db.Uuid
+  fromUserId               String   @map("from_user_id") @db.Uuid
+  toUserId                 String   @map("to_user_id") @db.Uuid
+  amount                   Decimal  @db.Decimal(12, 2)
+  currency                 Currency @default(USD)
+  note                     String?  @db.VarChar(140)
+  /// pending | paid | declined | expired | canceled
+  status                   String   @default("pending") @db.VarChar(20)
+  /// Non-null when this row is part of a split-bill — all rows in the
+  /// same split share the same splitGroupId.
+  splitGroupId             String?  @map("split_group_id") @db.Uuid
+  /// Set when status flips to "paid" — points at the VapTransaction
+  /// that satisfied this request.
+  fulfilledTransactionId   String?  @map("fulfilled_transaction_id") @db.Uuid
+  /// Optional pointer to the in-chat Message row that surfaced this
+  /// request to the recipient. Null for requests created without a
+  /// linked thread message (e.g. legacy or admin paths).
+  messageId                String?  @map("message_id") @db.Uuid
+  expiresAt                DateTime @map("expires_at")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([toUserId, status])
+  @@index([fromUserId])
+  @@index([splitGroupId])
+  @@map("vap_requests")
 }
 
 // ---------------------------------------------------------------------------

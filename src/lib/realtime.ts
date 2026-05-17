@@ -43,7 +43,7 @@ export interface MessageEvent {
   /** Text content (or null for media). The full row is still fetched from
    *  the DB on the client's next inbox poll for full fidelity. */
   preview: string | null;
-  type_: "text" | "image" | "voice" | "video";
+  type_: "text" | "image" | "voice" | "video" | "vap_transfer" | "vap_request";
   createdAt: string;
 }
 
@@ -102,7 +102,7 @@ export async function publishMessageEvent(
     messageId: string;
     contactId: string;
     preview: string | null;
-    type_: "text" | "image" | "voice" | "video";
+    type_: "text" | "image" | "voice" | "video" | "vap_transfer" | "vap_request";
     createdAt: string;
   },
 ): Promise<void> {

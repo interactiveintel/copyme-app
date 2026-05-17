@@ -15,12 +15,15 @@ import {
   Play,
   Image as ImageIcon,
   Sparkles,
+  DollarSign,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
 import ChatAIAssistant from "./ChatAIAssistant";
 import ContactProfileSheet from "./ContactProfileSheet";
 import SmartReplyChips from "./SmartReplyChips";
+import VapMessageBubble, { type VapBubblePayload } from "./VapMessageBubble";
+import VapActionSheet from "./VapActionSheet";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 import { usePolling } from "@/lib/use-polling";
@@ -38,7 +41,7 @@ interface ApiMessage {
   id: string;
   senderId: string;
   receiverId: string;
-  type: "text" | "image" | "voice" | "video";
+  type: "text" | "image" | "voice" | "video" | "vap_transfer" | "vap_request";
   content: string | null;
   mediaUrls: string[] | null;
   durationSeconds: number | null;
@@ -65,6 +68,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const [translateOn, setTranslateOn] = useState(false);
   const [showAIAssist, setShowAIAssist] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showVapSheet, setShowVapSheet] = useState(false);
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -186,6 +190,32 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const smartReplyContext = messages
     .map((m) => (translateOn && m.translatedText) || m.content || "")
     .filter((s) => s.length > 0);
+
+  // VAP request actions (Pay / Decline / Cancel from a thread bubble).
+  // Posts to /api/vap/request/[id] and lets polling reconcile the new
+  // status into the rendered bubble.
+  const handleVapAction = useCallback(
+    async (requestId: string, action: "fulfill" | "decline" | "cancel") => {
+      try {
+        const res = await authFetch(`/api/vap/request/${requestId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        if (res.ok) {
+          // Immediate refetch so the bubble flips status without waiting
+          // for the 3s poll.
+          void fetchMessages();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          console.warn("VAP action failed:", data?.error?.code ?? res.status);
+        }
+      } catch {
+        console.warn("Network error on VAP action");
+      }
+    },
+    [authFetch, fetchMessages],
+  );
 
   const handleSend = async () => {
     const text = message.trim();
@@ -368,6 +398,39 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                     </div>
                   )}
 
+                  {(msg.type === "vap_transfer" || msg.type === "vap_request") && (() => {
+                    // Defensively parse the JSON payload. If anything is
+                    // malformed we render a tiny fallback chip rather
+                    // than crashing the whole thread.
+                    let payload: VapBubblePayload | null = null;
+                    try {
+                      const parsed = JSON.parse(msg.content ?? "{}");
+                      if (parsed && (parsed.kind === "vap_transfer" || parsed.kind === "vap_request")) {
+                        payload = parsed as VapBubblePayload;
+                      }
+                    } catch {
+                      /* ignore */
+                    }
+                    if (!payload) {
+                      return (
+                        <div className="px-3 py-2 rounded-2xl bg-slate-100 text-[11px] text-slate-400">
+                          [payment bubble]
+                        </div>
+                      );
+                    }
+                    return (
+                      <VapMessageBubble
+                        payload={payload}
+                        isSent={isSent}
+                        onAction={
+                          payload.requestId
+                            ? (a) => handleVapAction(payload!.requestId!, a)
+                            : undefined
+                        }
+                      />
+                    );
+                  })()}
+
                   {msg.type === "voice" && (
                     <div
                       className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${
@@ -489,6 +552,22 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             <Paperclip size={18} className="text-slate-400" />
           </motion.button>
 
+          {/* VAP — Send / Request / Split. Disabled for mock peers since
+              there's no real userId to address the API to. */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => !isMockContact && setShowVapSheet(true)}
+            disabled={isMockContact}
+            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+              isMockContact
+                ? "bg-slate-100 opacity-50"
+                : "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-md shadow-emerald-500/20"
+            }`}
+            aria-label="Open wallet actions"
+          >
+            <DollarSign size={18} className={isMockContact ? "text-slate-400" : "text-white"} />
+          </motion.button>
+
           {/* Text input */}
           <div className="flex-1 relative">
             <textarea
@@ -552,6 +631,24 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             messagesRemaining={remainingMessages}
             onClose={() => setShowProfile(false)}
             onMessage={() => setShowProfile(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* VAP Action Sheet — Send / Request / Split with the current peer.
+          Only mounted for real (non-mock) contacts. */}
+      <AnimatePresence>
+        {showVapSheet && !isMockContact && (
+          <VapActionSheet
+            authFetch={authFetch}
+            peerId={chatId}
+            peerName={displayName}
+            onClose={() => setShowVapSheet(false)}
+            onSent={() => {
+              // Refetch immediately so the new vap_* message appears as
+              // an inline bubble without waiting for the 3s poll.
+              void fetchMessages();
+            }}
           />
         )}
       </AnimatePresence>
