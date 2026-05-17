@@ -322,8 +322,38 @@ export default function ProfileScreen() {
     );
   }
 
-  const isDemo = !profile;
-  const activeProfile = profile ?? localProfile ?? demoProfile;
+  // "Demo" should ONLY apply when there's no authenticated user at all.
+  // Previously `isDemo = !profile` was true any time /api/users/me failed
+  // for a signed-in user — and the fallback was the hardcoded
+  // "Paul Pereira" `demoProfile` with Paul's photo + Miami location.
+  // That leaked the founder's identity to anyone whose profile fetch
+  // hit a network blip. See `feedback_dev_placeholder_leaks.md` in
+  // Claude memory + v4.13.16 ChatScreen fix.
+  const isDemo = !profile && !user;
+
+  // For authenticated users without a fetched profile, build a minimal
+  // profile from the auth context so we render *their* identity, not
+  // Paul's. demoProfile is reserved for the truly-unauthenticated case
+  // (which shouldn't happen since ProfileScreen is auth-gated, but
+  // defensive).
+  const authFallbackProfile: Profile | null = user
+    ? {
+        id: user.id,
+        displayName: user.displayName,
+        profileType: "personal",
+        accountTier: user.accountTier ?? "basic",
+        vapEnabled: false,
+        preferredCurrency: "USD",
+        lastActivityAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        location: null,
+        interests: [],
+        descriptions: [],
+      }
+    : null;
+
+  const activeProfile =
+    profile ?? localProfile ?? authFallbackProfile ?? demoProfile;
 
   const displayName = activeProfile.displayName || user?.displayName || "User";
   const tier = activeProfile.accountTier || "basic";
