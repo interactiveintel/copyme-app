@@ -109,7 +109,16 @@ function pick(name: string | undefined): OtpProvider {
 }
 
 const PRIMARY = pick(process.env.OTP_PROVIDER);
-const FALLBACK = pick(process.env.OTP_FALLBACK_PROVIDER);
+// Fallback is opt-in via OTP_FALLBACK_PROVIDER. Previously this defaulted
+// to MockProvider when unset, which meant any Twilio failure (e.g. trial-
+// mode unverified-number rejection) silently fell back to mock + returned
+// ok:true to the caller — so users saw "code sent" but no SMS arrived
+// and they got permanently stuck. We now only fall back when an
+// explicit *real* second provider is configured.
+const FALLBACK =
+  process.env.OTP_FALLBACK_PROVIDER
+    ? pick(process.env.OTP_FALLBACK_PROVIDER)
+    : null;
 
 // ---- Hashing helpers ----------------------------------------------------
 
@@ -172,13 +181,18 @@ export async function sendOtp(
     },
   });
 
-  // Try primary; fall back on failure.
+  // Try primary; fall back on failure only if an explicit second provider
+  // is configured (FALLBACK !== null). Without a real fallback, surface
+  // the primary error to the caller so the user knows to try again
+  // rather than getting a silent success.
   let result = await PRIMARY.send(phoneE164, code);
   let providerUsed = PRIMARY.name;
-  if (!result.ok && FALLBACK.name !== PRIMARY.name) {
+  if (!result.ok && FALLBACK && FALLBACK.name !== PRIMARY.name) {
     addBreadcrumb("otp.primary_failed", { provider: PRIMARY.name, reason: result.reason });
     result = await FALLBACK.send(phoneE164, code);
     providerUsed = FALLBACK.name;
+  } else if (!result.ok) {
+    addBreadcrumb("otp.send_failed_no_fallback", { provider: PRIMARY.name, reason: result.reason });
   }
 
   addBreadcrumb("otp.send_attempt", {
