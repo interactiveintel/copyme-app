@@ -13,7 +13,11 @@
 
 import { redirect } from "next/navigation";
 
-const REAL_PROVIDERS = new Set(["twilio", "messagebird"]);
+// Any provider that actually delivers SMS to real phones. Adding a
+// new provider implementation? Add its OTP_PROVIDER token here too,
+// otherwise this guard will redirect /signup → /app and silently
+// hide the phone-OTP flow.
+const REAL_PROVIDERS = new Set(["twilio", "twilio-verify", "messagebird"]);
 
 export default function SignupLayout({ children }: { children: React.ReactNode }) {
   const provider = (process.env.OTP_PROVIDER ?? "").trim().toLowerCase();
