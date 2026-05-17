@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
 // ---------------------------------------------------------------------------
 // Routes that do NOT require authentication
@@ -22,16 +23,56 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Lightweight JWT decode for Edge Runtime (no verification — routes verify)
+// JWT verification — Edge-compatible via jose.
+//
+// Mirrors src/lib/auth.ts::resolveJwtSecret: prefer JWT_SECRET (≥32 chars),
+// throw in production if missing/weak, otherwise fall back to the same dev
+// secret. The fallback exists purely so `next dev` keeps working without a
+// .env file — production builds will fail loudly if JWT_SECRET is unset.
 // ---------------------------------------------------------------------------
 
-function decodeJwtPayload(token: string): { userId: string; type: string } | null {
+function resolveJwtSecret(): Uint8Array {
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret && envSecret.length >= 32) {
+    return new TextEncoder().encode(envSecret);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "JWT_SECRET must be set to a string of at least 32 characters in production. " +
+        "Refusing to verify tokens with a weak or missing secret.",
+    );
+  }
+
+  if (envSecret) {
+    // Dev set an env secret but it's too short — accept it so dev keeps
+    // working but it would have failed in production.
+    return new TextEncoder().encode(envSecret);
+  }
+
+  return new TextEncoder().encode(
+    "copyme-dev-secret-not-for-production-use-32ch",
+  );
+}
+
+const JWT_SECRET = resolveJwtSecret();
+
+interface VerifiedPayload {
+  userId: string;
+  type: string;
+}
+
+async function verifyJwt(token: string): Promise<VerifiedPayload | null> {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return payload;
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const userId = typeof payload.userId === "string" ? payload.userId : null;
+    const type = typeof payload.type === "string" ? payload.type : null;
+    if (!userId || !type) return null;
+    return { userId, type };
   } catch {
+    // Signature mismatch, expired, malformed, etc. Do not log the token
+    // (PII / credential leakage); the route's authenticateRequest will
+    // surface the failure with the standard 401 envelope.
     return null;
   }
 }
@@ -42,20 +83,36 @@ function extractBearerToken(header: string | null): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Middleware
+// CORS — allowlist instead of wildcard.
+//
+// Dev: localhost:3000. Prod: copyme1.com (apex + www) and copyme.com.
+// Preview deploys are served from *.vercel.app — allow any deploy URL via
+// regex so PR previews can call the API without per-deploy config.
 // ---------------------------------------------------------------------------
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+const ALLOWED_ORIGINS = new Set<string>([
+  "http://localhost:3000",
+  "https://copyme1.com",
+  "https://www.copyme1.com",
+  "https://copyme.com",
+]);
 
-  // Only apply to API routes
-  if (!pathname.startsWith("/api/")) {
-    return NextResponse.next();
+const VERCEL_PREVIEW_RE = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  return VERCEL_PREVIEW_RE.test(origin);
+}
+
+function applyCorsHeaders(response: NextResponse, origin: string | null): void {
+  if (origin && isAllowedOrigin(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
   }
-
-  // --- CORS headers ---------------------------------------------------------
-  const response = NextResponse.next();
-  response.headers.set("Access-Control-Allow-Origin", "*");
+  // Always vary on Origin so caches don't serve a response from one origin
+  // back to another.
+  response.headers.set("Vary", "Origin");
   response.headers.set(
     "Access-Control-Allow-Methods",
     "GET, POST, PUT, PATCH, DELETE, OPTIONS",
@@ -64,17 +121,33 @@ export function middleware(request: NextRequest) {
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization",
   );
+}
 
-  // Handle preflight
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Only apply to API routes
+  if (!pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
+  const origin = request.headers.get("origin");
+
+  // --- CORS preflight -------------------------------------------------------
   if (request.method === "OPTIONS") {
-    return new NextResponse(null, {
-      status: 204,
-      headers: response.headers,
-    });
+    const preflight = new NextResponse(null, { status: 204 });
+    applyCorsHeaders(preflight, origin);
+    return preflight;
   }
 
   // Skip auth for public routes
   if (isPublicRoute(pathname)) {
+    const response = NextResponse.next();
+    applyCorsHeaders(response, origin);
     return response;
   }
 
@@ -82,44 +155,56 @@ export function middleware(request: NextRequest) {
   const token = extractBearerToken(request.headers.get("authorization"));
 
   if (!token) {
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         success: false,
         error: { code: "UNAUTHORIZED", message: "Authorization header with Bearer token required" },
       },
       { status: 401 },
     );
+    applyCorsHeaders(response, origin);
+    return response;
   }
 
-  const payload = decodeJwtPayload(token);
+  const payload = await verifyJwt(token);
 
   if (!payload || !payload.userId) {
-    return NextResponse.json(
+    // Strip any inbound x-user-id header so a forged token can't smuggle
+    // an identity through; the route's authenticateRequest will reject.
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete("x-user-id");
+    const response = NextResponse.json(
       {
         success: false,
         error: { code: "INVALID_TOKEN", message: "Token is invalid or expired" },
       },
       { status: 401 },
     );
+    applyCorsHeaders(response, origin);
+    return response;
   }
 
   if (payload.type !== "access") {
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         success: false,
         error: { code: "INVALID_TOKEN_TYPE", message: "Access token required" },
       },
       { status: 401 },
     );
+    applyCorsHeaders(response, origin);
+    return response;
   }
 
-  // Pass userId downstream via request headers
+  // Pass userId downstream via request headers — only after verification.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-user-id", payload.userId);
 
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
+  applyCorsHeaders(response, origin);
+  return response;
 }
 
 // ---------------------------------------------------------------------------

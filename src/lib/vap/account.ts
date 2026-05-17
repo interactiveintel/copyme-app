@@ -5,8 +5,20 @@
 // touch wallet features never burn a row. The transfer/request paths
 // upsert the account in their own transaction so this helper is only
 // strictly needed for the GET /api/vap/account read path.
+//
+// Balances are Decimal(12,2) in the DB and Prisma.Decimal in memory.
+// We convert to integer cents ONLY at this function's return boundary
+// (cents-on-wire). Never do Decimal → number anywhere else inside the
+// VAP lib.
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+
+const CENTS_PER_DOLLAR = new Prisma.Decimal(100);
+
+function decimalToCents(d: Prisma.Decimal): number {
+  return d.mul(CENTS_PER_DOLLAR).toNumber();
+}
 
 export interface AccountState {
   /** Whole-dollar amount as a number — keep cents on the wire to avoid float drift. */
@@ -27,10 +39,10 @@ export async function getOrCreateAccount(userId: string): Promise<AccountState> 
   });
   if (existing) {
     return {
-      balanceCents: Math.round(Number(existing.balance) * 100),
+      balanceCents: decimalToCents(existing.balance),
       currency: existing.currency as "USD" | "EUR",
-      weeklyTransferCents: Math.round(Number(existing.weeklyTransferTotal) * 100),
-      annualTransferCents: Math.round(Number(existing.annualTransferTotal) * 100),
+      weeklyTransferCents: decimalToCents(existing.weeklyTransferTotal),
+      annualTransferCents: decimalToCents(existing.annualTransferTotal),
       tier: existing.tier as "standard" | "premium" | "merchant",
       lastTransactionAt: existing.lastTransactionAt?.toISOString() ?? null,
       virtualCardCount: existing.virtualCardCount,

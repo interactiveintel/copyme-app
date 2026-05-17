@@ -20,12 +20,14 @@ import {
   AlertTriangle,
   Trash2,
   Camera,
+  ShieldOff,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import AppBrand from "./AppBrand";
 import ReferralBanner from "./ReferralBanner";
+import BlockedUsersSheet from "./BlockedUsersSheet";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 
@@ -115,6 +117,7 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [blockedSheetOpen, setBlockedSheetOpen] = useState(false);
   const [deleteStage, setDeleteStage] = useState<"closed" | "confirm" | "deleting" | "done">("closed");
   const [deleteError, setDeleteError] = useState("");
   // Avatar upload (v4.14.1 — beta tester Joze couldn't change his
@@ -892,6 +895,20 @@ export default function ProfileScreen() {
                     {user && (
                       <button
                         onClick={() => {
+                          setSettingsOpen(false);
+                          setBlockedSheetOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ShieldOff size={14} className="text-slate-500" /> Blocked users
+                        </span>
+                        <span className="text-xs text-slate-400">→</span>
+                      </button>
+                    )}
+                    {user && (
+                      <button
+                        onClick={() => {
                           logout();
                           window.location.href = "/";
                         }}
@@ -925,6 +942,16 @@ export default function ProfileScreen() {
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Blocked users sheet — opened from Settings. */}
+      <AnimatePresence>
+        {blockedSheetOpen && user && (
+          <BlockedUsersSheet
+            authFetch={authFetch}
+            onClose={() => setBlockedSheetOpen(false)}
+          />
         )}
       </AnimatePresence>
     </div>

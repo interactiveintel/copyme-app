@@ -11,6 +11,7 @@
 // the Message row first and passing its id in — keeps this function
 // purely ledger-shaped.
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { addBreadcrumb, reportError } from "@/lib/observability";
 import { scoreTransaction } from "./fraud";
@@ -18,6 +19,19 @@ import { scoreTransaction } from "./fraud";
 const MAX_AMOUNT_CENTS = 100_000_00; // $100,000 hard ceiling per single transfer
 const MIN_AMOUNT_CENTS = 1;          // $0.01 floor
 const FRAUD_DECLINE_THRESHOLD = 0.7;
+
+// Decimal balances live in DB as Decimal(12,2). We do ALL math in
+// Prisma.Decimal (Decimal.js under the hood) and only convert to a JS
+// number at the function boundary — $0.10 + $0.20 in floats is the
+// classic 0.30000000000000004 trap, fatal for a money ledger.
+const CENTS_PER_DOLLAR = new Prisma.Decimal(100);
+
+function decimalToCents(d: Prisma.Decimal): number {
+  // .mul(100).toNumber() is exact here because Decimal(12,2) values have
+  // at most 2 fractional digits — multiplying by 100 yields an integer
+  // well within JS's safe-integer range (max would be 100_000_00_00).
+  return d.mul(CENTS_PER_DOLLAR).toNumber();
+}
 
 export type TransferReason =
   | "OK"
@@ -71,12 +85,17 @@ export async function transfer(args: {
     return { ok: false, reason: "RECIPIENT_NOT_FOUND" };
   }
 
+  // Single conversion point from cents-on-wire → Decimal-internal. Every
+  // ledger touch from here on uses `amount` (a Decimal), not amountCents.
+  const amount = new Prisma.Decimal(amountCents).div(CENTS_PER_DOLLAR);
+
   // ---- Fraud check (out-of-tx — pure read) -----------------------------
   let fraudScore = 0;
   try {
     const signal = await scoreTransaction({
       userId: senderId,
-      amountEur: amountCents / 100, // fraud lib already uses EUR; close enough for in-house first pass
+      // fraud lib takes a JS number (EUR/USD) — boundary conversion only.
+      amountEur: amount.toNumber(),
       deviceId: args.deviceId,
       countryIso2: args.countryIso2,
     });
@@ -111,18 +130,18 @@ export async function transfer(args: {
         where: { userId: senderId },
         select: { balance: true },
       });
-      const senderBalanceCents = Math.round(Number(sender!.balance) * 100);
-      if (senderBalanceCents < amountCents) {
+      if (sender!.balance.lessThan(amount)) {
         throw new Error("INSUFFICIENT_BALANCE");
       }
 
       // Debit + credit. Prisma's `decrement`/`increment` are atomic at the
       // SQL level (`balance = balance - X`) and respect the row lock taken
-      // by upsert above.
+      // by upsert above. Pass Decimal directly — Prisma accepts
+      // `Decimal | number | string` for numeric field operations.
       const newSender = await tx.vapAccount.update({
         where: { userId: senderId },
         data: {
-          balance: { decrement: amountCents / 100 },
+          balance: { decrement: amount },
           lastTransactionAt: new Date(),
         },
         select: { balance: true },
@@ -130,7 +149,7 @@ export async function transfer(args: {
       const newReceiver = await tx.vapAccount.update({
         where: { userId: receiverId },
         data: {
-          balance: { increment: amountCents / 100 },
+          balance: { increment: amount },
           lastTransactionAt: new Date(),
         },
         select: { balance: true },
@@ -141,7 +160,7 @@ export async function transfer(args: {
           senderId,
           receiverId,
           type: "transfer",
-          amount: amountCents / 100,
+          amount,
           status: "completed",
         },
         select: { id: true },
@@ -171,8 +190,10 @@ export async function transfer(args: {
 
       return {
         transactionId: txRow.id,
-        senderBalanceCents: Math.round(Number(newSender.balance) * 100),
-        receiverBalanceCents: Math.round(Number(newReceiver.balance) * 100),
+        // Boundary conversion: Decimal → cents-on-wire number. Exact for
+        // Decimal(12,2) values multiplied by 100.
+        senderBalanceCents: decimalToCents(newSender.balance),
+        receiverBalanceCents: decimalToCents(newReceiver.balance),
       };
     });
 

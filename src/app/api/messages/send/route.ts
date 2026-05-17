@@ -13,6 +13,7 @@ import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { bumpStreak } from "@/lib/streak";
 import { sendPush } from "@/lib/push";
 import { publishMessageEvent } from "@/lib/realtime";
+import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // POST /api/messages/send
@@ -32,6 +33,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, error: { code: "UNAUTHORIZED", message: "Valid access token required" } },
       { status: 401 },
+    );
+  }
+
+  // --- Per-user rate limit: 30 messages/minute ----------------------------
+  // Combined user+IP key so a compromised token shared across multiple
+  // IPs still hits the cap from each, while a normal user on one IP gets
+  // a tight ceiling that's high enough for real conversation bursts.
+  const ip = clientIpFromRequest(request);
+  const rl = await rateLimit(`msg:send:${auth.userId}:${ip}`, 30, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: { code: "RATE_LIMITED", retryAfterMs: rl.retryAfterMs } },
+      { status: 429 },
     );
   }
 

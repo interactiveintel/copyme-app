@@ -16,6 +16,9 @@ import {
   Image as ImageIcon,
   Sparkles,
   DollarSign,
+  MoreVertical,
+  ShieldOff,
+  Flag,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
@@ -24,6 +27,7 @@ import ContactProfileSheet from "./ContactProfileSheet";
 import SmartReplyChips from "./SmartReplyChips";
 import VapMessageBubble, { type VapBubblePayload } from "./VapMessageBubble";
 import VapActionSheet from "./VapActionSheet";
+import ReportUserSheet from "./ReportUserSheet";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 import { usePolling } from "@/lib/use-polling";
@@ -69,6 +73,14 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const [showAIAssist, setShowAIAssist] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showVapSheet, setShowVapSheet] = useState(false);
+  // Block + report (App Store compliance — both backends exist; this is
+  // the UI to invoke them).
+  const [showOverflow, setShowOverflow] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ userId: string; messageId?: string } | null>(null);
+  const [reportToast, setReportToast] = useState<string | null>(null);
   // Image attachment (v4.14.1 — Paperclip button used to be inert;
   // beta tester Joze couldn't send pictures).
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -221,6 +233,42 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     },
     [authFetch, fetchMessages],
   );
+
+  // Block the peer and bounce back to the inbox. Confirm dialog gates
+  // this so an accidental tap can't sever a contact.
+  const handleBlock = useCallback(async () => {
+    if (blocking || isMockContact) return;
+    setBlocking(true);
+    setBlockError(null);
+    try {
+      const res = await authFetch("/api/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: chatId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.ok === false) {
+        setBlockError("Couldn't block. Try again.");
+        return;
+      }
+      setShowBlockConfirm(false);
+      setShowOverflow(false);
+      // Return to inbox — the contact is dropped on the backend, so the
+      // chat shouldn't stay on screen.
+      onBack();
+    } catch {
+      setBlockError("Network error.");
+    } finally {
+      setBlocking(false);
+    }
+  }, [authFetch, blocking, chatId, isMockContact, onBack]);
+
+  // Auto-dismiss the "Report submitted" toast after a few seconds.
+  useEffect(() => {
+    if (!reportToast) return;
+    const t = setTimeout(() => setReportToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [reportToast]);
 
   // Image attachment: pick → /api/uploads/message-media (server sniffs
   // + EXIF-strips bytes) → /api/messages/send with type:"image" and the
@@ -375,13 +423,72 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
               </div>
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
             <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
               <Video size={17} className="text-slate-500" />
             </motion.button>
             <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
               <Phone size={17} className="text-slate-500" />
             </motion.button>
+            {/* Overflow → Block / Report. Hidden for mock contacts since
+                they have no real userId on the backend. */}
+            {!isMockContact && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowOverflow((v) => !v)}
+                className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"
+                aria-label="More actions"
+                aria-haspopup="menu"
+                aria-expanded={showOverflow}
+              >
+                <MoreVertical size={17} className="text-slate-500" />
+              </motion.button>
+            )}
+            <AnimatePresence>
+              {showOverflow && !isMockContact && (
+                <>
+                  {/* Click-away catcher */}
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setShowOverflow(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                    transition={{ duration: 0.12 }}
+                    role="menu"
+                    className="absolute right-0 top-11 z-40 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setShowOverflow(false);
+                        setReportTarget({ userId: chatId });
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <Flag size={15} className="text-rose-500" />
+                      Report this user
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setShowOverflow(false);
+                        setBlockError(null);
+                        setShowBlockConfirm(true);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-rose-600 border-t border-slate-100 hover:bg-rose-50"
+                    >
+                      <ShieldOff size={15} />
+                      Block this user
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
@@ -541,6 +648,21 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                   {/* Timestamp + receipt status */}
                   <div className={`flex items-center gap-1 mt-1 ${isSent ? "justify-end" : "justify-start"}`}>
                     <span className="text-[10px] text-slate-400">{formatTime(msg.createdAt)}</span>
+                    {/* Per-message report flag — only on received, non-mock
+                        messages. Surfaced as a small icon rather than a
+                        long-press menu so first-time users can find it. */}
+                    {!isSent && !isMockContact && !msg.id.startsWith("demo_") && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReportTarget({ userId: msg.senderId, messageId: msg.id })
+                        }
+                        aria-label="Report this message"
+                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                      >
+                        <Flag size={10} />
+                      </button>
+                    )}
                     {isSent && (() => {
                       // Legacy demo / mock messages have no delivered/read
                       // data — render the old double-check to keep the
@@ -753,6 +875,96 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
               void fetchMessages();
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Block confirmation dialog */}
+      <AnimatePresence>
+        {showBlockConfirm && !isMockContact && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !blocking && setShowBlockConfirm(false)}
+            className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-5"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6"
+            >
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                  <ShieldOff size={18} className="text-rose-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Block {displayName}?
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    They won&apos;t be able to message you, and they&apos;ll be
+                    removed from your contacts. You can unblock them anytime
+                    from Settings.
+                  </p>
+                </div>
+              </div>
+              {blockError && (
+                <div className="mb-3 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200">
+                  <p className="text-xs text-rose-700">{blockError}</p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBlockConfirm(false)}
+                  disabled={blocking}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-700 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBlock}
+                  disabled={blocking}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-rose-600 disabled:opacity-60"
+                >
+                  {blocking ? "Blocking…" : "Block"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Report sheet — handles both user-level and per-message reports. */}
+      <AnimatePresence>
+        {reportTarget && !isMockContact && (
+          <ReportUserSheet
+            authFetch={authFetch}
+            reportedId={reportTarget.userId}
+            reportedName={displayName}
+            messageId={reportTarget.messageId}
+            defaultReason={reportTarget.messageId ? "harassment" : undefined}
+            onClose={() => setReportTarget(null)}
+            onSubmitted={() => setReportToast("Report submitted. Thanks for helping keep CopyMe safe.")}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Toast — auto-clears via the effect above. */}
+      <AnimatePresence>
+        {reportToast && (
+          <motion.div
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 30, opacity: 0 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[80] px-4 py-2.5 rounded-2xl bg-slate-900/90 backdrop-blur text-white text-xs font-medium shadow-xl max-w-[90%] text-center"
+            role="status"
+          >
+            {reportToast}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

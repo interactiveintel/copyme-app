@@ -15,6 +15,7 @@ import {
   validateInviteCode,
   redeemInviteCode,
 } from "@/lib/invite-code";
+import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -33,6 +34,18 @@ interface RegisterBody {
 
 export async function POST(request: NextRequest) {
   try {
+    // --- Per-IP rate limit: 5 signups/minute --------------------------------
+    // Stops automated account creation from a single source. Runs before
+    // any parse/DB work so a flooded IP burns minimal CPU.
+    const ip = clientIpFromRequest(request);
+    const rl = await rateLimit(`register:ip:${ip}`, 5, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: { code: "RATE_LIMITED", retryAfterMs: rl.retryAfterMs } },
+        { status: 429 },
+      );
+    }
+
     const body = (await request.json()) as RegisterBody;
 
     // --- Validate required fields -------------------------------------------

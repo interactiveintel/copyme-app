@@ -13,6 +13,7 @@
 // pending row with expiresAt < now() as expired. A periodic sweeper
 // would be a Phase 2 optimization once the table grows.
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { addBreadcrumb, reportError } from "@/lib/observability";
 import { transfer } from "./transfer";
@@ -20,6 +21,11 @@ import { transfer } from "./transfer";
 const REQUEST_TTL_DAYS = 7;
 const MAX_AMOUNT_CENTS = 100_000_00;
 const MIN_AMOUNT_CENTS = 1;
+
+// Cents↔Decimal conversion lives here too so we never accidentally
+// round-trip a money value through a JS float. See transfer.ts for the
+// full rationale.
+const CENTS_PER_DOLLAR = new Prisma.Decimal(100);
 
 export type CreateRequestReason =
   | "OK"
@@ -65,7 +71,7 @@ export async function createRequest(args: {
       data: {
         fromUserId,
         toUserId,
-        amount: amountCents / 100,
+        amount: new Prisma.Decimal(amountCents).div(CENTS_PER_DOLLAR),
         note: note?.slice(0, 140) ?? null,
         splitGroupId: splitGroupId ?? null,
         messageId: messageId ?? null,
@@ -130,7 +136,9 @@ export async function fulfillRequest(args: {
     return { ok: false, reason: "EXPIRED" };
   }
 
-  const amountCents = Math.round(Number(req.amount) * 100);
+  // Decimal → integer cents. Exact for Decimal(12,2) values multiplied
+  // by 100; transfer() takes cents-on-wire as its contract.
+  const amountCents = req.amount.mul(CENTS_PER_DOLLAR).toNumber();
   const result = await transfer({
     senderId: payerId,
     receiverId: req.fromUserId,

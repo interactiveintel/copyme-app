@@ -37,6 +37,66 @@ const nextConfig: NextConfig = {
   // cannot load it; any code path that imports `src/lib/e2e/libsignal.ts`
   // must opt into the Node runtime via `export const runtime = "nodejs"`.
   serverExternalPackages: ["@signalapp/libsignal-client"],
+
+  // Security headers — applied to all routes.
+  //
+  // CSP notes:
+  //   - 'unsafe-inline' is still required for scripts/styles because Next
+  //     emits inline bootstrap code and Tailwind/Sentry inject inline
+  //     styles. Tightening to a nonce-based CSP is a follow-up (would
+  //     require wiring the nonce through middleware + each layout).
+  //   - img/media allow `data:` and `blob:` for canvas previews + camera
+  //     captures (recorded voice/video go through MediaRecorder which
+  //     produces blob URLs before upload).
+  //   - Vercel Blob CDN is the canonical image host; allow the
+  //     `*.public.blob.vercel-storage.com` wildcard rather than enumerating
+  //     each store hostname.
+  //   - connect-src allows the Sentry ingest endpoints (both regional
+  //     subdomains the SDK can pick), Vercel Blob (for direct PUTs from
+  //     the browser), and wss:/ws: for socket.io. `'self'` covers the
+  //     API surface.
+  //   - frame-ancestors 'none' is the CSP equivalent of X-Frame-Options:
+  //     DENY (modern browsers honour CSP first).
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
+      "media-src 'self' blob: https://*.public.blob.vercel-storage.com",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.public.blob.vercel-storage.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io wss: ws:",
+      "worker-src 'self' blob:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(self), geolocation=()",
+          },
+          { key: "Content-Security-Policy", value: csp },
+        ],
+      },
+    ];
+  },
 };
 
 // ---------------------------------------------------------------------------
