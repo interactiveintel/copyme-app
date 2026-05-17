@@ -130,7 +130,7 @@ function AppContent() {
           <ChatScreen chatId={chatId} contactName={chatContactName} onBack={() => setScreen("inbox")} />
         )}
 
-        {screen === "search" && <SearchScreen />}
+        {screen === "search" && <SearchScreen onContact={handleOpenChat} />}
 
         {screen === "agenti" && <YogiInboxScreen />}
 
