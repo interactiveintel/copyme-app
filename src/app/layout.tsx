@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import CookieBanner from "@/components/common/CookieBanner";
 import ServiceWorkerRegistration from "@/components/common/ServiceWorkerRegistration";
@@ -30,11 +31,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the per-request nonce that middleware sets via x-nonce. Just
+  // calling headers() here marks the layout as dynamic so Next.js
+  // re-renders per request and auto-applies the nonce to its internal
+  // bootstrap + RSC streaming scripts. We don't currently emit our own
+  // inline <script> tags; if we add any, attach `nonce={nonce}` to them.
+  // See: https://nextjs.org/docs/app/guides/content-security-policy
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  void nonce; // intentionally unused for now — read side-effect is the point
+
   return (
     <html
       lang="en"
