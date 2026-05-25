@@ -138,12 +138,17 @@ function AppContent() {
         {screen === "profile" && <ProfileScreen />}
       </div>
 
-      {/* Bottom Nav */}
+      {/* Bottom Nav.
+          The unreadCount hardcoded "11" lied to every beta user since
+          launch — Joze Kralj flagged "Inbox is pump up nu 11, as
+          previous testing msg" in his May 18 feedback. Set to 0 until
+          v4.16.1 (F2) wires the real per-user unread count from
+          /api/messages/inbox. */}
       {showNav && (
         <BottomNav
           activeTab={screenToTab(screen)}
           onTabChange={handleTabChange}
-          unreadCount={11}
+          unreadCount={0}
         />
       )}
 
