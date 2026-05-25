@@ -111,9 +111,14 @@ function buildCsp(nonce: string): string {
     `script-src 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
-    "media-src 'self' blob: https://*.public.blob.vercel-storage.com",
+    // media-src must allow LiveKit Cloud's edge media servers so the
+    // browser can attach <audio>/<video> elements to the remote stream
+    // (v4.15.0+). 'blob:' covers MediaRecorder previews.
+    "media-src 'self' blob: https://*.public.blob.vercel-storage.com https://*.livekit.cloud",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.public.blob.vercel-storage.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io wss: ws:",
+    // connect-src — Vercel Blob + Sentry + websockets (chat realtime
+    // AND LiveKit signaling/media over WebRTC data channel).
+    "connect-src 'self' https://*.public.blob.vercel-storage.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.livekit.cloud wss: ws:",
     "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",

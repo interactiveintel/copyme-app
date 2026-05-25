@@ -58,6 +58,12 @@ enum MessageType {
   video
   vap_transfer
   vap_request
+  /// Tier-E call lifecycle bubble. The Message.content JSON carries
+  /// {kind:"call", callType:"voice"|"video", status, callId,
+  ///  durationSeconds?}. One Message per call lifecycle (not per
+  ///  state change) — the existing row's content is updated as the
+  ///  call's status flips.
+  call
 }
 
 enum VapTransactionType {
@@ -782,4 +788,41 @@ model InviteCodeRedemption {
   @@index([userId])
   @@index([inviteCodeId])
   @@map("invite_code_redemptions")
+}
+
+/// Tier-E call records. Each row is one call attempt — the lifecycle is
+/// captured in `status` rather than spawning multiple rows.
+/// 1:1 only in v4.15.0; v4.15.5 (Sprint 6) adds group calls via a
+/// separate CallParticipant table that joins back here.
+///
+/// `room` is the LiveKit room name we joined; derived from a hash of
+/// (callerId, calleeId, createdAt) so concurrent calls between the same
+/// pair don't collide.
+model Call {
+  id              String   @id @default(uuid()) @db.Uuid
+  callerId        String   @map("caller_id") @db.Uuid
+  calleeId        String   @map("callee_id") @db.Uuid
+  /// "voice" | "video" — set at create; doesn't change mid-call.
+  callType        String   @default("voice") @map("call_type") @db.VarChar(10)
+  /// "ringing" | "accepted" | "declined" | "missed" | "ended" | "failed"
+  status          String   @default("ringing") @db.VarChar(20)
+  /// LiveKit room identifier. Both peers join this name.
+  room            String   @db.VarChar(64)
+  /// Bound chat-thread Message row so the conversation can render the
+  /// call as an inline bubble.
+  messageId       String?  @map("message_id") @db.Uuid
+  /// When the call left "ringing" — either via accept or terminal state.
+  acceptedAt      DateTime? @map("accepted_at")
+  /// When the call ended. Always set on terminal states.
+  endedAt         DateTime? @map("ended_at")
+  /// Wall-clock duration in seconds. Materialized at end so list views
+  /// don't have to compute it.
+  durationSeconds Int?     @map("duration_seconds")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([calleeId, status])
+  @@index([callerId])
+  @@index([createdAt])
+  @@map("calls")
 }

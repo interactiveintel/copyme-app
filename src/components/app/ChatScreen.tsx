@@ -28,6 +28,8 @@ import SmartReplyChips from "./SmartReplyChips";
 import VapMessageBubble, { type VapBubblePayload } from "./VapMessageBubble";
 import VapActionSheet from "./VapActionSheet";
 import ReportUserSheet from "./ReportUserSheet";
+import CallMessageBubble, { type CallBubblePayload } from "./CallMessageBubble";
+import { startOutboundCall } from "./GlobalCallListener";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 import { usePolling } from "@/lib/use-polling";
@@ -45,7 +47,7 @@ interface ApiMessage {
   id: string;
   senderId: string;
   receiverId: string;
-  type: "text" | "image" | "voice" | "video" | "vap_transfer" | "vap_request";
+  type: "text" | "image" | "voice" | "video" | "vap_transfer" | "vap_request" | "call";
   content: string | null;
   mediaUrls: string[] | null;
   durationSeconds: number | null;
@@ -424,10 +426,39 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             </button>
           </div>
           <div className="relative flex items-center gap-2">
-            <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+            {/* Video call (v4.15.0 ships placeholder; actual video tiles
+                land in v4.15.2 / Sprint 3). Disabled for mock peers. */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                if (isMockContact) return;
+                startOutboundCall({
+                  calleeId: chatId,
+                  calleeName: displayName,
+                  callType: "video",
+                });
+              }}
+              disabled={isMockContact}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center disabled:opacity-50"
+              aria-label="Start video call"
+            >
               <Video size={17} className="text-slate-500" />
             </motion.button>
-            <motion.button whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+            {/* Voice call (v4.15.0 — the MVP). */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                if (isMockContact) return;
+                startOutboundCall({
+                  calleeId: chatId,
+                  calleeName: displayName,
+                  callType: "voice",
+                });
+              }}
+              disabled={isMockContact}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center disabled:opacity-50"
+              aria-label="Start voice call"
+            >
               <Phone size={17} className="text-slate-500" />
             </motion.button>
             {/* Overflow → Block / Report. Hidden for mock contacts since
@@ -614,6 +645,38 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                           payload.requestId
                             ? (a) => handleVapAction(payload!.requestId!, a)
                             : undefined
+                        }
+                      />
+                    );
+                  })()}
+
+                  {msg.type === "call" && (() => {
+                    let payload: CallBubblePayload | null = null;
+                    try {
+                      const parsed = JSON.parse(msg.content ?? "{}");
+                      if (parsed && parsed.kind === "call") {
+                        payload = parsed as CallBubblePayload;
+                      }
+                    } catch {
+                      /* ignore */
+                    }
+                    if (!payload) {
+                      return (
+                        <div className="px-3 py-2 rounded-2xl bg-slate-100 text-[11px] text-slate-400">
+                          [call]
+                        </div>
+                      );
+                    }
+                    return (
+                      <CallMessageBubble
+                        payload={payload}
+                        isSent={isSent}
+                        onCallBack={() =>
+                          startOutboundCall({
+                            calleeId: chatId,
+                            calleeName: displayName,
+                            callType: payload!.callType,
+                          })
                         }
                       />
                     );

@@ -11,6 +11,7 @@ import ChatScreen from "@/components/app/ChatScreen";
 import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
 import YogiInboxScreen from "@/components/app/YogiInboxScreen";
+import GlobalCallListener from "@/components/app/GlobalCallListener";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { LocaleProvider } from "@/lib/i18n/client";
 
@@ -156,6 +157,13 @@ function AppContent() {
           Sign Out
         </button>
       )}
+
+      {/* App-shell-level incoming-call listener (v4.15.0). Polls
+          /api/calls/incoming every 3s and mounts the incoming-call
+          sheet + in-call sheet at the top z-layer regardless of which
+          screen the user is on. Sprint 4 will replace the poll with
+          a push-notification trigger. */}
+      {user && <GlobalCallListener />}
     </div>
   );
 }
