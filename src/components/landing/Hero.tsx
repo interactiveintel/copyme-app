@@ -54,7 +54,7 @@ interface HeroProps {
 
 export default function Hero({ t }: HeroProps = {}) {
   const [showDemo, setShowDemo] = useState(false);
-  const heroH1 = t ? t("hero.h1") : "Your World's chart of Communication";
+  const heroH1 = t ? t("hero.h1") : "Your World's heart of Communication";
   const subheadLead = t ? t("hero.subhead.lead") : "Rule of 7";
   const subheadBody = t
     ? t("hero.subhead.body")

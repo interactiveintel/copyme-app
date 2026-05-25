@@ -12,9 +12,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL || "https://copyme1.com",
   ),
-  title: "CopyMe — Communication That Matters · Your World's chart of Communication",
+  title: "CopyMe — Communication That Matters · Your World's heart of Communication",
   description:
-    "Communication That Matters. Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Less is more, giving meaning to messages. Infinite impact.",
+    "Communication That Matters. Your World's heart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Less is more, giving meaning to messages. Infinite impact.",
   keywords: [
     "messaging",
     "communication",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "CopyMe — Communication That Matters",
     description:
-      "Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning.",
+      "Your World's heart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning.",
     type: "website",
     siteName: "CopyMe",
     locale: "en_US",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "CopyMe — Communication That Matters",
     description:
-      "Your World's chart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Infinite impact.",
+      "Your World's heart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Infinite impact.",
   },
 };
 

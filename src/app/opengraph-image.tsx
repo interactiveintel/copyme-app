@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
 // can declare their own opengraph-image.tsx for per-page social previews.
 
 export const runtime = "edge";
-export const alt = "CopyMe — Communication That Matters · Your World's chart of Communication";
+export const alt = "CopyMe — Communication That Matters · Your World's heart of Communication";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -82,7 +82,7 @@ export default function OG() {
                 lineHeight: 1.2,
               }}
             >
-              {"Your World’s chart of Communication."}
+              {"Your World’s heart of Communication."}
             </div>
           </div>
           <div

@@ -70,6 +70,24 @@ export default function CookieBanner() {
     if (!existing) setVisible(true);
   }, []);
 
+  // v4.14.3: signal banner presence via a data attribute on <html> so
+  // mobile bottom-sticky CTAs (the auth screen Sign In button, the
+  // VAP action sheet, etc.) can add padding-bottom and not get covered.
+  // Previously the banner sat at z-50, bottom-4, full-width on mobile
+  // and physically obscured the "Sign In" gradient button on /app —
+  // first-time users saw "Sign I" with the cookie banner on top.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (visible) {
+      document.documentElement.dataset.cookieBanner = "open";
+    } else {
+      delete document.documentElement.dataset.cookieBanner;
+    }
+    return () => {
+      delete document.documentElement.dataset.cookieBanner;
+    };
+  }, [visible]);
+
   if (!visible) return null;
 
   const decide = (analytics: boolean) => {

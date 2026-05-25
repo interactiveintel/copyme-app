@@ -135,7 +135,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="cookie-banner-spacer min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Animated mesh background */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
         <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-indigo-200/30 blur-[120px] animate-pulse" />

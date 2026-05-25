@@ -26,7 +26,7 @@ export function getLocale(): Locale {
 
 export const STRINGS: Record<Locale, Record<string, string>> = {
   en: {
-    "hero.h1": "Your World's chart of Communication",
+    "hero.h1": "Your World's heart of Communication",
     "hero.subhead.lead": "Rule of 7",
     "hero.subhead.body": "A revolutionary constraint system that replaces noise with meaning. Less is more, giving meaning to messages. Infinite impact.",
     "cta.signup": "Sign Up Free",
@@ -248,7 +248,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
     "landing.pricing.enterprise.cta": "Contact Sales",
   },
   si: {
-    "hero.h1": "Karta komunikacije tvojega sveta",
+    "hero.h1": "Srce komunikacije tvojega sveta",
     "hero.subhead.lead": "Pravilo 7",
     "hero.subhead.body": "Revolucionaren sistem omejitev, ki šum spreminja v pomen. Manj je več. Sporočila dobijo težo. Neskončen vpliv.",
     "cta.signup": "Brezplačna registracija",
@@ -470,7 +470,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
     "landing.pricing.enterprise.cta": "Stik s prodajo",
   },
   es: {
-    "hero.h1": "El mapa de comunicación de tu mundo",
+    "hero.h1": "El corazón de la comunicación de tu mundo",
     "hero.subhead.lead": "Regla del 7",
     "hero.subhead.body": "Un sistema de restricciones revolucionario que reemplaza el ruido con significado. Menos es más. Mensajes con peso. Impacto infinito.",
     "cta.signup": "Registrarse gratis",
@@ -692,7 +692,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
     "landing.pricing.enterprise.cta": "Contactar ventas",
   },
   de: {
-    "hero.h1": "Die Karte der Kommunikation deiner Welt",
+    "hero.h1": "Das Herz der Kommunikation deiner Welt",
     "hero.subhead.lead": "Regel der 7",
     "hero.subhead.body": "Ein revolutionäres Beschränkungssystem, das Lärm durch Bedeutung ersetzt. Weniger ist mehr. Nachrichten mit Gewicht. Unendliche Wirkung.",
     "cta.signup": "Kostenlos registrieren",
@@ -914,7 +914,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
     "landing.pricing.enterprise.cta": "Vertrieb kontaktieren",
   },
   fr: {
-    "hero.h1": "La carte de communication de votre monde",
+    "hero.h1": "Le cœur de la communication de votre monde",
     "hero.subhead.lead": "Règle de 7",
     "hero.subhead.body": "Un système de contraintes révolutionnaire qui remplace le bruit par du sens. Moins, c'est plus. Des messages qui comptent. Impact infini.",
     "cta.signup": "Inscription gratuite",

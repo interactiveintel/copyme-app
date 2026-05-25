@@ -349,7 +349,7 @@ function SignupPageInner() {
               Me
             </span>
           </div>
-          <p className="text-sm text-slate-500">Your World&apos;s chart of Communication.</p>
+          <p className="text-sm text-slate-500">Your World&apos;s heart of Communication.</p>
         </div>
 
         <motion.div

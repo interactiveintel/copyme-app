@@ -192,3 +192,27 @@ body {
   background: rgba(124, 58, 237, 0.2);
   color: #0F172A;
 }
+
+/* ===== Cookie banner overlap mitigation (v4.14.3) =====
+ *
+ * The cookie banner is position:fixed at bottom-4 with z-50 and on mobile
+ * spans full-width (no sm:max-w-md anchor). Before this rule, on /app the
+ * banner physically covered the bottom half of the "Sign In" gradient
+ * button. The CookieBanner component now toggles a data attribute on
+ * <html> when it's visible; bottom-sticky layouts opt in by reading the
+ * `cookie-banner-spacer` class below to add scroll padding.
+ *
+ * On the auth screen we use scroll-padding-bottom + a flex spacer rather
+ * than margin-bottom on the form, so the layout doesn't shift abruptly
+ * when the user dismisses the banner.
+ */
+html[data-cookie-banner="open"] .cookie-banner-spacer {
+  padding-bottom: 14rem; /* ~banner height + breathing room */
+}
+@media (min-width: 640px) {
+  /* On desktop the banner is anchored bottom-right max-w-md, so it
+   * doesn't cover centered content. No spacer needed. */
+  html[data-cookie-banner="open"] .cookie-banner-spacer {
+    padding-bottom: 0;
+  }
+}
