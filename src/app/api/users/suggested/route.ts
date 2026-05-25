@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { suggestUsersFor } from "@/lib/suggest-users";
 
+// Auth-bound, per-user suggestion list (ranked by their interest overlap).
+// Defensive force-dynamic so a future cache hint can't cross-pollinate.
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // GET /api/users/suggested?limit=12
 //

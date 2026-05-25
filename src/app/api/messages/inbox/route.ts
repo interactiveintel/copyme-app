@@ -3,6 +3,9 @@ import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { getInbox } from "@/lib/redis";
 
+// Auth-bound, per-user inbox. Defensive force-dynamic.
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // GET /api/messages/inbox
 // ---------------------------------------------------------------------------

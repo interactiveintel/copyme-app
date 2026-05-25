@@ -11,6 +11,8 @@ import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
+// Auth-bound, per-user block list. Defensive force-dynamic on the GET path.
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const auth = authenticateRequest(req.headers.get("authorization"));

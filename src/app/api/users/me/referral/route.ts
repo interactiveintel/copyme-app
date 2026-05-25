@@ -3,6 +3,9 @@ import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { getOrCreateReferralCode } from "@/lib/referral";
 
+// Auth-bound, per-user referral code. Defensive force-dynamic.
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // GET /api/users/me/referral
 //

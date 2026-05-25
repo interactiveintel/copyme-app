@@ -3,6 +3,12 @@ import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { validateDisplayName, validateInterest } from "@/lib/ruleOf7";
 
+// Auth-bound, per-user response. Next 15 doesn't cache route-handler GETs
+// by default, but pinning force-dynamic here is a defensive marker so a
+// future code change that adds cache hints won't silently serve user A's
+// data to user B.
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // GET /api/users/me — Return current user profile
 // ---------------------------------------------------------------------------

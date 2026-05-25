@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 
+// Auth-bound, per-user. Defensive force-dynamic.
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // GET /api/users/blocked
 //

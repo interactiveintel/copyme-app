@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
+import { authenticateRequest } from "@/lib/auth";
+
+// ---------------------------------------------------------------------------
+// Middleware runtime — Node.js (v4.14.5).
+//
+// Next 15 + Vercel Fluid Compute support full Node.js middleware. Switching
+// off Edge lets us share the canonical authenticateRequest helper from
+// src/lib/auth.ts (which uses jsonwebtoken) instead of maintaining a
+// separate jose-based verifier just to satisfy the Edge runtime. One JWT
+// library, one verify path — a security fix to one of them no longer
+// silently misses the other.
+// ---------------------------------------------------------------------------
+
+export const config = {
+  // Matcher — run middleware on API routes (auth + CORS) AND on page
+  // routes (nonce + CSP). Exclude Next static assets, image optimization,
+  // favicon, and common static binary extensions so we don't burn a
+  // crypto.randomUUID on every CSS/JS/image fetch.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ico)).*)",
+  ],
+  runtime: "nodejs",
+};
 
 // ---------------------------------------------------------------------------
 // Routes that do NOT require authentication
@@ -20,66 +42,6 @@ const PUBLIC_PREFIXES = [
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
-// ---------------------------------------------------------------------------
-// JWT verification — Edge-compatible via jose.
-//
-// Mirrors src/lib/auth.ts::resolveJwtSecret: prefer JWT_SECRET (≥32 chars),
-// throw in production if missing/weak, otherwise fall back to the same dev
-// secret. The fallback exists purely so `next dev` keeps working without a
-// .env file — production builds will fail loudly if JWT_SECRET is unset.
-// ---------------------------------------------------------------------------
-
-function resolveJwtSecret(): Uint8Array {
-  const envSecret = process.env.JWT_SECRET;
-  if (envSecret && envSecret.length >= 32) {
-    return new TextEncoder().encode(envSecret);
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "JWT_SECRET must be set to a string of at least 32 characters in production. " +
-        "Refusing to verify tokens with a weak or missing secret.",
-    );
-  }
-
-  if (envSecret) {
-    // Dev set an env secret but it's too short — accept it so dev keeps
-    // working but it would have failed in production.
-    return new TextEncoder().encode(envSecret);
-  }
-
-  return new TextEncoder().encode(
-    "copyme-dev-secret-not-for-production-use-32ch",
-  );
-}
-
-const JWT_SECRET = resolveJwtSecret();
-
-interface VerifiedPayload {
-  userId: string;
-  type: string;
-}
-
-async function verifyJwt(token: string): Promise<VerifiedPayload | null> {
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    const userId = typeof payload.userId === "string" ? payload.userId : null;
-    const type = typeof payload.type === "string" ? payload.type : null;
-    if (!userId || !type) return null;
-    return { userId, type };
-  } catch {
-    // Signature mismatch, expired, malformed, etc. Do not log the token
-    // (PII / credential leakage); the route's authenticateRequest will
-    // surface the failure with the standard 401 envelope.
-    return null;
-  }
-}
-
-function extractBearerToken(header: string | null): string | null {
-  if (!header?.startsWith("Bearer ")) return null;
-  return header.slice(7).trim() || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,44 +161,25 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- JWT authentication ---------------------------------------------------
-  const token = extractBearerToken(request.headers.get("authorization"));
+  // Shared with route handlers via src/lib/auth.ts — same verify path,
+  // same secret resolution, same access-token-type gate. authenticateRequest
+  // returns null on missing/invalid/expired/wrong-type tokens.
+  const authHeader = request.headers.get("authorization");
+  const payload = authenticateRequest(authHeader);
 
-  if (!token) {
+  if (!payload) {
+    // Distinguish missing-token (no Authorization header) from invalid
+    // token so the client error surface is the same shape as before.
+    const code = authHeader ? "INVALID_TOKEN" : "UNAUTHORIZED";
+    const message = authHeader
+      ? "Token is invalid or expired"
+      : "Authorization header with Bearer token required";
+    // Strip any inbound x-user-id header so a client can't smuggle an
+    // identity through on a failed verify.
+    const stripped = new Headers(request.headers);
+    stripped.delete("x-user-id");
     const response = NextResponse.json(
-      {
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Authorization header with Bearer token required" },
-      },
-      { status: 401 },
-    );
-    applyCorsHeaders(response, origin);
-    return response;
-  }
-
-  const payload = await verifyJwt(token);
-
-  if (!payload || !payload.userId) {
-    // Strip any inbound x-user-id header so a forged token can't smuggle
-    // an identity through; the route's authenticateRequest will reject.
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.delete("x-user-id");
-    const response = NextResponse.json(
-      {
-        success: false,
-        error: { code: "INVALID_TOKEN", message: "Token is invalid or expired" },
-      },
-      { status: 401 },
-    );
-    applyCorsHeaders(response, origin);
-    return response;
-  }
-
-  if (payload.type !== "access") {
-    const response = NextResponse.json(
-      {
-        success: false,
-        error: { code: "INVALID_TOKEN_TYPE", message: "Access token required" },
-      },
+      { success: false, error: { code, message } },
       { status: 401 },
     );
     applyCorsHeaders(response, origin);
@@ -253,16 +196,3 @@ export async function middleware(request: NextRequest) {
   applyCorsHeaders(response, origin);
   return response;
 }
-
-// ---------------------------------------------------------------------------
-// Matcher — run middleware on API routes (auth + CORS) AND on page routes
-// (nonce + CSP). Exclude Next static assets, image optimization, favicon,
-// and common static binary extensions so we don't burn a crypto.randomUUID
-// on every CSS/JS/image fetch.
-// ---------------------------------------------------------------------------
-
-export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ico)).*)",
-  ],
-};

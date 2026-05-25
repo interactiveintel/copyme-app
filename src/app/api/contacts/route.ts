@@ -4,6 +4,9 @@ import { authenticateRequest } from "@/lib/auth";
 import { getContactAtOnceLimit } from "@/lib/ruleOf7";
 import { capture, ANALYTICS_EVENTS } from "@/lib/analytics";
 
+// Auth-bound, per-user contact list. Defensive force-dynamic.
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // GET /api/contacts
 //

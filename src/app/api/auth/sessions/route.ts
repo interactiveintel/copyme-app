@@ -6,6 +6,8 @@ import { authenticateRequest } from "@/lib/auth";
 import { listSessions, revokeSession, hasReplayBanner } from "@/lib/sessions";
 
 export const runtime = "nodejs";
+// Auth-bound, per-user device list. Defensive force-dynamic.
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const auth = authenticateRequest(req.headers.get("authorization"));

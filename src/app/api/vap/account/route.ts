@@ -6,6 +6,9 @@ import { authenticateRequest } from "@/lib/auth";
 import { getOrCreateAccount } from "@/lib/vap/account";
 
 export const runtime = "nodejs";
+// Auth-bound, per-user response. Defensive force-dynamic so a future
+// cache hint can't silently leak balances across users.
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const auth = authenticateRequest(req.headers.get("authorization"));

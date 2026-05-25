@@ -9,6 +9,9 @@ import { createRequest } from "@/lib/vap/request";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+// Auth-bound, per-user list. Defensive force-dynamic so a future cache
+// hint can't leak pending requests across users.
+export const dynamic = "force-dynamic";
 
 interface CreateBody {
   toUserId?: string;
