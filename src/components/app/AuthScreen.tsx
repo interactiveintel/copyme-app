@@ -41,27 +41,57 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const [countryCode, setCountryCode] = useState("+386");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  // "Stay signed in" (v4.15.2). Default true matches the app's prior
+  // implicit behavior (always persisted to localStorage). Unchecked
+  // routes the session to sessionStorage only — cleared on tab close.
+  // See `feedback_tier_f_beta_feedback_sprints.md` — Joze Kralj flagged
+  // that there was no visible affordance for this.
+  const [staySignedIn, setStaySignedIn] = useState(true);
 
-  // Forgot-password modal
+  // Forgot-password modal — accepts phone OR email (v4.15.2). The
+  // server-side route already supports both (src/app/api/auth/
+  // password-reset/request/route.ts). The previous email-only UI
+  // locked out phone-OTP users entirely.
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState("");
 
+  // Detect whether the user typed a phone number or an email. Cheap
+  // heuristic: contains "@" → email; otherwise treat as phone (and
+  // strip everything but digits + leading +). The server-side route
+  // handles either shape.
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError("");
-    const trimmed = forgotEmail.trim();
-    if (!trimmed) { setForgotError("Enter your email address."); return; }
+    const trimmed = forgotIdentifier.trim();
+    if (!trimmed) { setForgotError("Enter your phone or email."); return; }
+
+    const isEmail = trimmed.includes("@");
+    let body: Record<string, string>;
+    if (isEmail) {
+      body = { email: trimmed };
+    } else {
+      // Normalize to E.164-ish: keep the leading +, strip everything
+      // else that isn't a digit. If the user didn't include a +,
+      // prepend the currently-selected country code.
+      const digitsOnly = trimmed.replace(/[^\d+]/g, "");
+      const e164 = digitsOnly.startsWith("+")
+        ? digitsOnly
+        : `${countryCode}${digitsOnly.replace(/^0+/, "")}`;
+      body = { phone: e164 };
+    }
+
     setForgotLoading(true);
     try {
       const res = await fetch("/api/auth/password-reset/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify(body),
       });
-      // The endpoint returns a generic success regardless — just reflect it.
+      // The endpoint returns a generic success regardless of whether
+      // the account exists — anti-enumeration. Just reflect it.
       if (res.ok) {
         setForgotSent(true);
       } else {
@@ -96,7 +126,7 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
     setErrors({});
     setLoading(true);
     try {
-      await login(countryCode + loginPhone, loginPassword);
+      await login(countryCode + loginPhone, loginPassword, staySignedIn);
       onLogin();
     } catch (err) {
       setErrors({ form: err instanceof Error ? err.message : "Login failed" });
@@ -284,7 +314,21 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     </AnimatePresence>
                   </div>
 
-                  <div className="text-right">
+                  {/* Stay-signed-in checkbox + Forgot-password link
+                      on the same row, opposite ends. v4.15.2 — Joze
+                      Kralj flagged that "cannot click on STAY SIGNED
+                      IN" meant there was no visible affordance for
+                      session persistence. */}
+                  <div className="flex items-center justify-between">
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={staySignedIn}
+                        onChange={(e) => setStaySignedIn(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-purple-500 focus:ring-purple-400 cursor-pointer"
+                      />
+                      <span className="text-xs text-slate-600">Stay signed in</span>
+                    </label>
                     <button
                       type="button"
                       onClick={() => {
@@ -468,18 +512,28 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     {t("auth.forgot.checkInbox")}
                   </p>
                   <p className="text-xs text-emerald-700">
-                    {t("auth.forgot.checkInboxSubtitle")}
+                    If an account exists for that phone or email, a reset
+                    link has been sent. Check your inbox or text messages.
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handleForgotSubmit} className="space-y-3">
+                  {/* Single input accepts phone OR email (v4.15.2).
+                      Auto-detect on submit: contains "@" → email path;
+                      otherwise → phone path. Previously email-only,
+                      which locked out phone-OTP users. */}
                   <div className="relative">
-                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    {forgotIdentifier.includes("@") ? (
+                      <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    ) : (
+                      <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    )}
                     <input
-                      type="email"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      type="text"
+                      inputMode="email"
+                      value={forgotIdentifier}
+                      onChange={(e) => setForgotIdentifier(e.target.value)}
+                      placeholder="Phone or email"
                       className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-400"
                       autoFocus
                     />

@@ -28,7 +28,12 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (phone: string, password: string) => Promise<void>;
+  /** Log in. `persist` (default true) controls whether tokens survive a
+   *  tab close: true → localStorage; false → sessionStorage. v4.15.2:
+   *  Joze flagged that there was no visible "stay signed in" affordance,
+   *  even though the app does persist by default — surfacing the choice
+   *  also lets shared-device users opt out. */
+  login: (phone: string, password: string, persist?: boolean) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
@@ -59,22 +64,52 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "copyme_auth";
 
-function saveTokens(tokens: AuthTokens) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
+/**
+ * Save tokens to either localStorage (persists across tab close) or
+ * sessionStorage (cleared when the tab closes — for shared devices).
+ * The non-chosen store is cleared so a stale "stay signed in" token
+ * can't shadow a fresh "don't" choice (and vice versa).
+ */
+function saveTokens(tokens: AuthTokens, persist: boolean) {
+  const payload = JSON.stringify(tokens);
+  if (persist) {
+    localStorage.setItem(STORAGE_KEY, payload);
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* private mode */ }
+  } else {
+    try { sessionStorage.setItem(STORAGE_KEY, payload); } catch {
+      // sessionStorage disabled (e.g. some embedded webviews) — fall
+      // back to localStorage so the session isn't lost mid-use. The
+      // user's preference is best-effort.
+      localStorage.setItem(STORAGE_KEY, payload);
+    }
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
 }
 
-function loadTokens(): AuthTokens | null {
+/**
+ * Read tokens from whichever store currently holds them. Returns the
+ * source so callers can mirror the persistence choice on subsequent
+ * refreshes. Checks sessionStorage first (a session-only login should
+ * "win" over a stale persisted one if both somehow exist; saveTokens
+ * normally prevents that, but a manual localStorage edit could).
+ */
+function loadTokens(): { tokens: AuthTokens; persist: boolean } | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as AuthTokens;
+    const session = sessionStorage.getItem(STORAGE_KEY);
+    if (session) return { tokens: JSON.parse(session) as AuthTokens, persist: false };
+  } catch { /* ignore */ }
+  try {
+    const local = localStorage.getItem(STORAGE_KEY);
+    if (!local) return null;
+    return { tokens: JSON.parse(local) as AuthTokens, persist: true };
   } catch {
     return null;
   }
 }
 
 function clearTokens() {
-  localStorage.removeItem(STORAGE_KEY);
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -134,8 +169,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // same in-flight promise.
   const refreshInFlight = useRef<Promise<string | null> | null>(null);
 
-  const setAuth = useCallback((tokens: AuthTokens) => {
-    saveTokens(tokens);
+  // Remember which storage tier the current session lives in so silent
+  // token refreshes write back to the same place. Default true matches
+  // historical behavior (always persist) so any existing session
+  // doesn't get downgraded on first read after upgrade.
+  const persistRef = useRef<boolean>(true);
+
+  const setAuth = useCallback((tokens: AuthTokens, persist?: boolean) => {
+    if (typeof persist === "boolean") persistRef.current = persist;
+    saveTokens(tokens, persistRef.current);
     setState({
       user: tokens.user,
       accessToken: tokens.accessToken,
@@ -194,11 +236,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore session on mount. If the access token is expired but the refresh
   // token is still valid, we trigger a silent refresh.
   useEffect(() => {
-    const stored = loadTokens();
-    if (!stored?.accessToken) {
+    const loaded = loadTokens();
+    if (!loaded?.tokens?.accessToken) {
       setState((s) => ({ ...s, loading: false }));
       return;
     }
+
+    // Mirror the persistence tier the tokens came from so silent refreshes
+    // don't promote a sessionStorage-only login to localStorage.
+    persistRef.current = loaded.persist;
+
+    const stored = loaded.tokens;
 
     if (!isTokenExpired(stored.accessToken)) {
       setState({
@@ -229,7 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // --- Login ----------------------------------------------------------------
 
   const login = useCallback(
-    async (phone: string, password: string) => {
+    async (phone: string, password: string, persist: boolean = true) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(msg);
       }
 
-      setAuth(data.data);
+      setAuth(data.data, persist);
     },
     [setAuth],
   );
