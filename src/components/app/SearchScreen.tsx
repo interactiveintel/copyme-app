@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Search,
@@ -33,6 +33,13 @@ interface SearchResult {
   location: SearchLocation | null;
   interests: string[];
   relevanceScore: number;
+  // v4.15.14: optional display fields. Real API doesn't yet return
+  // these (it omits avatarUrl + online + bio); the MOCK_PROFILES
+  // suggested-connections fallback supplies them. Card renderer
+  // null-checks before use.
+  avatarUrl?: string | null;
+  online?: boolean;
+  bio?: string;
 }
 
 interface SearchScreenProps {
@@ -282,7 +289,7 @@ function SearchResultCard({
 // SearchScreen
 // ---------------------------------------------------------------------------
 export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
-  const { authFetch } = useAuth();
+  const { user, authFetch } = useAuth();
   const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
@@ -291,11 +298,64 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [lastQuery, setLastQuery] = useState("");
+  // v4.15.14 (F4): time-window filter from Joze's feedback ("history
+  // of last day/week/month/year"). null = all-time. Passed to the
+  // search route as filters.withinDays and used to filter
+  // suggestedConnections client-side as well.
+  const [withinDays, setWithinDays] = useState<number | null>(null);
 
-  const suggestedConnections = useMemo(() => {
-    return Object.values(MOCK_PROFILES).map((p) => ({
+  // v4.15.14 (F4): real suggested connections from /api/users/suggested
+  // instead of MOCK_PROFILES. The mock fallback only shows for
+  // unauthenticated users (auth screen path is already redirected
+  // earlier, so this is a defensive case).
+  const [suggestedReal, setSuggestedReal] = useState<SearchResult[] | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await authFetch("/api/users/suggested?limit=12");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!alive) return;
+        const items = (data?.data?.suggestions ?? []) as Array<{
+          id?: string;
+          displayName?: string;
+          interests?: string[];
+          location?: SearchResult["location"];
+        }>;
+        setSuggestedReal(
+          items
+            .filter((u) => u.id && u.displayName)
+            .map((u) => ({
+              id: String(u.id),
+              displayName: String(u.displayName),
+              profileType: "personal",
+              interests: u.interests ?? [],
+              location: u.location ?? null,
+              avatarUrl: null,
+              online: false,
+              bio: undefined,
+              relevanceScore: 75,
+            })),
+        );
+      } catch {
+        /* fall back to mock */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user, authFetch]);
+
+  const suggestedConnections = useMemo<SearchResult[]>(() => {
+    if (suggestedReal && suggestedReal.length > 0) return suggestedReal;
+    // Unauthenticated / no real users available — fall back to demo
+    // profiles so the screen isn't empty.
+    return Object.values(MOCK_PROFILES).map<SearchResult>((p) => ({
       id: p.id,
       displayName: p.displayName,
+      profileType: "personal",
       bio: p.bio,
       interests: p.interests,
       location: p.location,
@@ -303,7 +363,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
       online: p.online,
       relevanceScore: Math.round(70 + Math.random() * 25),
     }));
-  }, []);
+  }, [suggestedReal]);
 
   const toggleFilter = (id: string) => {
     setActiveFilters((prev) =>
@@ -311,18 +371,22 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
     );
   };
 
-  const handleSearch = async () => {
-    const q = query.trim();
-    if (!q) return;
+  const handleSearch = useCallback(async (q: string) => {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setResults([]);
+      setSearched(false);
+      return;
+    }
     setLoading(true);
     setSearched(true);
-    setLastQuery(q);
+    setLastQuery(trimmed);
     try {
       const res = await authFetch("/api/search/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: q,
+          query: trimmed,
           filters: {
             nearMe: activeFilters.includes("near"),
             sameInterests: activeFilters.includes("interests"),
@@ -331,6 +395,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
               : activeFilters.includes("education")
                 ? "education"
                 : undefined,
+            withinDays: withinDays ?? undefined,
           },
           aiMode,
         }),
@@ -344,7 +409,24 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authFetch, activeFilters, aiMode, withinDays]);
+
+  // v4.15.14 (F4): debounced auto-search. Joze typed "United States"
+  // expecting results and got nothing — the search only fired on
+  // explicit submit. Now: 300ms after typing stops, the search fires
+  // automatically. Empty query clears results.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setResults([]);
+      setSearched(false);
+      return;
+    }
+    const id = setTimeout(() => {
+      void handleSearch(q);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [query, handleSearch]);
 
   return (
     <div className="flex flex-col h-full pb-20">
@@ -363,13 +445,13 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleSearch();
+              if (e.key === "Enter") void handleSearch(query);
             }}
             placeholder={t("search.placeholder")}
             className="w-full bg-slate-100 border border-slate-200 rounded-2xl pl-11 pr-12 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 transition-colors"
           />
           <button
-            onClick={handleSearch}
+            onClick={() => void handleSearch(query)}
             className="absolute right-3 top-1/2 -translate-y-1/2"
             aria-label="Run AI search"
           >
@@ -423,6 +505,39 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
             );
           })}
         </div>
+
+        {/* v4.15.14 (F4): time-window pills. Joze's request: "history
+            of last day / last week / last month / last year" on the
+            search field. Restricts results to users active within the
+            window. "All" = no time filter (default). */}
+        <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[10px] uppercase tracking-wide text-slate-400 shrink-0 mr-1">
+            Active in
+          </span>
+          {[
+            { label: "All", value: null },
+            { label: "Day", value: 1 },
+            { label: "Week", value: 7 },
+            { label: "Month", value: 30 },
+            { label: "Year", value: 365 },
+          ].map((opt) => {
+            const active = withinDays === opt.value;
+            return (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setWithinDays(opt.value)}
+                className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                  active
+                    ? "bg-purple-100 text-purple-700 border border-purple-200"
+                    : "bg-white text-slate-500 border border-slate-200 hover:text-slate-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Results */}
@@ -465,7 +580,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
                     <div className="relative shrink-0">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={user.avatarUrl}
+                        src={user.avatarUrl ?? `/api/avatars/${encodeURIComponent(user.displayName)}`}
                         alt={user.displayName}
                         className="w-12 h-12 rounded-full object-cover bg-slate-100"
                       />

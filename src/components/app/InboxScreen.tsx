@@ -369,6 +369,10 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   const { addContact } = useContacts();
   const { t } = useLocale();
   const [search, setSearch] = useState("");
+  // v4.15.14 (F4): time-window filter on the inbox list (Joze's
+  // request — "history of last day/week/month/year"). null = all-time.
+  // Applies to lastMessage.createdAt client-side.
+  const [withinDays, setWithinDays] = useState<number | null>(null);
   const [showSmartMatch, setShowSmartMatch] = useState(false);
   const [liveAds, setLiveAds] = useState<AdItem[]>([]);
   const [selectedAd, setSelectedAd] = useState<AdItem | null>(null);
@@ -500,9 +504,21 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   // Use real conversations if available, otherwise show mock data
   const displayConversations = conversations.length > 0 ? conversations : MOCK_CONVERSATIONS;
 
-  const filtered = displayConversations.filter((c) =>
-    c.contactName.toLowerCase().includes(search.toLowerCase())
-  );
+  // v4.15.14 (F4): combined text + time-window filter. Time window is
+  // client-side against lastMessage.createdAt — cheap because the
+  // inbox is already paginated to recent.
+  const windowCutoff =
+    withinDays ? Date.now() - withinDays * 86_400_000 : null;
+  const filtered = displayConversations.filter((c) => {
+    if (search && !c.contactName.toLowerCase().includes(search.toLowerCase())) {
+      return false;
+    }
+    if (windowCutoff) {
+      const ts = new Date(c.lastMessage.createdAt).getTime();
+      if (!Number.isFinite(ts) || ts < windowCutoff) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="flex flex-col h-full pb-20">
@@ -521,6 +537,39 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             placeholder={t("inbox.search.placeholder")}
             className="w-full bg-slate-100 border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-500/40 transition-colors"
           />
+        </div>
+
+        {/* v4.15.14 (F4): time-window pills above the conversation
+            list. Joze's ask: "history of last day / week / month /
+            year" on the inbox right side. We surface them inline
+            (mobile-first — no right-edge real estate). */}
+        <div className="flex items-center gap-1.5 mt-3 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[10px] uppercase tracking-wide text-slate-400 shrink-0 mr-1">
+            Show
+          </span>
+          {[
+            { label: "All", value: null },
+            { label: "Day", value: 1 },
+            { label: "Week", value: 7 },
+            { label: "Month", value: 30 },
+            { label: "Year", value: 365 },
+          ].map((opt) => {
+            const active = withinDays === opt.value;
+            return (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setWithinDays(opt.value)}
+                className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                  active
+                    ? "bg-purple-100 text-purple-700 border border-purple-200"
+                    : "bg-white text-slate-500 border border-slate-200 hover:text-slate-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

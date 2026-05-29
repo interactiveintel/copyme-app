@@ -13,6 +13,10 @@ interface SearchBody {
     nearMe?: boolean;
     sameInterests?: boolean;
     category?: string;
+    /** v4.15.14 (F4): time-window filter from Joze's feedback. When
+     *  set, results are restricted to users with lastActivityAt within
+     *  the given days. */
+    withinDays?: number;
   };
   aiMode?: boolean;
 }
@@ -66,9 +70,21 @@ export async function POST(request: NextRequest) {
     // Phase 1: simple ILIKE search across display name, interests, location,
     // and description fields. Elasticsearch integration planned for Phase 2.
 
+    // v4.15.14 (F4): optional active-since cutoff. Filters out users
+    // who haven't shown lastActivity within the window. Joze's ask was
+    // "history of last day, last week, last month, last year" — this
+    // is the same axis applied to user discovery.
+    const activeSinceCutoff =
+      typeof body.filters?.withinDays === "number" && body.filters.withinDays > 0
+        ? new Date(Date.now() - body.filters.withinDays * 86_400_000)
+        : null;
+
     const users = await prisma.user.findMany({
       where: {
         id: { notIn: excludedIds }, // Exclude self + blocked
+        ...(activeSinceCutoff
+          ? { lastActivityAt: { gte: activeSinceCutoff } }
+          : {}),
         OR: [
           { displayName: { contains: body.query.trim(), mode: "insensitive" } },
           {
