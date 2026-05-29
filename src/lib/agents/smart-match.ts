@@ -114,6 +114,83 @@ function scoreUserMatch(
   return Math.min(100, Math.max(0, score));
 }
 
+// ---------------------------------------------------------------------------
+// v4.16.1 (Tier F7 polish): per-result reasoning.
+//
+// Each match returned by the search_users tool now carries a short,
+// human-readable `reason` explaining *why* this person matches. The
+// reason is generated deterministically from observable overlap
+// (shared interests, location hit, name/bio token match) so it works
+// even when the upstream LLM is unavailable (e.g. Anthropic 401, key
+// rotated). When the LLM *is* up, the agent's text reasoning still
+// fills the banner above the results — this field adds card-level
+// granularity.
+//
+// Format: prose, ≤ ~140 chars, ends without period (the UI appends
+// styling). Examples:
+//   "Shared interest in photography and hiking"
+//   "Both in San Francisco"
+//   "Matches your search for 'jazz' via their bio"
+// ---------------------------------------------------------------------------
+function buildReason(opts: {
+  query: string;
+  displayName: string;
+  interests: string[];
+  location: { globalArea: string | null; region: string | null; cityZip: string | null } | null;
+  bio?: string;
+  hintInterests?: string[];
+  hintLocation?: string;
+}): string {
+  const q = opts.query.trim().toLowerCase();
+  const qWords = q.split(/\s+/).filter((w) => w.length >= 3);
+
+  const matchedInterests = opts.interests.filter((i) => {
+    const low = i.toLowerCase();
+    if (q && (q.includes(low) || qWords.some((w) => low.includes(w)))) return true;
+    if (opts.hintInterests?.some((h) => h.toLowerCase() === low)) return true;
+    return false;
+  });
+
+  const locFields = opts.location
+    ? [opts.location.globalArea, opts.location.region, opts.location.cityZip].filter((f): f is string => !!f)
+    : [];
+  const matchedLoc = locFields.find((f) => {
+    const low = f.toLowerCase();
+    if (q && low.includes(q)) return true;
+    if (opts.hintLocation && low.includes(opts.hintLocation.toLowerCase())) return true;
+    return false;
+  });
+
+  const nameHit = q && opts.displayName.toLowerCase().includes(q);
+  const bioHit = opts.bio && qWords.some((w) => opts.bio!.toLowerCase().includes(w));
+
+  const parts: string[] = [];
+
+  if (matchedInterests.length === 1) {
+    parts.push(`Shared interest in ${matchedInterests[0]}`);
+  } else if (matchedInterests.length === 2) {
+    parts.push(`Shared interests: ${matchedInterests[0]} and ${matchedInterests[1]}`);
+  } else if (matchedInterests.length >= 3) {
+    const head = matchedInterests.slice(0, 2).join(", ");
+    parts.push(`Shared interests: ${head}, +${matchedInterests.length - 2} more`);
+  }
+
+  if (matchedLoc) parts.push(`Based in ${matchedLoc}`);
+  if (nameHit && !parts.length) parts.push(`Name matches your search`);
+  if (bioHit && !parts.length) parts.push(`Bio mentions your search terms`);
+
+  if (parts.length === 0) {
+    // Fall-through suggestion (no explicit overlap — most common for
+    // empty-query "Find me interesting people" pulls).
+    const top = opts.interests.slice(0, 2);
+    if (top.length === 2) return `Active in ${top[0]} and ${top[1]}`;
+    if (top.length === 1) return `Active in ${top[0]}`;
+    return `Recommended based on profile overlap`;
+  }
+
+  return parts.join(" · ");
+}
+
 const searchUsersTool: AgentTool = {
   name: "search_users",
   description: "Search for users by interests, location, keywords, or any combination. Returns up to 7 results ranked by relevance.",
@@ -151,15 +228,30 @@ const searchUsersTool: AgentTool = {
       });
 
       if (dbUsers.length > 0) {
+        const hintInterests = (params.interests as string[]) ?? [];
+        const hintLocation = (params.location as string) ?? "";
         return {
-          results: dbUsers.map((u, i) => ({
-            id: u.id,
-            displayName: u.displayName,
-            interests: u.interests.map((x) => x.interestText),
-            location: u.location ?? { globalArea: null, region: null, cityZip: null },
-            profileType: u.profileType,
-            score: 80 - i * 10,
-          })),
+          results: dbUsers.map((u, i) => {
+            const interests = u.interests.map((x) => x.interestText);
+            const location = u.location ?? { globalArea: null, region: null, cityZip: null };
+            return {
+              id: u.id,
+              displayName: u.displayName,
+              interests,
+              location,
+              profileType: u.profileType,
+              score: 80 - i * 10,
+              // v4.16.1: per-result reasoning (see buildReason).
+              reason: buildReason({
+                query,
+                displayName: u.displayName,
+                interests,
+                location,
+                hintInterests,
+                hintLocation,
+              }),
+            };
+          }),
           total: dbUsers.length,
           query,
           source: "database",
@@ -201,6 +293,16 @@ const searchUsersTool: AgentTool = {
         profileType: u.profileType,
         score: u.score,
         bio: u.bio,
+        // v4.16.1: per-result reasoning (see buildReason).
+        reason: buildReason({
+          query,
+          displayName: u.displayName,
+          interests: u.interests,
+          location: u.location,
+          bio: u.bio,
+          hintInterests: interests,
+          hintLocation: location,
+        }),
       })),
       total: scored.length,
       query,
@@ -442,7 +544,9 @@ Your responsibilities:
 
 Always respect the Rule of 7: return at most 7 results, keep suggestions concise (max 7 words each), and prioritize quality over quantity.
 
-When suggesting matches, explain WHY they're a good match — shared interests, complementary skills, or location proximity. Be warm and encouraging but not overly enthusiastic.`,
+When suggesting matches, explain WHY they're a good match — shared interests, complementary skills, or location proximity. Be warm and encouraging but not overly enthusiastic.
+
+The search_users tool already attaches a deterministic per-result \`reason\` string (e.g. "Shared interests: photography and hiking") to every match — the UI surfaces it directly under each card. Your text response should add higher-level context (group dynamics, complementary skills, suggested next step) rather than restating each card's reason verbatim.`,
     tools: SMART_MATCH_TOOLS,
     maxSteps: 5,
     temperature: 0.7,

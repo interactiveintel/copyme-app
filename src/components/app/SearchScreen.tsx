@@ -40,6 +40,12 @@ interface SearchResult {
   avatarUrl?: string | null;
   online?: boolean;
   bio?: string;
+  // v4.16.1 (Tier F7 polish): per-result reasoning emitted by the
+  // smart-match agent's search_users tool when aiMode is on. Short
+  // prose explaining the overlap (e.g. "Shared interests: photography
+  // and hiking · Based in San Francisco"). Renders inline under the
+  // card. Undefined for plain /api/search/users results.
+  reason?: string;
 }
 
 interface SearchScreenProps {
@@ -241,6 +247,24 @@ function SearchResultCard({
             </div>
           </div>
 
+          {/* v4.16.1 (Tier F7 polish): per-result reasoning from the
+              smart-match agent. Always-visible (not behind the "Why?"
+              accordion) because this is the headline value of AI mode
+              — users opted in to AI to *see* the reasoning. Only
+              rendered when reason is present (i.e. AI-mode results). */}
+          {user.reason && (
+            <div className="mt-3 px-3 py-2 rounded-xl bg-gradient-to-br from-indigo-500/8 via-purple-500/8 to-pink-500/8 border border-purple-500/15 flex items-start gap-2">
+              <Sparkles
+                size={11}
+                className="text-purple-500 mt-0.5 shrink-0"
+              />
+              <p className="text-[11px] text-slate-700 leading-relaxed">
+                <span className="font-semibold text-purple-600">Why:</span>{" "}
+                {user.reason}
+              </p>
+            </div>
+          )}
+
           {/* Action row */}
           <div className="mt-3 flex items-center justify-end">
             <button
@@ -430,6 +454,8 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
                     ? Math.round(m.relevanceScore)
                     : 50,
               bio: typeof m.bio === "string" ? m.bio : undefined,
+              // v4.16.1: per-result reasoning string from smart-match.
+              reason: typeof m.reason === "string" ? m.reason : undefined,
             }))
             .filter((m) => m.id);
           setResults(matches);
