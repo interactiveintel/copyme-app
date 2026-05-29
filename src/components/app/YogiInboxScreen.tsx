@@ -406,25 +406,39 @@ export default function YogiInboxScreen() {
       {/* Main scrolling area */}
       <div className="flex-1 overflow-y-auto">
         {consent === "declined" ? (
-          // Consent declined — show empty state with reconsider hint.
+          // Consent declined — prominent re-enable CTA. v4.15.9 (F5):
+          // Joze Kralj reported "Yogi is not active" in his May 18
+          // feedback. Root cause was this state — he likely tapped
+          // Decline on first run and the previous "Review consent"
+          // pill was too small/pale to find. Rebuilt with a primary
+          // gradient CTA + clearer copy so the path back to active is
+          // obvious.
           <div className="h-full flex flex-col items-center justify-center px-8 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-              <ShieldCheck size={26} className="text-slate-400" />
-            </div>
-            <h2 className="text-sm font-semibold text-slate-700">
-              Yogi is paused
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 22 }}
+              className="w-16 h-16 rounded-3xl bg-gradient-to-br from-indigo-500/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center"
+            >
+              <Sparkles size={28} className="text-purple-500" />
+            </motion.div>
+            <h2 className="text-base font-bold text-slate-900 mt-4">
+              Enable Yogi to chat
             </h2>
-            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed max-w-xs">
-              You declined sharing messages with Yogi. You can change your mind
-              anytime &mdash; nothing is sent without your consent.
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed max-w-xs">
+              Yogi is paused until you opt in. Your messages stay private —
+              processed by Anthropic, never used for training.
             </p>
             <button
               type="button"
               onClick={handleReconsider}
-              className="mt-4 px-4 py-2 rounded-full text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors"
+              className="mt-6 px-6 py-2.5 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-md shadow-purple-500/30 hover:shadow-lg hover:shadow-purple-500/40 transition-shadow"
             >
-              Review consent
+              Enable Yogi
             </button>
+            <p className="mt-3 text-[11px] text-slate-400">
+              You can change your mind anytime in Profile &rarr; Privacy.
+            </p>
           </div>
         ) : empty ? (
           // First-run hint + example prompt chips.
