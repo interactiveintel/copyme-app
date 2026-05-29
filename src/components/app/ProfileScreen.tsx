@@ -21,6 +21,7 @@ import {
   Trash2,
   Camera,
   ShieldOff,
+  Phone,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
@@ -28,6 +29,7 @@ import GradientButton from "../ui/GradientButton";
 import AppBrand from "./AppBrand";
 import ReferralBanner from "./ReferralBanner";
 import BlockedUsersSheet from "./BlockedUsersSheet";
+import CallHistorySheet from "./CallHistorySheet";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 
@@ -118,6 +120,8 @@ export default function ProfileScreen() {
   const [saveError, setSaveError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [blockedSheetOpen, setBlockedSheetOpen] = useState(false);
+  // v4.15.7: Sprint 5 — call history sheet, opened from Settings.
+  const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [deleteStage, setDeleteStage] = useState<"closed" | "confirm" | "deleting" | "done">("closed");
   const [deleteError, setDeleteError] = useState("");
   // Avatar upload (v4.14.1 — beta tester Joze couldn't change his
@@ -896,6 +900,20 @@ export default function ProfileScreen() {
                       <button
                         onClick={() => {
                           setSettingsOpen(false);
+                          setCallHistoryOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Phone size={14} className="text-slate-500" /> Call history
+                        </span>
+                        <span className="text-xs text-slate-400">→</span>
+                      </button>
+                    )}
+                    {user && (
+                      <button
+                        onClick={() => {
+                          setSettingsOpen(false);
                           setBlockedSheetOpen(true);
                         }}
                         className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
@@ -951,6 +969,16 @@ export default function ProfileScreen() {
           <BlockedUsersSheet
             authFetch={authFetch}
             onClose={() => setBlockedSheetOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Call history sheet — opened from Settings (v4.15.7). */}
+      <AnimatePresence>
+        {callHistoryOpen && user && (
+          <CallHistorySheet
+            authFetch={authFetch}
+            onClose={() => setCallHistoryOpen(false)}
           />
         )}
       </AnimatePresence>

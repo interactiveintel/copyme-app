@@ -110,5 +110,37 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ success: true, data: calls });
+  // v4.15.7 (Sprint 5): enrich with the *other party's* identity so
+  // CallHistorySheet can render names + avatars without an N+1 fan-out
+  // on the client. Batch-lookup the unique user IDs that aren't us.
+  const otherIds = Array.from(
+    new Set(
+      calls.flatMap((c) => [c.callerId, c.calleeId])
+        .filter((id) => id !== auth.userId),
+    ),
+  );
+  const others = otherIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: otherIds } },
+        select: { id: true, displayName: true, avatarUrl: true },
+      })
+    : [];
+  const byId = new Map(others.map((u) => [u.id, u]));
+
+  const enriched = calls.map((c) => {
+    const isOutbound = c.callerId === auth.userId;
+    const otherId = isOutbound ? c.calleeId : c.callerId;
+    const other = byId.get(otherId);
+    return {
+      ...c,
+      isOutbound,
+      otherParty: {
+        id: otherId,
+        displayName: other?.displayName ?? "Unknown",
+        avatarUrl: other?.avatarUrl ?? null,
+      },
+    };
+  });
+
+  return NextResponse.json({ success: true, data: enriched });
 }
