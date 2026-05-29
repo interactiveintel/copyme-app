@@ -4,6 +4,13 @@
 
 import type { AgentConfig, AgentTool } from "./types";
 import prisma from "@/lib/db";
+// v4.16.7: server-bound locale translator so the per-result "Why:"
+// reason fragments emitted by buildReason() are localized via the
+// same STRINGS table that powers the rest of the UI. tFor(locale)
+// returns a closure with English fallback per missing key.
+import { tFor } from "@/lib/i18n/server";
+import { isSupportedLocale } from "@/lib/i18n/server";
+import type { Locale } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Mock data — fallback user profiles when DB is empty
@@ -140,7 +147,11 @@ function buildReason(opts: {
   bio?: string;
   hintInterests?: string[];
   hintLocation?: string;
+  /** v4.16.7: BCP-47 short code (en | si | es | de | fr). Defaults to
+   *  English when missing or unrecognized. */
+  locale?: Locale;
 }): string {
+  const t = tFor(opts.locale ?? "en");
   const q = opts.query.trim().toLowerCase();
   const qWords = q.split(/\s+/).filter((w) => w.length >= 3);
 
@@ -167,31 +178,46 @@ function buildReason(opts: {
   const parts: string[] = [];
 
   if (matchedInterests.length === 1) {
-    parts.push(`Shared interest in ${matchedInterests[0]}`);
+    parts.push(t("search.reason.sharedInterest1", { a: matchedInterests[0] }));
   } else if (matchedInterests.length === 2) {
-    parts.push(`Shared interests: ${matchedInterests[0]} and ${matchedInterests[1]}`);
+    parts.push(t("search.reason.sharedInterest2", { a: matchedInterests[0], b: matchedInterests[1] }));
   } else if (matchedInterests.length >= 3) {
-    const head = matchedInterests.slice(0, 2).join(", ");
-    parts.push(`Shared interests: ${head}, +${matchedInterests.length - 2} more`);
+    parts.push(t("search.reason.sharedInterest3plus", {
+      a: matchedInterests[0],
+      b: matchedInterests[1],
+      n: matchedInterests.length - 2,
+    }));
   }
 
-  if (matchedLoc) parts.push(`Based in ${matchedLoc}`);
-  if (nameHit && !parts.length) parts.push(`Name matches your search`);
-  if (bioHit && !parts.length) parts.push(`Bio mentions your search terms`);
+  if (matchedLoc) parts.push(t("search.reason.basedIn", { loc: matchedLoc }));
+  if (nameHit && !parts.length) parts.push(t("search.reason.nameMatch"));
+  if (bioHit && !parts.length) parts.push(t("search.reason.bioMatch"));
 
   if (parts.length === 0) {
     // Fall-through suggestion (no explicit overlap — most common for
     // empty-query "Find me interesting people" pulls).
     const top = opts.interests.slice(0, 2);
-    if (top.length === 2) return `Active in ${top[0]} and ${top[1]}`;
-    if (top.length === 1) return `Active in ${top[0]}`;
-    return `Recommended based on profile overlap`;
+    if (top.length === 2) return t("search.reason.activeIn2", { a: top[0], b: top[1] });
+    if (top.length === 1) return t("search.reason.activeIn1", { a: top[0] });
+    return t("search.reason.recommended");
   }
 
   return parts.join(" · ");
 }
 
-const searchUsersTool: AgentTool = {
+// v4.16.7: helper for the route handler to safely normalize an
+// inbound preferredLocale string into a Locale type. Exported so the
+// smart-match POST handler can pass it through.
+export function normalizeLocale(raw: string | null | undefined): Locale {
+  // BCP-47 short tag is the leading 2 letters (en, en-US → en).
+  const short = (raw ?? "").slice(0, 2).toLowerCase();
+  return isSupportedLocale(short) ? short : "en";
+}
+
+// v4.16.7: factory so we can close over the per-request locale. The
+// tool's parameter schema deliberately doesn't expose `locale` to the
+// LLM — locale belongs to the user session, not to model planning.
+function makeSearchUsersTool(locale: Locale): AgentTool { return {
   name: "search_users",
   description: "Search for users by interests, location, keywords, or any combination. Returns up to 7 results ranked by relevance.",
   parameters: {
@@ -242,6 +268,7 @@ const searchUsersTool: AgentTool = {
               profileType: u.profileType,
               score: 80 - i * 10,
               // v4.16.1: per-result reasoning (see buildReason).
+              // v4.16.7: localized via per-request locale.
               reason: buildReason({
                 query,
                 displayName: u.displayName,
@@ -249,6 +276,7 @@ const searchUsersTool: AgentTool = {
                 location,
                 hintInterests,
                 hintLocation,
+                locale,
               }),
             };
           }),
@@ -294,6 +322,7 @@ const searchUsersTool: AgentTool = {
         score: u.score,
         bio: u.bio,
         // v4.16.1: per-result reasoning (see buildReason).
+        // v4.16.7: localized via per-request locale.
         reason: buildReason({
           query,
           displayName: u.displayName,
@@ -302,6 +331,7 @@ const searchUsersTool: AgentTool = {
           bio: u.bio,
           hintInterests: interests,
           hintLocation: location,
+          locale,
         }),
       })),
       total: scored.length,
@@ -309,7 +339,7 @@ const searchUsersTool: AgentTool = {
       source: "mock",
     };
   },
-};
+}; }
 
 const analyzeCompatibilityTool: AgentTool = {
   name: "analyze_compatibility",
@@ -521,15 +551,19 @@ const generateIcebreakerTool: AgentTool = {
 // Agent configuration
 // ---------------------------------------------------------------------------
 
-const SMART_MATCH_TOOLS: AgentTool[] = [
-  searchUsersTool,
-  analyzeCompatibilityTool,
-  suggestInterestsTool,
-  findNearbyTool,
-  generateIcebreakerTool,
-];
-
-export function createSmartMatchConfig(): AgentConfig {
+// v4.16.7: createSmartMatchConfig now accepts an optional locale so
+// the search_users tool can localize its per-result reason strings.
+// Defaults to English when omitted (back-compat for any caller that
+// hasn't been updated yet).
+export function createSmartMatchConfig(opts?: { locale?: Locale }): AgentConfig {
+  const locale: Locale = opts?.locale ?? "en";
+  const tools: AgentTool[] = [
+    makeSearchUsersTool(locale),
+    analyzeCompatibilityTool,
+    suggestInterestsTool,
+    findNearbyTool,
+    generateIcebreakerTool,
+  ];
   return {
     name: "smart-match",
     description: "AI-powered user discovery and connection recommendations",
@@ -547,7 +581,7 @@ Always respect the Rule of 7: return at most 7 results, keep suggestions concise
 When suggesting matches, explain WHY they're a good match — shared interests, complementary skills, or location proximity. Be warm and encouraging but not overly enthusiastic.
 
 The search_users tool already attaches a deterministic per-result \`reason\` string (e.g. "Shared interests: photography and hiking") to every match — the UI surfaces it directly under each card. Your text response should add higher-level context (group dynamics, complementary skills, suggested next step) rather than restating each card's reason verbatim.`,
-    tools: SMART_MATCH_TOOLS,
+    tools,
     maxSteps: 5,
     temperature: 0.7,
   };

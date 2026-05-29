@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { aiRateLimit } from "@/lib/redis";
 import { AgentEngine } from "@/lib/agents/engine";
-import { createSmartMatchConfig } from "@/lib/agents/smart-match";
+import { createSmartMatchConfig, normalizeLocale } from "@/lib/agents/smart-match";
 import type { AgentMessage } from "@/lib/agents/types";
+import prisma from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // POST /api/agents/smart-match
@@ -51,8 +52,19 @@ export async function POST(request: NextRequest) {
       ? parts.join(". ")
       : "Find me interesting people to connect with based on my profile.";
 
+    // v4.16.7: thread the caller's preferredLocale into the agent so
+    // per-result "Why:" reasons localize. Falls back to English if the
+    // user row is missing or the stored locale isn't in the supported
+    // set. One small DB read — acceptable inside an already-DB-bound
+    // request.
+    const caller = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { preferredLocale: true },
+    });
+    const locale = normalizeLocale(caller?.preferredLocale);
+
     // Configure and run the agent
-    const config = createSmartMatchConfig();
+    const config = createSmartMatchConfig({ locale });
     const engine = new AgentEngine();
 
     const messages: AgentMessage[] = [
