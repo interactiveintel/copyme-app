@@ -5,7 +5,6 @@ import {
   validateMessageContent,
   validateMediaCount,
   validateDuration,
-  LIMITS,
 } from "@/lib/ruleOf7";
 import { recordCapHit } from "@/lib/ruleOf7-metrics";
 import { cacheInbox } from "@/lib/redis";
@@ -14,6 +13,9 @@ import { bumpStreak } from "@/lib/streak";
 import { sendPush } from "@/lib/push";
 import { publishMessageEvent } from "@/lib/realtime";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
+// v4.16.3 (F6b): per-pair retention policy. Replaces the hardcoded
+// LIMITS.BASIC.inboxPerContact below with a tier-aware lookup.
+import { policyForPair, cutoffFor } from "@/lib/messages-retention";
 
 // ---------------------------------------------------------------------------
 // POST /api/messages/send
@@ -147,18 +149,25 @@ export async function POST(request: NextRequest) {
       where: { senderId: auth.userId, receiverId: body.receiverId },
     });
 
-    const inboxLimit = LIMITS.BASIC.inboxPerContact;
-    if (existingCount >= inboxLimit) {
-      // Delete oldest messages to maintain the 7-message window
+    // v4.16.3 (F6b): per-pair retention. Basic↔Basic stays count-based
+    // (delete oldest until 7 remain — the brand promise). Any side at
+    // Pro/Business/Premium flips the pair to a time-based window
+    // (7w or 70w), enforced here on every send AND nightly via cron
+    // for idle conversations.
+    const pairPolicy = await policyForPair(auth.userId, body.receiverId);
+    const pairFilter = {
+      OR: [
+        { senderId: auth.userId, receiverId: body.receiverId },
+        { senderId: body.receiverId, receiverId: auth.userId },
+      ],
+    };
+
+    if (pairPolicy.mode === "count" && existingCount >= pairPolicy.value) {
+      // Delete oldest messages to maintain the count-based window.
       const oldMessages = await prisma.message.findMany({
-        where: {
-          OR: [
-            { senderId: auth.userId, receiverId: body.receiverId },
-            { senderId: body.receiverId, receiverId: auth.userId },
-          ],
-        },
+        where: pairFilter,
         orderBy: { createdAt: "asc" },
-        take: existingCount - inboxLimit + 1,
+        take: existingCount - pairPolicy.value + 1,
         select: { id: true },
       });
 
@@ -167,6 +176,16 @@ export async function POST(request: NextRequest) {
           where: { id: { in: oldMessages.map((m: { id: string }) => m.id) } },
         });
       }
+    } else if (pairPolicy.mode === "time") {
+      // Sweep anything older than the window. Cheap — indexed scan on
+      // (senderId, createdAt) / (receiverId, createdAt).
+      const cutoff = cutoffFor(pairPolicy)!;
+      await prisma.message.deleteMany({
+        where: {
+          ...pairFilter,
+          createdAt: { lt: cutoff },
+        },
+      });
     }
 
     // --- Translation (A3) ---------------------------------------------------
@@ -291,8 +310,13 @@ export async function POST(request: NextRequest) {
     }
     // Cycle completed: this send brings the sender's count TO this peer up
     // to 7. We only fire on the transition (exactly == 7), not each message
-    // past it.
-    if (priorFromSenderToReceiver + 1 === LIMITS.BASIC.inboxPerContact) {
+    // past it. v4.16.3 (F6b): the "cycle" semantic only applies to
+    // count-mode pairs — for time-mode (paid tier), the 7-msg threshold
+    // is no longer meaningful, so we skip the event there.
+    if (
+      pairPolicy.mode === "count" &&
+      priorFromSenderToReceiver + 1 === pairPolicy.value
+    ) {
       capture(auth.userId, ANALYTICS_EVENTS.CycleCompleted, {
         peerId: body.receiverId,
       });

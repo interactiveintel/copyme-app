@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { getInbox } from "@/lib/redis";
+// v4.16.3 (F6b): tier-aware retention window. Basic stays at the
+// hardcoded 7-msg count; Pro/Business/Premium switch to time-based
+// (7w / 70w). The Redis cache only ever stores 7 msgs, so we bypass
+// it for time-mode pairs to avoid truncating their active window.
+import { policyForPair, cutoffFor, TIME_FETCH_CAP } from "@/lib/messages-retention";
 
 // Auth-bound, per-user inbox. Defensive force-dynamic.
 export const dynamic = "force-dynamic";
@@ -24,24 +29,37 @@ export async function GET(request: NextRequest) {
     const contactId = searchParams.get("contactId");
 
     // -----------------------------------------------------------------
-    // Single contact: return last 7 messages
+    // Single contact: return messages within the pair's retention
+    // window. Count-mode (Basic↔Basic) → last 7; time-mode (any paid
+    // tier on either side) → everything from the last 7w / 70w.
     // -----------------------------------------------------------------
     if (contactId) {
-      // Try cache first
-      const cached = await getInbox(auth.userId, contactId).catch(() => null);
-      if (cached) {
-        return NextResponse.json({ success: true, data: cached });
+      const policy = await policyForPair(auth.userId, contactId);
+
+      // Cache only stores last 7 — safe for count-mode, lossy for
+      // time-mode (Basic↔Premium would otherwise see only 7 out of
+      // 70 weeks of messages). Skip cache for time-mode pairs.
+      if (policy.mode === "count") {
+        const cached = await getInbox(auth.userId, contactId).catch(() => null);
+        if (cached) {
+          return NextResponse.json({ success: true, data: cached });
+        }
       }
 
+      const baseWhere = {
+        OR: [
+          { senderId: auth.userId, receiverId: contactId },
+          { senderId: contactId, receiverId: auth.userId },
+        ],
+      };
+
       const messages = await prisma.message.findMany({
-        where: {
-          OR: [
-            { senderId: auth.userId, receiverId: contactId },
-            { senderId: contactId, receiverId: auth.userId },
-          ],
-        },
+        where:
+          policy.mode === "time"
+            ? { ...baseWhere, createdAt: { gte: cutoffFor(policy)! } }
+            : baseWhere,
         orderBy: { createdAt: "desc" },
-        take: 7,
+        take: policy.mode === "count" ? policy.value : TIME_FETCH_CAP,
         include: {
           sender: { select: { id: true, displayName: true } },
           receiver: { select: { id: true, displayName: true } },

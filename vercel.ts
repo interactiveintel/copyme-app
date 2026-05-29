@@ -24,6 +24,16 @@ export const config: VercelConfig = {
       path: "/api/cron/calls-retention",
       schedule: "0 4 * * *",
     },
+    {
+      // v4.16.3 (F6b): nightly message-retention sweep. Closes the
+      // gap left by per-send pruning for idle paid-tier conversations:
+      // Pro/Business get 7w, Premium gets 70w. Basic↔Basic pairs are
+      // already enforced per-send (count cap of 7) — this cron skips
+      // them. Runs 04:30 UTC, 30 min after calls so they don't pile
+      // up against the same DB peak.
+      path: "/api/cron/messages-retention",
+      schedule: "30 4 * * *",
+    },
   ],
 
   // SSE stream needs longer than the default per-route timeout. Stays
