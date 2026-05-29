@@ -82,11 +82,28 @@ export async function GET(request: NextRequest) {
     // -----------------------------------------------------------------
     // No contactId: return contact list with last message preview +
     // unread count per conversation.
+    // v4.16.8 (F6b polish): bounds added to keep the response cheap on
+    // active accounts. The fetch is dedup'd in-app to one row per
+    // contact, so we only need enough messages to cover every recent
+    // conversation — 500/direction is well past realistic usage. The
+    // createdAt cap mirrors the maximum tier window (70 weeks = Premium,
+    // +1 week buffer for cron drift). Anything older couldn't be in
+    // any pair's active window after the retention sweep, so it's safe
+    // to skip even if the sweep hasn't fired yet for those rows.
     // -----------------------------------------------------------------
+    const INBOX_FETCH_LIMIT = 500;
+    const MAX_INBOX_WINDOW_DAYS = 71 * 7; // Premium (70w) + 1w cron buffer
+    const inboxCutoff = new Date(
+      Date.now() - MAX_INBOX_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
 
     const sentMessages = await prisma.message.findMany({
-      where: { senderId: auth.userId },
+      where: {
+        senderId: auth.userId,
+        createdAt: { gte: inboxCutoff },
+      },
       orderBy: { createdAt: "desc" },
+      take: INBOX_FETCH_LIMIT,
       select: {
         id: true,
         receiverId: true,
@@ -100,8 +117,12 @@ export async function GET(request: NextRequest) {
     });
 
     const receivedMessages = await prisma.message.findMany({
-      where: { receiverId: auth.userId },
+      where: {
+        receiverId: auth.userId,
+        createdAt: { gte: inboxCutoff },
+      },
       orderBy: { createdAt: "desc" },
+      take: INBOX_FETCH_LIMIT,
       select: {
         id: true,
         senderId: true,
