@@ -32,9 +32,19 @@ export async function GET(request: NextRequest) {
     // Single contact: return messages within the pair's retention
     // window. Count-mode (Basic↔Basic) → last 7; time-mode (any paid
     // tier on either side) → everything from the last 7w / 70w.
+    // v4.16.5 (F6b polish): the response also includes the effective
+    // policy so the ChatScreen header can render a "7 weeks · Premium
+    // pair" badge — letting users see WHY their window expanded.
     // -----------------------------------------------------------------
     if (contactId) {
       const policy = await policyForPair(auth.userId, contactId);
+      // Public-safe slice of the policy (no tier raw string). The
+      // header badge only needs mode + value + label.
+      const policyPayload = {
+        mode: policy.mode,
+        value: policy.value,
+        label: policy.label,
+      };
 
       // Cache only stores last 7 — safe for count-mode, lossy for
       // time-mode (Basic↔Premium would otherwise see only 7 out of
@@ -42,7 +52,7 @@ export async function GET(request: NextRequest) {
       if (policy.mode === "count") {
         const cached = await getInbox(auth.userId, contactId).catch(() => null);
         if (cached) {
-          return NextResponse.json({ success: true, data: cached });
+          return NextResponse.json({ success: true, data: cached, policy: policyPayload });
         }
       }
 
@@ -66,7 +76,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      return NextResponse.json({ success: true, data: messages });
+      return NextResponse.json({ success: true, data: messages, policy: policyPayload });
     }
 
     // -----------------------------------------------------------------

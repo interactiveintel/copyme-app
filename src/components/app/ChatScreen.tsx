@@ -93,6 +93,14 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEnd = useRef<HTMLDivElement>(null);
+  // v4.16.5 (F6b polish): pair retention policy returned by
+  // /api/messages/inbox. Drives the header badge that replaces the
+  // old static "Direct Message" caption.
+  const [pairPolicy, setPairPolicy] = useState<{
+    mode: "count" | "time";
+    value: number;
+    label: string;
+  } | null>(null);
 
   const displayName = contactName || "Chat";
   const isMockContact = chatId.startsWith("mock_");
@@ -123,6 +131,17 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
       if (res.ok) {
         const data = await res.json();
         setMessages((data.data ?? []).reverse());
+        // v4.16.5: pair policy lands at data.policy on the inbox
+        // response. Optional — old clients/routes that don't return
+        // it leave the badge collapsed to the default "Direct Message"
+        // string for backwards compat.
+        if (data.policy?.mode && typeof data.policy.label === "string") {
+          setPairPolicy({
+            mode: data.policy.mode,
+            value: Number(data.policy.value ?? 0),
+            label: String(data.policy.label),
+          });
+        }
       }
     } catch {
       // network error
@@ -437,7 +456,21 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                 <p className="text-[11px] text-emerald-500">
                   {isMockContact ? "Tap to view profile" : "online"}
                 </p>
-                <p className="text-[9px] text-slate-400">Direct Message</p>
+                {/* v4.16.5 (F6b polish): per-pair retention badge. For
+                    Basic↔Basic (default) reads "7 messages · Rule of 7".
+                    Any time-tier pair shows the window the more-generous
+                    side unlocked: "7 weeks · Pro+" or "70 weeks · Premium".
+                    Falls back to "Direct Message" for mock contacts and
+                    pre-policy responses so the layout never collapses. */}
+                <p className="text-[9px] text-slate-400">
+                  {pairPolicy
+                    ? pairPolicy.mode === "count"
+                      ? `${pairPolicy.label} · Rule of 7`
+                      : pairPolicy.value >= 70 * 7
+                        ? `${pairPolicy.label} · Premium`
+                        : `${pairPolicy.label} · Pro+`
+                    : "Direct Message"}
+                </p>
               </div>
             </button>
           </div>
