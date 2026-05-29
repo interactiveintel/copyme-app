@@ -100,6 +100,16 @@ model User {
   emailHash         String?     @unique @map("email_hash")
   phoneEncrypted    Bytes?      @map("phone_encrypted")
   emailEncrypted    Bytes?      @map("email_encrypted")
+  /// v4.16.9 (Sprint 8 skeleton): published Signal X3DH pre-key bundle.
+  /// Serialized JSON of the libsignal PreKeyBundle (identityKey,
+  /// signedPreKey, oneTimePreKey, kyberPreKey + signatures). Null
+  /// until the user opts into E2E. Reading peers consume one pre-key
+  /// per session; the client republishes a new bundle when its pool
+  /// of one-time pre-keys runs low.
+  e2ePublicBundle   String?     @map("e2e_public_bundle")
+  /// libsignal registration ID. Stable per device install (32-bit
+  /// unsigned, stored in Int for headroom).
+  e2eRegistrationId Int?        @map("e2e_registration_id")
   accountTier       AccountTier @default(basic) @map("account_tier")
   vapEnabled        Boolean     @default(false) @map("vap_enabled")
   preferredCurrency Currency    @default(USD) @map("preferred_currency")
@@ -620,6 +630,13 @@ model Message {
   deliveredAt         DateTime?   @map("delivered_at")
   readAt              DateTime?   @map("read_at")
   expiresFromInboxAt  DateTime?   @map("expires_from_inbox_at")
+  /// v4.16.9 (Sprint 8 skeleton): opt-in E2E ciphertext. When present,
+  /// `content` MAY be a placeholder (e.g. "[Encrypted]") and the real
+  /// payload lives here. Decrypted client-side using the recipient's
+  /// libsignal session. Future Tier S ships will gate this — for now
+  /// it's a passive column so the wire shape exists ahead of the
+  /// integration push.
+  e2eCiphertext       Bytes?      @map("e2e_ciphertext")
 
   sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
