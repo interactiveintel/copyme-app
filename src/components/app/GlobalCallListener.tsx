@@ -89,6 +89,42 @@ export default function GlobalCallListener() {
     return () => window.removeEventListener("copyme:start-outbound-call", handler);
   }, [user, authFetch, active]);
 
+  // v4.15.6: short-circuit the 3s poll when the service worker tells
+  // us a call notification was tapped. The SW posts
+  // { type: "copyme:incoming-call", callId } to the page so we can
+  // surface the IncomingCallSheet immediately rather than waiting up
+  // to 3s for the next poll. We refetch /api/calls/incoming for the
+  // enriched caller name/avatar (same path the poll uses, so the data
+  // shape is identical — no risk of UI divergence).
+  useEffect(() => {
+    if (!user) return;
+    const onSwMessage = async (e: MessageEvent) => {
+      const data = e.data;
+      if (!data || data.type !== "copyme:incoming-call" || !data.callId) return;
+      if (active && active.callId === data.callId) return;
+      if (incoming && incoming.callId === data.callId) return;
+      try {
+        const res = await authFetch("/api/calls/incoming");
+        if (!res.ok) return;
+        const body = await res.json();
+        const payload = body?.data;
+        // The SW tap might be for a different (older) call than what's
+        // currently ringing — only surface when the ids match.
+        if (!payload || payload.callId !== data.callId) return;
+        setIncoming({
+          callId: payload.callId,
+          peerName: payload.callerName ?? "Unknown",
+          peerAvatarUrl: payload.callerAvatarUrl ?? null,
+          callType: payload.callType ?? "voice",
+        });
+      } catch {
+        /* fall back to the regular poll */
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", onSwMessage);
+    return () => navigator.serviceWorker?.removeEventListener("message", onSwMessage);
+  }, [user, authFetch, active, incoming]);
+
   useEffect(() => {
     if (!user) return;
     let cancelled = false;

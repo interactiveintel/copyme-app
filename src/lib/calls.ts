@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/db";
 import { roomNameFor } from "@/lib/livekit";
 import { addBreadcrumb, reportError } from "@/lib/observability";
+import { sendPush } from "@/lib/push";
 
 export type CallType = "voice" | "video";
 export type CallStatus =
@@ -111,6 +112,72 @@ export async function createCall(args: {
       calleeId,
       callType,
     });
+
+    // v4.15.6 (Tier E Sprint 4): fan the ringing call out as a web
+    // push so the callee's device gets an OS-level ring even when the
+    // tab is backgrounded. Best-effort + fire-and-forget — never block
+    // the caller's create response on push delivery.
+    //
+    // The notification tag "call:<callId>" is what sw.js uses to:
+    //   1. give the notification requireInteraction so it stays put
+    //      until the user dismisses or taps (typical ringtone behavior)
+    //   2. add a "📞 Incoming call" prefix to the title
+    //
+    // GlobalCallListener's 3s poll picks up the ringing call once the
+    // user taps and the app gains focus — no extra deep-link wiring
+    // needed here.
+    void (async () => {
+      try {
+        const [callerRow, subs] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: callerId },
+            select: { displayName: true },
+          }),
+          prisma.pushSubscription.findMany({
+            where: { userId: calleeId },
+            select: { id: true, endpoint: true, p256dh: true, auth: true },
+          }),
+        ]);
+        if (!subs.length) return;
+        const callerName = callerRow?.displayName ?? "Someone";
+        const body =
+          callType === "video"
+            ? `${callerName} is video calling you`
+            : `${callerName} is calling you`;
+
+        const results = await Promise.all(
+          subs.map((s) =>
+            sendPush(
+              { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+              {
+                title: "Incoming call",
+                body,
+                url: "/app",
+                tag: `call:${result.callId}`,
+                data: {
+                  kind: "call",
+                  callId: result.callId,
+                  callType,
+                  callerId,
+                },
+              },
+            ).then((r) => ({ id: s.id, ...r })),
+          ),
+        );
+        const expired = results.filter((r) => r.expired).map((r) => r.id);
+        if (expired.length) {
+          await prisma.pushSubscription
+            .deleteMany({ where: { id: { in: expired } } })
+            .catch(() => undefined);
+        }
+      } catch (err) {
+        // Don't surface push failures to the caller — the in-app
+        // ringer (GlobalCallListener poll + IncomingCallSheet)
+        // continues to work even if every push subscription fails.
+
+        console.warn("[call.create push] failed:", err instanceof Error ? err.message : err);
+      }
+    })();
 
     return { ok: true, reason: "OK", ...result };
   } catch (err) {
