@@ -120,7 +120,22 @@ export async function muteAllInRoom(room: string): Promise<{
   errors: number;
 }> {
   const svc = roomService();
-  const participants = await svc.listParticipants(room);
+  let participants;
+  try {
+    participants = await svc.listParticipants(room);
+  } catch (err) {
+    // LiveKit rooms are lazily created on first join. If the host
+    // taps "mute all" before anyone (including themselves) has
+    // actually connected, the room doesn't exist server-side and
+    // listParticipants throws "requested room does not exist". Treat
+    // as a zero-op rather than surfacing as a 500 — there's nothing
+    // to mute. v4.15.16 fix.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/room does not exist|not found/i.test(msg)) {
+      return { muted: 0, errors: 0 };
+    }
+    throw err;
+  }
   let muted = 0;
   let errors = 0;
   for (const p of participants) {
