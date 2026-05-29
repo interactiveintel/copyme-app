@@ -4,7 +4,13 @@
 // the call is accepted. Wraps LiveKit's React components for the room
 // connection + audio rendering.
 //
-// Voice-only in v4.15.0 (Sprint 1). Sprint 3 adds video tiles.
+// Voice-only in v4.15.0 (Sprint 1). v4.15.3 (Sprint 2) adds:
+//   - Connection-quality indicator (4-bar)
+//   - Speaker output toggle via setSinkId (feature-detected; falls
+//     back gracefully on Safari/mobile where it's not supported)
+//   - Permission-denied error state with browser-specific copy
+//   - Remote participant name override (LiveKit identity > prop)
+// Sprint 3 adds video tiles.
 //
 // Lifecycle:
 //   mount:
@@ -14,16 +20,19 @@
 //   unmount or End:
 //     PATCH /api/calls/[id] { action: "end" } → status flips to ended
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Mic, MicOff, PhoneOff, Volume2 } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Volume2, VolumeX, MicOff as MicDenied } from "lucide-react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
   useLocalParticipant,
   useConnectionState,
+  useConnectionQualityIndicator,
+  useRemoteParticipants,
 } from "@livekit/components-react";
-import { ConnectionState } from "livekit-client";
+import { ConnectionQuality, ConnectionState, MediaDeviceFailure } from "livekit-client";
+import type { MediaDeviceFailure as MediaDeviceFailureType } from "livekit-client";
 import "@livekit/components-styles";
 import Avatar from "../ui/Avatar";
 
@@ -53,6 +62,9 @@ export default function CallSheet({
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // v4.15.3: track device-failure shape so we can render a tailored
+  // error state (mic denied vs no mic at all vs unknown).
+  const [deviceFailure, setDeviceFailure] = useState<MediaDeviceFailureType | null>(null);
 
   // Mint a join token on mount.
   useEffect(() => {
@@ -95,6 +107,20 @@ export default function CallSheet({
     onClose();
   };
 
+  // Device-failure path takes priority — render the permission UI
+  // even if the rest of the room connection succeeds, because no audio
+  // means there's no call.
+  if (deviceFailure) {
+    return (
+      <CallShellPermissionDenied
+        peerName={peerName}
+        peerAvatarUrl={peerAvatarUrl}
+        failure={deviceFailure}
+        onClose={onClose}
+      />
+    );
+  }
+
   if (error) {
     return (
       <CallShellFatal
@@ -129,6 +155,12 @@ export default function CallSheet({
         audio
         // v4.15.0 is voice-only. Sprint 3 will read callType here.
         video={false}
+        // Catch mic-permission errors so we can render a friendly state
+        // instead of failing silently. The kind narrows to "audioinput"
+        // for the mic case.
+        onMediaDeviceFailure={(failure) => {
+          if (failure) setDeviceFailure(failure);
+        }}
         // LiveKit injects an audio element under this component.
         className="flex-1 flex flex-col"
       >
@@ -158,6 +190,18 @@ function CallInnerUI({
   const connectionState = useConnectionState();
   const { localParticipant } = useLocalParticipant();
   const [muted, setMuted] = useState(false);
+  // v4.15.3: connection-quality indicator (4 bars). Hook returns the
+  // local participant's quality unless overridden.
+  const { quality } = useConnectionQualityIndicator();
+  // v4.15.3: prefer the remote participant's name (set by the server-
+  // side token mint from the DB's displayName) over the prop, which
+  // for incoming calls comes from /api/calls/incoming and can be stale
+  // or "Unknown" if the participant lookup raced.
+  const remoteParticipants = useRemoteParticipants();
+  const effectivePeerName = useMemo(() => {
+    const remote = remoteParticipants[0];
+    return remote?.name?.trim() || peerName;
+  }, [remoteParticipants, peerName]);
 
   const statusLabel =
     connectionState === ConnectionState.Connecting ? "Connecting…" :
@@ -175,12 +219,15 @@ function CallInnerUI({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-between p-8 text-white">
-      {/* Header: peer name + status */}
-      <div className="text-center pt-12">
+      {/* Header: peer name + status + quality bars */}
+      <div className="text-center pt-12 flex flex-col items-center gap-2">
         <p className="text-[11px] uppercase tracking-widest text-white/60">
           {callType === "video" ? "Video call" : "Voice call"}
         </p>
-        <p className="mt-2 text-xs text-white/50">{statusLabel}</p>
+        <div className="flex items-center gap-2">
+          <QualityBars quality={quality} />
+          <p className="text-xs text-white/50">{statusLabel}</p>
+        </div>
       </div>
 
       {/* Peer avatar */}
@@ -189,13 +236,13 @@ function CallInnerUI({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={peerAvatarUrl}
-            alt={peerName}
+            alt={effectivePeerName}
             className="w-32 h-32 rounded-full object-cover ring-4 ring-white/20"
           />
         ) : (
-          <Avatar name={peerName} size="xl" />
+          <Avatar name={effectivePeerName} size="xl" />
         )}
-        <p className="text-2xl font-bold">{peerName}</p>
+        <p className="text-2xl font-bold">{effectivePeerName}</p>
       </div>
 
       {/* Controls */}
@@ -220,22 +267,132 @@ function CallInnerUI({
           <PhoneOff size={26} />
         </button>
 
-        {/* Speaker toggle is a Sprint 2 polish — disabled but present
-            so the layout stays stable. */}
-        <button
-          type="button"
-          disabled
-          className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center text-white/30"
-          aria-label="Speaker (coming in Sprint 2)"
-        >
-          <Volume2 size={22} />
-        </button>
+        <SpeakerToggle />
       </div>
     </div>
   );
 }
 
-// ---- Loading + fatal-error shells -----------------------------------------
+// ---- Speaker toggle (v4.15.3) ---------------------------------------------
+//
+// Cycles the audio output between "default" and the next available
+// device. Uses HTMLAudioElement.setSinkId() which is supported on
+// Chromium-based browsers (desktop + Android Chrome). Safari (incl.
+// iOS) doesn't implement setSinkId — there we feature-detect and
+// disable the button with a tooltip.
+//
+// Note: this controls which OUTPUT device receives the audio. On mobile
+// the OS routes between earpiece and loudspeaker; the web API can't
+// influence that directly. For desktop with headphones plugged in this
+// lets the user switch between speakers and headphones in-call.
+
+function SpeakerToggle() {
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [active, setActive] = useState(0); // index into outputs
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Feature-detect setSinkId on HTMLAudioElement.
+    const proto = HTMLAudioElement.prototype as HTMLAudioElement & {
+      setSinkId?: (id: string) => Promise<void>;
+    };
+    if (typeof proto.setSinkId !== "function" || !navigator.mediaDevices?.enumerateDevices) {
+      setSupported(false);
+      return;
+    }
+    setSupported(true);
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((all) => setOutputs(all.filter((d) => d.kind === "audiooutput")))
+      .catch(() => setSupported(false));
+  }, []);
+
+  const cycle = async () => {
+    if (!supported || outputs.length < 2) return;
+    const next = (active + 1) % outputs.length;
+    setActive(next);
+    const deviceId = outputs[next].deviceId;
+    // Apply to all <audio> elements LiveKit's RoomAudioRenderer mounts.
+    const audios = document.querySelectorAll("audio");
+    for (const a of Array.from(audios)) {
+      const el = a as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+      try {
+        await el.setSinkId?.(deviceId);
+      } catch {
+        /* one element failing shouldn't break the others */
+      }
+    }
+  };
+
+  const disabled = supported === false || outputs.length < 2;
+  const label = supported === false
+    ? "Speaker switch not supported in this browser"
+    : outputs.length < 2
+      ? "Only one audio output available"
+      : `Switch output (currently ${outputs[active]?.label || "default"})`;
+
+  return (
+    <button
+      type="button"
+      onClick={cycle}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
+        disabled
+          ? "bg-white/5 text-white/30"
+          : "bg-white/10 text-white hover:bg-white/20"
+      }`}
+    >
+      {disabled ? <VolumeX size={22} /> : <Volume2 size={22} />}
+    </button>
+  );
+}
+
+// ---- Quality bars indicator (v4.15.3) -------------------------------------
+//
+// 4 stacked bars; light up 1-4 based on ConnectionQuality. Color shifts
+// from rose (Lost) → amber (Poor) → emerald (Good/Excellent).
+
+function QualityBars({ quality }: { quality: ConnectionQuality }) {
+  const filled =
+    quality === ConnectionQuality.Excellent ? 4 :
+    quality === ConnectionQuality.Good ? 3 :
+    quality === ConnectionQuality.Poor ? 2 :
+    quality === ConnectionQuality.Lost ? 1 :
+    0;
+  const colorClass =
+    filled >= 3 ? "bg-emerald-400" :
+    filled === 2 ? "bg-amber-400" :
+    filled === 1 ? "bg-rose-400" :
+    "bg-white/20";
+
+  // LiveKit's ConnectionQuality is a string enum ("excellent"|"good"|
+  // "poor"|"lost"|"unknown") so `quality` is already human-readable
+  // lowercase — title-case it for the tooltip.
+  const qualityLabel = quality
+    ? quality[0].toUpperCase() + quality.slice(1)
+    : "Unknown";
+
+  return (
+    <div
+      className="flex items-end gap-[2px] h-3"
+      title={`Connection: ${qualityLabel}`}
+      aria-label={`Connection quality: ${qualityLabel.toLowerCase()}`}
+    >
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className={`w-[3px] rounded-sm ${i < filled ? colorClass : "bg-white/15"}`}
+          style={{ height: `${(i + 1) * 25}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---- Loading + fatal-error + permission-denied shells ---------------------
 
 function CallShellLoading({
   peerName,
@@ -294,6 +451,89 @@ function CallShellFatal({
         >
           Close
         </button>
+      </div>
+    </div>
+  );
+}
+
+// v4.15.3: dedicated permission-denied state with browser-specific
+// instructions. Detects the major engines via user-agent (cheap; only
+// used for help-copy steering, no security implications).
+
+function CallShellPermissionDenied({
+  peerName,
+  peerAvatarUrl,
+  failure,
+  onClose,
+}: {
+  peerName: string;
+  peerAvatarUrl?: string | null;
+  failure: MediaDeviceFailureType;
+  onClose: () => void;
+}) {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
+  const isAndroid = /Android/.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+  const headline =
+    failure === MediaDeviceFailure.PermissionDenied
+      ? "Microphone permission needed"
+      : failure === MediaDeviceFailure.NotFound
+        ? "No microphone found"
+        : failure === MediaDeviceFailure.DeviceInUse
+          ? "Microphone is in use by another app"
+          : "Microphone error";
+
+  const instructions = (() => {
+    if (failure !== MediaDeviceFailure.PermissionDenied) {
+      return failure === MediaDeviceFailure.NotFound
+        ? "Plug in a microphone or enable one in your system audio settings, then tap Retry."
+        : "Close any other app using the microphone (Zoom, Meet, etc.), then tap Retry.";
+    }
+    if (isIos && isSafari) {
+      return "Open Settings → Safari → Microphone → set to Ask. Then return to this tab and tap Retry.";
+    }
+    if (isAndroid) {
+      return "Tap the lock icon in the address bar → Permissions → Microphone → Allow. Then tap Retry.";
+    }
+    if (isSafari) {
+      return "Safari → Settings for copyme1.com → Microphone → Allow. Then tap Retry.";
+    }
+    // Chrome / Edge / Firefox / etc.
+    return "Click the lock icon left of the URL → Site settings → Microphone → Allow. Then tap Retry.";
+  })();
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-gradient-to-br from-slate-900 via-amber-950 to-slate-900 flex flex-col items-center justify-center text-white px-8">
+      <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+        {peerAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={peerAvatarUrl} alt={peerName} className="w-24 h-24 rounded-full object-cover ring-4 ring-white/20 opacity-60" />
+        ) : (
+          <div className="opacity-60"><Avatar name={peerName} size="xl" /></div>
+        )}
+        <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+          <MicDenied size={22} className="text-amber-400" />
+        </div>
+        <p className="text-lg font-bold">{headline}</p>
+        <p className="text-sm text-white/70 leading-relaxed">{instructions}</p>
+        <div className="flex gap-3 mt-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 rounded-full bg-white text-slate-900 font-semibold"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 rounded-full bg-white/10 text-white font-semibold hover:bg-white/20"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
