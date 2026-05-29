@@ -99,11 +99,16 @@ export async function createCall(args: {
       const room = roomNameFor(callerId, calleeId, call.id);
 
       // Bind a chat Message so the thread shows an inline call bubble.
+      // callId column (v4.15.17) lets status updates fan out to all
+      // messages bound to this call — important for groups, useful for
+      // 1:1 (currently equivalent to Call.messageId, but the unified
+      // path is cleaner).
       const message = await tx.message.create({
         data: {
           senderId: callerId,
           receiverId: calleeId,
           type: "call",
+          callId: call.id,
           content: JSON.stringify({
             kind: "call",
             callType,
@@ -313,21 +318,21 @@ export async function updateCallStatus(args: {
       });
 
       // Update the bound Message's content so the chat bubble re-renders
-      // its new status without a separate fetch.
-      if (call.messageId) {
-        await tx.message.update({
-          where: { id: call.messageId },
-          data: {
-            content: JSON.stringify({
-              kind: "call",
-              callType: call.callType,
-              status: next,
-              callId: call.id,
-              durationSeconds: durationSeconds ?? undefined,
-            }),
-          },
-        }).catch(() => undefined);
-      }
+      // its new status without a separate fetch. v4.15.17: query by
+      // callId so this also covers any post-create messages the
+      // group path added (1:1 still has just one).
+      await tx.message.updateMany({
+        where: { callId: call.id, type: "call" },
+        data: {
+          content: JSON.stringify({
+            kind: "call",
+            callType: call.callType,
+            status: next,
+            callId: call.id,
+            durationSeconds: durationSeconds ?? undefined,
+          }),
+        },
+      });
     });
 
     addBreadcrumb("call.update.ok", { callId, actorId, next });
@@ -364,6 +369,10 @@ async function updateGroupCallStatus(args: {
   // ---- Caller cancelling the whole call ----------------------------
   if (isCaller && (next === "ended" || next === "failed")) {
     try {
+      const callForBubble = await prisma.call.findUnique({
+        where: { id: callId },
+        select: { callType: true },
+      });
       await prisma.$transaction(async (tx) => {
         await tx.call.update({
           where: { id: callId },
@@ -376,6 +385,21 @@ async function updateGroupCallStatus(args: {
             status: { in: ["ringing", "accepted"] },
           },
           data: { status: "left", leftAt: now },
+        });
+        // v4.15.17: fan content update across all per-thread bubbles
+        // (one per callee for groups, one total for 1:1). Same JSON
+        // shape both groups and the original 1:1 path use.
+        await tx.message.updateMany({
+          where: { callId, type: "call" },
+          data: {
+            content: JSON.stringify({
+              kind: "call",
+              callType: callForBubble?.callType ?? "voice",
+              status: next,
+              callId,
+              isGroup: true,
+            }),
+          },
         });
       });
       addBreadcrumb("call.group.cancel", { callId, actorId, next });
@@ -428,12 +452,29 @@ async function updateGroupCallStatus(args: {
       if (anyAccepted) aggregate = "accepted";
       if (allTerminal) aggregate = "ended";
 
-      await tx.call.update({
+      const callForBubble = await tx.call.update({
         where: { id: callId },
         data: {
           status: aggregate,
           ...(aggregate === "ended" ? { endedAt: now } : {}),
           ...(aggregate === "accepted" ? { acceptedAt: now } : {}),
+        },
+        select: { callType: true },
+      });
+
+      // v4.15.17: fan the aggregate-status update to every per-thread
+      // bubble. Without this, the bubbles in callees' chats would
+      // stay stuck on "ringing" until refresh.
+      await tx.message.updateMany({
+        where: { callId, type: "call" },
+        data: {
+          content: JSON.stringify({
+            kind: "call",
+            callType: callForBubble.callType,
+            status: aggregate,
+            callId,
+            isGroup: true,
+          }),
         },
       });
     });
@@ -565,6 +606,28 @@ export async function createGroupCall(args: {
           callId: call.id,
           userId,
           status: "ringing",
+        })),
+      });
+
+      // v4.15.17: write one chat-thread Message per (caller, callee)
+      // pair so each callee sees a "Group call" bubble in their
+      // thread with the caller. All N messages share callId so a
+      // status flip updates them in one query.
+      await tx.message.createMany({
+        data: calleeIds.map((userId) => ({
+          senderId: callerId,
+          receiverId: userId,
+          type: "call" as const,
+          callId: call.id,
+          content: JSON.stringify({
+            kind: "call",
+            callType,
+            status: "ringing",
+            callId: call.id,
+            isGroup: true,
+            participantCount: calleeIds.length + 1, // +1 for caller
+          }),
+          deliveredAt: new Date(),
         })),
       });
 

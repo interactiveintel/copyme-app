@@ -603,6 +603,12 @@ model Message {
   senderId            String      @map("sender_id") @db.Uuid
   receiverId          String      @map("receiver_id") @db.Uuid
   groupId             String?     @map("group_id") @db.Uuid
+  /// v4.15.17 (Sprint 6 polish): for `call` MessageType rows, points
+  /// back to the Call. Lets updateCallStatus update ALL Message rows
+  /// bound to a single call (group calls write N — one per
+  /// caller↔callee pair). 1:1 calls also write callId for consistency,
+  /// even though Call.messageId provides the same link.
+  callId              String?     @map("call_id") @db.Uuid
   type                MessageType @default(text)
   content             String?
   mediaUrls           Json?       @map("media_urls")
@@ -624,6 +630,7 @@ model Message {
   @@index([receiverId, readAt])
   @@index([groupId, createdAt])
   @@index([expiresFromInboxAt])
+  @@index([callId])
   @@map("messages")
 }
 

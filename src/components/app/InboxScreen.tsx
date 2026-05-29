@@ -70,15 +70,18 @@ function previewFor(type: string, content: string | null): string {
     case "call": {
       try {
         const p = JSON.parse(content ?? "{}");
-        const kind = p?.callType === "video" ? "Video call" : "Voice call";
+        const isGroup = !!p?.isGroup;
+        const baseKind = p?.callType === "video" ? "video call" : "call";
+        const kind = isGroup ? `Group ${baseKind}` : (baseKind === "call" ? "Voice call" : "Video call");
+        const icon = isGroup ? "👥" : "📞";
         switch (p?.status) {
-          case "ended":    return `📞 ${kind}`;
+          case "ended":    return `${icon} ${kind}`;
           case "missed":   return `📵 Missed ${kind.toLowerCase()}`;
           case "declined": return `📵 ${kind} declined`;
           case "failed":   return `⚠️ ${kind} failed`;
-          case "ringing":  return `📞 ${kind} (ringing)`;
-          case "accepted": return `📞 ${kind} (in progress)`;
-          default:         return `📞 ${kind}`;
+          case "ringing":  return `${icon} ${kind} (ringing)`;
+          case "accepted": return `${icon} ${kind} (in progress)`;
+          default:         return `${icon} ${kind}`;
         }
       } catch {
         return "📞 Call";
