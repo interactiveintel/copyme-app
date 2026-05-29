@@ -38,6 +38,10 @@ export function createProvider(): LLMProvider {
  */
 export class MockLLMProvider implements LLMProvider {
   private callCount = 0;
+  // v4.16.4: track which tools have already fired this run so the
+  // multi-step chaining logic below can't loop on itself (e.g. call
+  // generate_icebreaker, see its result, try to call it again).
+  private calledTools = new Set<string>();
 
   async complete(
     messages: AgentMessage[],
@@ -53,14 +57,48 @@ export class MockLLMProvider implements LLMProvider {
     const lastAssistantMessage =
       [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
 
-    // On second+ call (after a tool result was appended), produce a text summary
-    if (this.callCount > 1 && lastAssistantMessage.length > 0) {
-      return { type: "text", content: lastAssistantMessage };
+    // v4.16.4: parse the previous step's tool output, so we can chain
+    // a follow-up tool when it makes sense (e.g. search_users →
+    // generate_icebreaker). engine.ts always pushes tool results as
+    // assistant messages with JSON.stringify({tool, result}).
+    const lastToolResult = this.parseToolResult(lastAssistantMessage);
+    const toolMap = new Map(tools.map((t) => [t.name, t]));
+
+    // ---- Smart Match: chain search_users → generate_icebreaker ------
+    // The real Claude provider does this naturally once the API key is
+    // valid (system prompt encourages it). MockLLM has to be told.
+    // Without this chain, AI search results came back with matches and
+    // a reasoning blurb but the "Suggested openers" banner stayed
+    // empty whenever Anthropic was unreachable — which is the entire
+    // current state of production.
+    if (
+      lastToolResult?.tool === "search_users" &&
+      !this.calledTools.has("generate_icebreaker") &&
+      toolMap.has("generate_icebreaker")
+    ) {
+      const args = this.icebreakerArgsFromSearch(lastToolResult.result, lastUserMessage);
+      if (args) {
+        this.calledTools.add("generate_icebreaker");
+        return { type: "tool_call", toolName: "generate_icebreaker", arguments: args };
+      }
+    }
+
+    // On second+ call after at least one tool ran: text summary.
+    // v4.16.4 (bug fix): previously returned `lastAssistantMessage`
+    // verbatim, which was the raw JSON of the last tool result —
+    // that JSON dump leaked into SearchScreen's "AI match reasoning"
+    // banner. Now uses the agent-aware fallback prose.
+    if (this.callCount > 1 && this.calledTools.size > 0) {
+      return {
+        type: "text",
+        content: this.generateFallbackResponse(lastUserMessage, messages),
+      };
     }
 
     // Attempt to match the user intent to an available tool
     const toolMatch = this.selectTool(lastUserMessage, conversation, tools);
     if (toolMatch) {
+      this.calledTools.add(toolMatch.name);
       return {
         type: "tool_call",
         toolName: toolMatch.name,
@@ -72,6 +110,60 @@ export class MockLLMProvider implements LLMProvider {
     return {
       type: "text",
       content: this.generateFallbackResponse(lastUserMessage, messages),
+    };
+  }
+
+  // -------------------------------------------------------------------
+  // v4.16.4: helpers for multi-step tool chaining (mock-only).
+  // -------------------------------------------------------------------
+
+  private parseToolResult(content: string): { tool: string; result: unknown } | null {
+    if (!content || content[0] !== "{") return null;
+    try {
+      const parsed = JSON.parse(content) as { tool?: unknown; result?: unknown };
+      if (typeof parsed.tool === "string" && parsed.result !== undefined) {
+        return { tool: parsed.tool, result: parsed.result };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Build generate_icebreaker arguments from the top search result.
+   * Returns null when the search yielded no usable candidate (no
+   * results, or results without interest tags to anchor an opener on).
+   */
+  private icebreakerArgsFromSearch(
+    result: unknown,
+    userQuery: string,
+  ): Record<string, unknown> | null {
+    const r = result as
+      | { results?: Array<Record<string, unknown>> }
+      | undefined;
+    if (!r || !Array.isArray(r.results) || r.results.length === 0) return null;
+    const top = r.results[0] as Record<string, unknown>;
+    const rawInterests = Array.isArray(top.interests) ? top.interests : [];
+    const interests = rawInterests
+      .map((x) => (typeof x === "string" ? x : ""))
+      .filter(Boolean)
+      .slice(0, 3);
+    if (interests.length === 0) return null;
+    const targetName = typeof top.displayName === "string" ? top.displayName : "this person";
+    const loc = top.location as
+      | { cityZip?: unknown; region?: unknown }
+      | null
+      | undefined;
+    const targetLocation =
+      (typeof loc?.cityZip === "string" && loc.cityZip) ||
+      (typeof loc?.region === "string" && loc.region) ||
+      "";
+    return {
+      sharedInterests: interests,
+      targetName,
+      targetLocation,
+      query: userQuery,
     };
   }
 
@@ -200,7 +292,23 @@ export class MockLLMProvider implements LLMProvider {
     const systemPrompt = messages.find((m) => m.role === "system")?.content ?? "";
 
     if (systemPrompt.includes("Smart Match")) {
-      return `Based on your request, I'd recommend exploring users who share similar interests. Try being more specific about what you're looking for — mention interests, location, or the kind of connection you want to make.`;
+      // v4.16.4: after the search + icebreaker chain runs, surface a
+      // result-aware summary instead of a generic "be more specific"
+      // nudge. We don't have the LLM's prose reasoning available
+      // without a live API key, but we DO know how many matches came
+      // back — the response below acknowledges that and points at the
+      // per-result "Why:" pills already rendered under each card.
+      const lastSearch = [...messages]
+        .reverse()
+        .map((m) => this.parseToolResult(m.content))
+        .find((r) => r?.tool === "search_users");
+      const count = lastSearch
+        ? (lastSearch.result as { results?: unknown[] })?.results?.length ?? 0
+        : 0;
+      if (count > 0) {
+        return `Found ${count} ${count === 1 ? "person who looks" : "people who look"} like a strong fit based on overlapping interests and location. Each card shows the specific reason underneath — open the one that resonates and pick an opener below.`;
+      }
+      return `No exact matches surfaced for that query. Try a broader interest tag (e.g. "photography" instead of "abstract macro photography"), or drop the location filter to widen the pool.`;
     }
     if (systemPrompt.includes("Chat Assistant")) {
       return `I can help you communicate more effectively! I can suggest replies, condense messages to fit the Rule of 7 word limits, translate messages, or analyze the tone of a conversation. What would you like help with?`;
