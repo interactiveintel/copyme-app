@@ -49,8 +49,18 @@ export async function getOrCreateAccount(userId: string): Promise<AccountState> 
       created: false,
     };
   }
+  // v4.16.2 (F6a): seed the new account with the user's preferred
+  // currency so Slovenian / EU users don't start in USD and have to
+  // switch later. The Currency enum is USD | EUR; if preferredCurrency
+  // happens to be unset (legacy rows before the column was added) we
+  // fall back to the schema default (USD).
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferredCurrency: true },
+  });
+  const seedCurrency = user?.preferredCurrency === "EUR" ? "EUR" : "USD";
   const fresh = await prisma.vapAccount.create({
-    data: { userId, balance: 0 },
+    data: { userId, balance: 0, currency: seedCurrency },
   });
   return {
     balanceCents: 0,

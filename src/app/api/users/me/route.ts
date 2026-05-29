@@ -158,7 +158,18 @@ export async function PUT(request: NextRequest) {
     const userUpdate: Record<string, unknown> = {};
     if (body.displayName !== undefined) userUpdate.displayName = body.displayName;
     if (body.profileType !== undefined) userUpdate.profileType = body.profileType;
-    if (body.preferredCurrency !== undefined) userUpdate.preferredCurrency = body.preferredCurrency;
+    // v4.16.2 (F6a): validate currency against the Currency enum
+    // (USD | EUR). Anything else is rejected — sending raw upstream
+    // would surface as a Prisma error and 500 the request.
+    if (body.preferredCurrency !== undefined) {
+      if (body.preferredCurrency !== "USD" && body.preferredCurrency !== "EUR") {
+        return NextResponse.json(
+          { success: false, error: { code: "INVALID_CURRENCY", message: "Currency must be USD or EUR" } },
+          { status: 400 },
+        );
+      }
+      userUpdate.preferredCurrency = body.preferredCurrency;
+    }
     if (body.preferredLocale !== undefined) {
       // Whitelist BCP-47 short codes we ship UI for + any 2-letter tag.
       if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(body.preferredLocale)) {
@@ -175,6 +186,17 @@ export async function PUT(request: NextRequest) {
       await prisma.user.update({
         where: { id: auth.userId },
         data: userUpdate,
+      });
+    }
+
+    // --- v4.16.2 (F6a): propagate preferredCurrency to existing
+    //     VapAccount. updateMany returns count 0 if the user has no
+    //     account yet (lazy-create path will pick up the new currency
+    //     on first /api/vap/account call). No-op if currency unchanged.
+    if (body.preferredCurrency !== undefined) {
+      await prisma.vapAccount.updateMany({
+        where: { userId: auth.userId },
+        data: { currency: body.preferredCurrency as "USD" | "EUR" },
       });
     }
 

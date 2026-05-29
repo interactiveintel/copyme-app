@@ -22,6 +22,7 @@ import {
   Camera,
   ShieldOff,
   Phone,
+  Wallet,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
@@ -134,6 +135,11 @@ export default function ProfileScreen() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+  // v4.16.2 (F6a): currency picker in Settings. Inflight flag so the
+  // toggle disables itself during the network round-trip; error string
+  // surfaces under the row on failure.
+  const [currencySaving, setCurrencySaving] = useState(false);
+  const [currencyError, setCurrencyError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -217,6 +223,42 @@ export default function ProfileScreen() {
   // -------------------------------------------------------------------------
   // Account deletion (GDPR right to erasure)
   // -------------------------------------------------------------------------
+
+  // v4.16.2 (F6a): flip preferredCurrency. PUT /api/users/me updates
+  // the User row AND propagates to any existing VapAccount in one
+  // round-trip (server-side updateMany). Local profile state is
+  // updated immediately so the picker reflects the new selection
+  // before the response lands.
+  const handleCurrencyChange = async (next: "USD" | "EUR") => {
+    if (!user) {
+      // Demo mode — flip the local view only, no network.
+      setLocalProfile((p) => (p ? { ...p, preferredCurrency: next } : p));
+      return;
+    }
+    setCurrencyError(null);
+    setCurrencySaving(true);
+    const prev = (profile ?? localProfile)?.preferredCurrency;
+    // Optimistic update
+    setProfile((p) => (p ? { ...p, preferredCurrency: next } : p));
+    try {
+      const res = await authFetch("/api/users/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredCurrency: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        // Rollback
+        setProfile((p) => (p && prev ? { ...p, preferredCurrency: prev } : p));
+        setCurrencyError(data?.error?.message || "Couldn't update currency. Try again.");
+      }
+    } catch {
+      setProfile((p) => (p && prev ? { ...p, preferredCurrency: prev } : p));
+      setCurrencyError("Network error. Try again.");
+    } finally {
+      setCurrencySaving(false);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     setDeleteError("");
@@ -914,6 +956,48 @@ export default function ProfileScreen() {
                       <span>{t("profile.settings.terms")}</span>
                       <span className="text-xs text-slate-400">→</span>
                     </Link>
+                    {/* v4.16.2 (F6a): VAP wallet currency picker. Joze
+                        (Slovenia) was stuck in USD because the schema
+                        defaulted that way and no UI existed to switch.
+                        Updates User.preferredCurrency AND propagates to
+                        the existing VapAccount in one round-trip. */}
+                    {(() => {
+                      const cur = (profile ?? localProfile ?? demoProfile).preferredCurrency;
+                      return (
+                        <div className="px-3 py-3 rounded-xl hover:bg-slate-50">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2 text-sm text-slate-700">
+                              <Wallet size={14} className="text-slate-500" />
+                              Wallet currency
+                            </span>
+                            <div className="flex bg-slate-100 rounded-full p-0.5">
+                              {(["USD", "EUR"] as const).map((opt) => {
+                                const active = cur === opt;
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    disabled={currencySaving || active}
+                                    onClick={() => void handleCurrencyChange(opt)}
+                                    className={`px-3 py-1 rounded-full text-[11px] font-semibold tabular-nums transition-all ${
+                                      active
+                                        ? "bg-white text-purple-600 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                    } ${currencySaving && !active ? "opacity-40" : ""}`}
+                                    aria-pressed={active}
+                                  >
+                                    {opt === "USD" ? "$ USD" : "€ EUR"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          {currencyError && (
+                            <p className="mt-1.5 text-[11px] text-rose-600">{currencyError}</p>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {user && (
                       <button
                         onClick={() => {
