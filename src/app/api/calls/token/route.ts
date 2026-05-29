@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getCall } from "@/lib/calls";
+import { getCall, isCallParticipant } from "@/lib/calls";
 import { mintCallToken, livekitWsUrl } from "@/lib/livekit";
 
 export const runtime = "nodejs";
@@ -44,7 +44,12 @@ export async function POST(req: NextRequest) {
       { status: 404 },
     );
   }
-  if (call.callerId !== auth.userId && call.calleeId !== auth.userId) {
+  // v4.15.12: group calls have N participants — use the unified
+  // participant check instead of the old 1:1 callerId/calleeId test.
+  // isCallParticipant returns true for the caller AND any CallParticipant
+  // row, so this works for both 1:1 and group shapes.
+  const allowed = await isCallParticipant(call.id, auth.userId);
+  if (!allowed) {
     return NextResponse.json(
       { success: false, error: { code: "FORBIDDEN" } },
       { status: 403 },

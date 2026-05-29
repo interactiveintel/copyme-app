@@ -267,9 +267,14 @@ function CallInnerUI({
   const localVideoTrack = videoTracks.find(
     (t) => t.participant.identity === localParticipant.identity,
   );
-  const remoteVideoTrack = videoTracks.find(
+  // v4.15.12 (Sprint 6): for 1:1 we use just the single remote track
+  // (PiP layout). For groups (>1 remote participant) we render a grid
+  // of remote tiles + self-view as one cell.
+  const remoteVideoTracks = videoTracks.filter(
     (t) => t.participant.identity !== localParticipant.identity,
   );
+  const remoteVideoTrack = remoteVideoTracks[0]; // first remote for 1:1 layout
+  const isGroupCall = remoteParticipants.length > 1;
 
   const statusLabel =
     connectionState === ConnectionState.Connecting ? "Connecting…" :
@@ -290,7 +295,159 @@ function CallInnerUI({
     await localParticipant.setCameraEnabled(next);
   };
 
-  // ---- Video layout (callType === "video") --------------------------------
+  // ---- Group video layout (v4.15.12 / Sprint 6) ---------------------------
+  // 3+ participants in the room get a tile grid instead of full+PiP.
+  // Tile count drives grid columns:
+  //   2 remote + self = 3 tiles → 2 cols
+  //   3-4 remote + self = 4-5 tiles → 2-3 cols
+  //   5-6 remote + self = 6-7 tiles → 3 cols
+  // Active speaker (LiveKit emits .isSpeaking on Participant) gets a
+  // colored ring around their tile.
+  if (callType === "video" && isGroupCall) {
+    const totalTiles = 1 + remoteParticipants.length; // self + remotes
+    const cols = totalTiles <= 4 ? 2 : 3;
+    return (
+      <div className="flex-1 relative text-white overflow-hidden bg-slate-950">
+        {/* Top overlay: status + group label */}
+        <div className="absolute top-0 inset-x-0 p-6 pt-12 z-10 bg-gradient-to-b from-black/60 to-transparent">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <QualityBars quality={quality} />
+              <p className="text-xs text-white/70">{statusLabel}</p>
+            </div>
+            <p className="text-sm font-semibold drop-shadow">
+              Group call · {totalTiles}
+            </p>
+          </div>
+        </div>
+
+        {/* Tile grid — pad-top reserves space for the overlay. */}
+        <div
+          className={`absolute inset-0 grid gap-2 p-2 pt-20 pb-32`}
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {/* Self tile */}
+          <GroupTile
+            track={localVideoTrack}
+            label="You"
+            isLocal
+            isSpeaking={localParticipant.isSpeaking}
+          />
+          {/* Remote tiles */}
+          {remoteParticipants.map((rp) => {
+            const rt = remoteVideoTracks.find(
+              (t) => t.participant.identity === rp.identity,
+            );
+            return (
+              <GroupTile
+                key={rp.identity}
+                track={rt}
+                label={rp.name?.trim() || rp.identity.slice(0, 6)}
+                isSpeaking={rp.isSpeaking}
+              />
+            );
+          })}
+        </div>
+
+        {/* Bottom controls (same set as 1:1 video) */}
+        <div className="absolute bottom-0 inset-x-0 px-8 pb-8 pt-12 bg-gradient-to-t from-black/70 to-transparent z-10">
+          <div className="flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={toggleMute}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
+                muted ? "bg-white text-slate-900" : "bg-white/15 backdrop-blur text-white hover:bg-white/25"
+              }`}
+              aria-label={muted ? "Unmute" : "Mute"}
+            >
+              {muted ? <MicOff size={22} /> : <Mic size={22} />}
+            </button>
+            <button
+              type="button"
+              onClick={toggleCamera}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
+                !cameraOn ? "bg-white text-slate-900" : "bg-white/15 backdrop-blur text-white hover:bg-white/25"
+              }`}
+              aria-label={cameraOn ? "Turn camera off" : "Turn camera on"}
+            >
+              {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
+            </button>
+            <button
+              type="button"
+              onClick={onHangUp}
+              className="w-16 h-16 rounded-full bg-rose-500 hover:bg-rose-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/30"
+              aria-label="Leave call"
+            >
+              <PhoneOff size={26} />
+            </button>
+            <CameraSwitch />
+            <SpeakerToggle />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Group voice layout (v4.15.12) ---------------------------------------
+  // Voice-only groups: show participant avatars in a grid with active-
+  // speaker highlight. No video tiles since no camera publishing.
+  if (callType === "voice" && isGroupCall) {
+    const totalTiles = 1 + remoteParticipants.length;
+    const cols = totalTiles <= 4 ? 2 : 3;
+    return (
+      <div className="flex-1 relative text-white overflow-hidden bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900">
+        <div className="absolute top-0 inset-x-0 p-6 pt-12 z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <QualityBars quality={quality} />
+              <p className="text-xs text-white/70">{statusLabel}</p>
+            </div>
+            <p className="text-sm font-semibold">Group voice · {totalTiles}</p>
+          </div>
+        </div>
+
+        <div
+          className="absolute inset-0 grid gap-3 p-6 pt-24 pb-32 place-items-center"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          <VoiceAvatarTile label="You" isSpeaking={localParticipant.isSpeaking} />
+          {remoteParticipants.map((rp) => (
+            <VoiceAvatarTile
+              key={rp.identity}
+              label={rp.name?.trim() || rp.identity.slice(0, 6)}
+              isSpeaking={rp.isSpeaking}
+            />
+          ))}
+        </div>
+
+        <div className="absolute bottom-0 inset-x-0 px-8 pb-8 pt-12 z-10">
+          <div className="flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={toggleMute}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
+                muted ? "bg-white text-slate-900" : "bg-white/15 text-white hover:bg-white/25"
+              }`}
+              aria-label={muted ? "Unmute" : "Mute"}
+            >
+              {muted ? <MicOff size={22} /> : <Mic size={22} />}
+            </button>
+            <button
+              type="button"
+              onClick={onHangUp}
+              className="w-16 h-16 rounded-full bg-rose-500 hover:bg-rose-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/30"
+              aria-label="Leave call"
+            >
+              <PhoneOff size={26} />
+            </button>
+            <SpeakerToggle />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- 1:1 video layout (callType === "video", remote count ≤ 1) -----------
   if (callType === "video") {
     // Decide which track is full-screen vs PiP based on swap state.
     const fullTrack = swapped ? localVideoTrack : remoteVideoTrack;
@@ -457,6 +614,83 @@ function CallInnerUI({
 // between user-facing and environment-facing cameras; on desktop it
 // rotates through plugged-in webcams. Hidden when fewer than 2 cameras
 // exist so users don't see a useless button.
+
+// ---- Group call tiles (v4.15.12 / Sprint 6) -------------------------------
+
+interface GroupTileProps {
+  track: ReturnType<typeof useTracks>[number] | undefined;
+  label: string;
+  isLocal?: boolean;
+  isSpeaking: boolean;
+}
+
+/**
+ * One tile in the group-video grid. Renders the participant's video
+ * track if they're publishing AND it's a real (not placeholder) track
+ * — useTracks returns TrackReferenceOrPlaceholder which has
+ * publication?: undefined for placeholders. Falls back to avatar when
+ * no publication. Active-speaker highlight: emerald ring when
+ * isSpeaking. Local self tile is mirrored (selfie convention).
+ */
+function GroupTile({ track, label, isLocal, isSpeaking }: GroupTileProps) {
+  const ringClass = isSpeaking
+    ? "ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/30"
+    : "ring-1 ring-white/15";
+  // Narrow placeholder → real TrackReference. The VideoTrack component
+  // requires .publication to be defined.
+  const realTrack = track && "publication" in track && track.publication
+    ? (track as Parameters<typeof VideoTrack>[0]["trackRef"])
+    : undefined;
+  return (
+    <div
+      className={`relative w-full h-full rounded-2xl overflow-hidden bg-slate-800 ${ringClass}`}
+    >
+      {realTrack ? (
+        <VideoTrack
+          trackRef={realTrack}
+          className={`w-full h-full object-cover ${isLocal ? "scale-x-[-1]" : ""}`}
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Avatar name={label} size="lg" />
+        </div>
+      )}
+      {/* Name overlay bottom-left */}
+      <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/60 text-[10px] font-medium text-white max-w-[80%] truncate">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+interface VoiceAvatarTileProps {
+  label: string;
+  isSpeaking: boolean;
+}
+
+/**
+ * Voice-call tile — avatar with active-speaker pulse ring instead of
+ * a video track. Pulse is just opacity-based since not all browsers
+ * honor animation in CSP-locked contexts the same way.
+ */
+function VoiceAvatarTile({ label, isSpeaking }: VoiceAvatarTileProps) {
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div
+        className={`relative rounded-full ${
+          isSpeaking
+            ? "ring-4 ring-emerald-400 ring-offset-2 ring-offset-slate-900"
+            : "ring-2 ring-white/15"
+        }`}
+      >
+        <Avatar name={label} size="xl" />
+      </div>
+      <p className="text-xs font-semibold text-white/90 max-w-[100%] truncate text-center">
+        {label}
+      </p>
+    </div>
+  );
+}
 
 function CameraSwitch() {
   // switchActiveDevice lives on Room, not LocalParticipant — we use

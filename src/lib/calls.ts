@@ -15,6 +15,13 @@ import { roomNameFor } from "@/lib/livekit";
 import { addBreadcrumb, reportError } from "@/lib/observability";
 import { sendPush } from "@/lib/push";
 
+/**
+ * v4.15.12 (Sprint 6): max participants in a group call. Rule of 7 —
+ * 1 caller + up to 6 callees. Enforced at the createGroupCall lib
+ * level; the API route also validates so a bad client can't bypass.
+ */
+export const MAX_CALL_PARTICIPANTS = 7;
+
 export type CallType = "voice" | "video";
 export type CallStatus =
   | "ringing"
@@ -101,6 +108,18 @@ export async function createCall(args: {
         where: { id: call.id },
         data: { room, messageId: message.id },
         select: { id: true, room: true, messageId: true },
+      });
+
+      // v4.15.12: also write a CallParticipant row for the 1:1 callee
+      // so /api/calls/incoming and per-user PATCH paths can read a
+      // single unified table instead of branching on Call.calleeId vs
+      // CallParticipant. Existing data was backfilled in the migration.
+      await tx.callParticipant.create({
+        data: {
+          callId: call.id,
+          userId: calleeId,
+          status: "ringing",
+        },
       });
 
       return { callId: updated.id, room: updated.room, messageId: updated.messageId ?? undefined };
@@ -207,6 +226,7 @@ export async function updateCallStatus(args: {
       id: true,
       callerId: true,
       calleeId: true,
+      isGroup: true,
       callType: true,
       status: true,
       messageId: true,
@@ -216,6 +236,19 @@ export async function updateCallStatus(args: {
   });
   if (!call) return { ok: false, reason: "NOT_FOUND" };
 
+  // ---- GROUP CALL PATH (v4.15.12) -----------------------------------
+  // Each user controls their OWN participant row. Aggregate Call.status
+  // is recomputed after each update:
+  //   - "accepted" if any participant is currently accepted
+  //   - "ended" if all participants are terminal (declined/missed/left)
+  //   - "ringing" otherwise
+  // Caller can also flip the WHOLE call to "ended" or "failed" to
+  // cancel it before anyone accepts (matches 1:1 caller-cancellation).
+  if (call.isGroup) {
+    return updateGroupCallStatus({ callId, actorId, callerId: call.callerId, next });
+  }
+
+  // ---- 1:1 PATH (unchanged from v4.15.0) -----------------------------
   // Authorization: only the two participants can flip status.
   if (actorId !== call.callerId && actorId !== call.calleeId) {
     return { ok: false, reason: "FORBIDDEN" };
@@ -256,6 +289,18 @@ export async function updateCallStatus(args: {
         },
       });
 
+      // v4.15.12: keep the CallParticipant row in sync with the 1:1
+      // status flip. The actor here is either caller or callee — only
+      // the callee's row exists in the participant table.
+      await tx.callParticipant.updateMany({
+        where: { callId, userId: call.calleeId },
+        data: {
+          status: next === "accepted" ? "accepted" : next === "ended" ? "left" : next,
+          acceptedAt: next === "accepted" ? now : undefined,
+          leftAt: next === "accepted" ? undefined : now,
+        },
+      });
+
       // Update the bound Message's content so the chat bubble re-renders
       // its new status without a separate fetch.
       if (call.messageId) {
@@ -283,6 +328,114 @@ export async function updateCallStatus(args: {
 }
 
 /**
+ * v4.15.12 (Sprint 6): per-participant status flip for group calls.
+ *
+ * Each user controls their own CallParticipant row. After flipping:
+ *   - Recompute Call.status from the aggregate:
+ *       any participant accepted   → call "accepted"
+ *       all participants terminal  → call "ended"
+ *       else                       → call "ringing"
+ *
+ * Caller has a privileged path: they can flip the WHOLE call to
+ * "ended" or "failed" to cancel before anyone accepts (matches the
+ * 1:1 caller-cancellation semantics).
+ */
+async function updateGroupCallStatus(args: {
+  callId: string;
+  actorId: string;
+  callerId: string;
+  next: Exclude<CallStatus, "ringing">;
+}): Promise<UpdateCallResult> {
+  const { callId, actorId, callerId, next } = args;
+  const isCaller = actorId === callerId;
+  const now = new Date();
+
+  // ---- Caller cancelling the whole call ----------------------------
+  if (isCaller && (next === "ended" || next === "failed")) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.call.update({
+          where: { id: callId },
+          data: { status: next, endedAt: now },
+        });
+        // Mark every still-ringing/accepted participant as left.
+        await tx.callParticipant.updateMany({
+          where: {
+            callId,
+            status: { in: ["ringing", "accepted"] },
+          },
+          data: { status: "left", leftAt: now },
+        });
+      });
+      addBreadcrumb("call.group.cancel", { callId, actorId, next });
+      return { ok: true, reason: "OK", status: next };
+    } catch (err) {
+      reportError(err, { context: "call.group.cancel", callId, actorId, next });
+      return { ok: false, reason: "ERROR" };
+    }
+  }
+
+  // ---- Participant flipping their own row --------------------------
+  const part = await prisma.callParticipant.findUnique({
+    where: { callId_userId: { callId, userId: actorId } },
+    select: { id: true, status: true, acceptedAt: true },
+  });
+  if (!part) return { ok: false, reason: "FORBIDDEN" };
+  if (part.status !== "ringing" && part.status !== "accepted") {
+    return { ok: false, reason: "ALREADY_TERMINAL" };
+  }
+
+  // Map call-level action → participant-level status. "ended" by a
+  // participant means they left the room.
+  const partNext =
+    next === "ended" ? "left" :
+    next === "failed" ? "left" :
+    next; // accepted | declined | missed
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.callParticipant.update({
+        where: { id: part.id },
+        data: {
+          status: partNext,
+          acceptedAt: partNext === "accepted" ? now : part.acceptedAt,
+          leftAt: partNext === "accepted" ? undefined : now,
+        },
+      });
+
+      // Recompute aggregate call status.
+      const all = await tx.callParticipant.findMany({
+        where: { callId },
+        select: { status: true },
+      });
+      const anyAccepted = all.some((p) => p.status === "accepted");
+      const allTerminal = all.every(
+        (p) => p.status !== "ringing" && p.status !== "accepted",
+      );
+
+      let aggregate: CallStatus = "ringing";
+      if (anyAccepted) aggregate = "accepted";
+      if (allTerminal) aggregate = "ended";
+
+      await tx.call.update({
+        where: { id: callId },
+        data: {
+          status: aggregate,
+          ...(aggregate === "ended" ? { endedAt: now } : {}),
+          ...(aggregate === "accepted" ? { acceptedAt: now } : {}),
+        },
+      });
+    });
+
+    addBreadcrumb("call.group.update", { callId, actorId, partNext });
+    return { ok: true, reason: "OK", status: partNext as CallStatus };
+  } catch (err) {
+    reportError(err, { context: "call.group.update", callId, actorId, partNext });
+    return { ok: false, reason: "ERROR" };
+  }
+}
+
+/**
  * Look up a call. Used by the token endpoint to confirm the requester
  * is one of the two parties before minting a join token.
  */
@@ -293,6 +446,7 @@ export async function getCall(callId: string) {
       id: true,
       callerId: true,
       calleeId: true,
+      isGroup: true,
       callType: true,
       status: true,
       room: true,
@@ -303,4 +457,167 @@ export async function getCall(callId: string) {
       createdAt: true,
     },
   });
+}
+
+/**
+ * v4.15.12 (Sprint 6): is a given user authorized to participate in a
+ * given call? True for the caller, and for any CallParticipant row.
+ *
+ * Used by the token endpoint instead of the old `callerId === me ||
+ * calleeId === me` check so group calls work without a separate path.
+ */
+export async function isCallParticipant(callId: string, userId: string): Promise<boolean> {
+  const call = await prisma.call.findUnique({
+    where: { id: callId },
+    select: { callerId: true },
+  });
+  if (!call) return false;
+  if (call.callerId === userId) return true;
+  const part = await prisma.callParticipant.findUnique({
+    where: { callId_userId: { callId, userId } },
+    select: { id: true },
+  });
+  return !!part;
+}
+
+/**
+ * v4.15.12 (Sprint 6): create a group call with multiple invitees.
+ *
+ * Rule of 7: max 6 callees (7 total with caller). Caller must not be
+ * in the callee list. Duplicates are deduped. All callees are pre-
+ * validated as real users.
+ *
+ * For groups we DON'T write a chat-thread Message (the call doesn't
+ * "belong" to any one peer's thread). The Call History sheet is the
+ * surface; v4.15.13 may add a per-thread bubble per participant.
+ */
+export async function createGroupCall(args: {
+  callerId: string;
+  calleeIds: string[];
+  callType: CallType;
+}): Promise<CreateCallResult> {
+  const { callerId, callType } = args;
+
+  // Dedupe + drop self + cap.
+  const calleeIds = Array.from(
+    new Set(args.calleeIds.filter((id) => id && id !== callerId)),
+  );
+
+  if (calleeIds.length < 2) {
+    return { ok: false, reason: "INVALID_TARGET" };
+  }
+  if (calleeIds.length > MAX_CALL_PARTICIPANTS - 1) {
+    return { ok: false, reason: "INVALID_TARGET" };
+  }
+
+  // Pre-validate all callees exist. Cheap batch lookup.
+  const found = await prisma.user.findMany({
+    where: { id: { in: calleeIds } },
+    select: { id: true },
+  });
+  if (found.length !== calleeIds.length) {
+    return { ok: false, reason: "RECIPIENT_NOT_FOUND" };
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Create Call (isGroup=true). First callee is recorded as Call.calleeId
+      // for backwards compatibility — the full list lives in
+      // CallParticipant.
+      const call = await tx.call.create({
+        data: {
+          callerId,
+          calleeId: calleeIds[0],
+          isGroup: true,
+          callType,
+          status: "ringing",
+          room: "pending",
+        },
+        select: { id: true },
+      });
+
+      const room = roomNameFor(callerId, calleeIds[0], call.id);
+
+      // Write a CallParticipant row per callee. Caller is NOT in the
+      // participant table (they're Call.callerId).
+      await tx.callParticipant.createMany({
+        data: calleeIds.map((userId) => ({
+          callId: call.id,
+          userId,
+          status: "ringing",
+        })),
+      });
+
+      const updated = await tx.call.update({
+        where: { id: call.id },
+        data: { room },
+        select: { id: true, room: true },
+      });
+
+      return { callId: updated.id, room: updated.room };
+    });
+
+    addBreadcrumb("call.create_group.ok", {
+      callId: result.callId,
+      callerId,
+      callType,
+      participantCount: calleeIds.length,
+    });
+
+    // Push fanout to all callees — best-effort, same shape as 1:1 path.
+    void (async () => {
+      try {
+        const [callerRow, subs] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: callerId },
+            select: { displayName: true },
+          }),
+          prisma.pushSubscription.findMany({
+            where: { userId: { in: calleeIds } },
+            select: { id: true, endpoint: true, p256dh: true, auth: true },
+          }),
+        ]);
+        if (!subs.length) return;
+        const callerName = callerRow?.displayName ?? "Someone";
+        const body =
+          callType === "video"
+            ? `${callerName} is starting a group video call`
+            : `${callerName} is starting a group call`;
+
+        const results = await Promise.all(
+          subs.map((s) =>
+            sendPush(
+              { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+              {
+                title: "Group call",
+                body,
+                url: "/app",
+                tag: `call:${result.callId}`,
+                data: {
+                  kind: "call",
+                  callId: result.callId,
+                  callType,
+                  callerId,
+                  isGroup: true,
+                },
+              },
+            ).then((r) => ({ id: s.id, ...r })),
+          ),
+        );
+        const expired = results.filter((r) => r.expired).map((r) => r.id);
+        if (expired.length) {
+          await prisma.pushSubscription
+            .deleteMany({ where: { id: { in: expired } } })
+            .catch(() => undefined);
+        }
+      } catch (err) {
+        console.warn("[call.create_group push] failed:", err instanceof Error ? err.message : err);
+      }
+    })();
+
+    return { ok: true, reason: "OK", ...result };
+  } catch (err) {
+    reportError(err, { context: "call.create_group", callerId, calleeCount: calleeIds.length, callType });
+    return { ok: false, reason: "ERROR" };
+  }
 }

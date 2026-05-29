@@ -1,15 +1,18 @@
-// POST /api/calls — start a new call.
+// POST /api/calls — start a new call (1:1 OR group).
 // GET  /api/calls?status=all|ringing|missed&limit=N — list calls
 //      involving the auth user, newest first.
 //
-// Body for POST:
+// Body for POST (1:1):
 //   { calleeId: string, callType: "voice" | "video" }
-// Returns: { callId, room, messageId }
+// Body for POST (group — v4.15.12):
+//   { calleeIds: string[], callType: "voice" | "video" }
+//   calleeIds must be 2..6 entries (Rule of 7: 1 caller + 6 callees max)
+// Returns: { callId, room, messageId? }
 
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { createCall, type CallType } from "@/lib/calls";
+import { createCall, createGroupCall, MAX_CALL_PARTICIPANTS, type CallType } from "@/lib/calls";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -17,6 +20,8 @@ export const dynamic = "force-dynamic";
 
 interface CreateBody {
   calleeId?: string;
+  /** v4.15.12 group call alternative. If both present, calleeIds wins. */
+  calleeIds?: string[];
   callType?: CallType;
 }
 
@@ -41,16 +46,56 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => ({}))) as CreateBody;
-  if (!body.calleeId || (body.callType !== "voice" && body.callType !== "video")) {
+  if (body.callType !== "voice" && body.callType !== "video") {
     return NextResponse.json(
-      { success: false, error: { code: "MISSING_FIELDS", message: "calleeId + callType ('voice'|'video') required" } },
+      { success: false, error: { code: "MISSING_FIELDS", message: "callType ('voice'|'video') required" } },
+      { status: 400 },
+    );
+  }
+
+  // ---- Group path (v4.15.12) ----------------------------------------
+  // Defensive: even if a client sneaks calleeIds.length === 1, route
+  // through the 1:1 path. The createGroupCall lib rejects <2 anyway.
+  if (Array.isArray(body.calleeIds) && body.calleeIds.length >= 2) {
+    if (body.calleeIds.length > MAX_CALL_PARTICIPANTS - 1) {
+      return NextResponse.json(
+        { success: false, error: { code: "TOO_MANY_PARTICIPANTS", message: `Max ${MAX_CALL_PARTICIPANTS} participants total (Rule of 7)` } },
+        { status: 400 },
+      );
+    }
+    const result = await createGroupCall({
+      callerId: auth.userId,
+      calleeIds: body.calleeIds,
+      callType: body.callType,
+    });
+    if (!result.ok) {
+      const status =
+        result.reason === "RECIPIENT_NOT_FOUND" ? 404 :
+        result.reason === "INVALID_TARGET" ? 400 :
+        500;
+      return NextResponse.json(
+        { success: false, error: { code: result.reason } },
+        { status },
+      );
+    }
+    return NextResponse.json({
+      success: true,
+      data: { callId: result.callId, room: result.room, isGroup: true },
+    });
+  }
+
+  // ---- 1:1 path (unchanged) -----------------------------------------
+  const calleeId = body.calleeId ?? body.calleeIds?.[0];
+  if (!calleeId) {
+    return NextResponse.json(
+      { success: false, error: { code: "MISSING_FIELDS", message: "calleeId OR calleeIds required" } },
       { status: 400 },
     );
   }
 
   const result = await createCall({
     callerId: auth.userId,
-    calleeId: body.calleeId,
+    calleeId,
     callType: body.callType,
   });
 

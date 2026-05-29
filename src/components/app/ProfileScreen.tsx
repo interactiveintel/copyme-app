@@ -30,6 +30,8 @@ import AppBrand from "./AppBrand";
 import ReferralBanner from "./ReferralBanner";
 import BlockedUsersSheet from "./BlockedUsersSheet";
 import CallHistorySheet from "./CallHistorySheet";
+import NewGroupCallSheet from "./NewGroupCallSheet";
+import { joinActiveCall } from "./GlobalCallListener";
 import { compressImage } from "@/lib/image-compress";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
@@ -123,6 +125,8 @@ export default function ProfileScreen() {
   const [blockedSheetOpen, setBlockedSheetOpen] = useState(false);
   // v4.15.7: Sprint 5 — call history sheet, opened from Settings.
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
+  // v4.15.12 (Sprint 6): group-call picker, opened from Settings.
+  const [groupCallOpen, setGroupCallOpen] = useState(false);
   const [deleteStage, setDeleteStage] = useState<"closed" | "confirm" | "deleting" | "done">("closed");
   const [deleteError, setDeleteError] = useState("");
   // Avatar upload (v4.14.1 — beta tester Joze couldn't change his
@@ -914,6 +918,20 @@ export default function ProfileScreen() {
                       <button
                         onClick={() => {
                           setSettingsOpen(false);
+                          setGroupCallOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Users size={14} className="text-slate-500" /> Start group call
+                        </span>
+                        <span className="text-xs text-slate-400">→</span>
+                      </button>
+                    )}
+                    {user && (
+                      <button
+                        onClick={() => {
+                          setSettingsOpen(false);
                           setCallHistoryOpen(true);
                         }}
                         className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-50 text-sm text-slate-700"
@@ -993,6 +1011,24 @@ export default function ProfileScreen() {
           <CallHistorySheet
             authFetch={authFetch}
             onClose={() => setCallHistoryOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* New group call picker — opened from Settings (v4.15.12). */}
+      <AnimatePresence>
+        {groupCallOpen && user && (
+          <NewGroupCallSheet
+            authFetch={authFetch}
+            onClose={() => setGroupCallOpen(false)}
+            onCallStarted={(call) => {
+              // GlobalCallListener mounts CallSheet on this event.
+              joinActiveCall({
+                callId: call.callId,
+                peerName: "Group call",
+                callType: "voice", // overridden by useTracks at render time
+              });
+            }}
           />
         )}
       </AnimatePresence>

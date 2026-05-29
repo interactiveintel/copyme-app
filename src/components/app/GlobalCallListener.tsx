@@ -44,6 +44,23 @@ export function startOutboundCall(detail: StartOutboundCallDetail) {
   window.dispatchEvent(new CustomEvent("copyme:start-outbound-call", { detail }));
 }
 
+// v4.15.12 (Sprint 6): when a group call has ALREADY been created
+// server-side (NewGroupCallSheet POSTs the call directly so it can
+// surface validation errors inline), the caller still needs to mount
+// CallSheet to actually join. This second event lets any UI hand the
+// listener an already-created call.
+export interface JoinActiveCallDetail {
+  callId: string;
+  peerName: string;
+  peerAvatarUrl?: string | null;
+  callType: "voice" | "video";
+}
+
+export function joinActiveCall(detail: JoinActiveCallDetail) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("copyme:join-active-call", { detail }));
+}
+
 export default function GlobalCallListener() {
   const { user, authFetch } = useAuth();
   const [incoming, setIncoming] = useState<ActiveCall | null>(null);
@@ -88,6 +105,25 @@ export default function GlobalCallListener() {
     window.addEventListener("copyme:start-outbound-call", handler);
     return () => window.removeEventListener("copyme:start-outbound-call", handler);
   }, [user, authFetch, active]);
+
+  // v4.15.12 (Sprint 6): join-active-call listener — for group calls
+  // where the caller-side POST already happened in NewGroupCallSheet.
+  // Just mounts CallSheet for the existing call.
+  useEffect(() => {
+    if (!user) return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<JoinActiveCallDetail>).detail;
+      if (!detail || active) return;
+      setActive({
+        callId: detail.callId,
+        peerName: detail.peerName,
+        peerAvatarUrl: detail.peerAvatarUrl ?? null,
+        callType: detail.callType,
+      });
+    };
+    window.addEventListener("copyme:join-active-call", handler);
+    return () => window.removeEventListener("copyme:join-active-call", handler);
+  }, [user, active]);
 
   // v4.15.6: short-circuit the 3s poll when the service worker tells
   // us a call notification was tapped. The SW posts

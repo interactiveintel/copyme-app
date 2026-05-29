@@ -801,12 +801,23 @@ model InviteCodeRedemption {
 model Call {
   id              String   @id @default(uuid()) @db.Uuid
   callerId        String   @map("caller_id") @db.Uuid
+  /// Primary callee for 1:1 calls. For group calls (isGroup=true) this
+  /// is the FIRST invitee — kept for backwards compatibility with the
+  /// 1:1-shaped API + existing inbox preview queries. Full participant
+  /// list lives in CallParticipant.
   calleeId        String   @map("callee_id") @db.Uuid
+  /// v4.15.12 (Sprint 6): true when 3+ participants total (caller +
+  /// 2 or more callees). The 1:1 path keeps this false so old callers
+  /// and inbox renderers don't need a code change to keep working.
+  isGroup         Boolean  @default(false) @map("is_group")
   /// "voice" | "video" — set at create; doesn't change mid-call.
   callType        String   @default("voice") @map("call_type") @db.VarChar(10)
   /// "ringing" | "accepted" | "declined" | "missed" | "ended" | "failed"
+  /// For groups, this is the AGGREGATE state — see CallParticipant for
+  /// per-user state. The aggregate is "accepted" once at least one
+  /// callee accepts, and "ended" only when all have left.
   status          String   @default("ringing") @db.VarChar(20)
-  /// LiveKit room identifier. Both peers join this name.
+  /// LiveKit room identifier. All peers join this name.
   room            String   @db.VarChar(64)
   /// Bound chat-thread Message row so the conversation can render the
   /// call as an inline bubble.
@@ -821,8 +832,44 @@ model Call {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
+  participants    CallParticipant[]
+
   @@index([calleeId, status])
   @@index([callerId])
   @@index([createdAt])
   @@map("calls")
+}
+
+/// v4.15.12 (Sprint 6): per-participant state for a Call.
+///
+/// For 1:1 calls we write a SINGLE row (the callee) so the same
+/// queries work for both shapes. For groups, N rows — one per invitee.
+/// The caller is NOT in this table (they're Call.callerId).
+///
+/// Rule of 7: enforced by the createGroupCall lib (max 6 callees + 1
+/// caller = 7 total).
+model CallParticipant {
+  id          String    @id @default(uuid()) @db.Uuid
+  callId      String    @map("call_id") @db.Uuid
+  /// Nullable so ON DELETE SET NULL on the user FK can preserve call
+  /// history (matches the calls.caller_fk pattern). Reads always
+  /// filter status by userId before joining, so null userId rows just
+  /// drop out of the "ringing for me?" poll.
+  userId      String?   @map("user_id") @db.Uuid
+  /// "ringing" | "accepted" | "declined" | "missed" | "left"
+  /// "ended" is reserved for the Call aggregate — participants "left".
+  status      String    @default("ringing") @db.VarChar(20)
+  acceptedAt  DateTime? @map("accepted_at")
+  /// When this participant left the room (or got marked missed). For
+  /// declined/missed this equals updatedAt; for accepted-then-left it
+  /// captures the actual leave time.
+  leftAt      DateTime? @map("left_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  call        Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, userId])
+  @@index([userId, status])
+  @@map("call_participants")
 }
