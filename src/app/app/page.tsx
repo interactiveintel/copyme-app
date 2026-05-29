@@ -12,6 +12,7 @@ import SearchScreen from "@/components/app/SearchScreen";
 import ProfileScreen from "@/components/app/ProfileScreen";
 import YogiInboxScreen from "@/components/app/YogiInboxScreen";
 import GlobalCallListener from "@/components/app/GlobalCallListener";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { LocaleProvider } from "@/lib/i18n/client";
 
@@ -53,6 +54,8 @@ function AppContent() {
   const [screen, setScreen] = useState<Screen>("auth");
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatContactName, setChatContactName] = useState<string | undefined>();
+  // Drives the BottomNav badge. Returns 0 for unauthenticated users.
+  const unreadCount = useUnreadCount();
 
   // Restore session — if user is already logged in, skip auth
   useEffect(() => {
@@ -139,16 +142,15 @@ function AppContent() {
       </div>
 
       {/* Bottom Nav.
-          The unreadCount hardcoded "11" lied to every beta user since
-          launch — Joze Kralj flagged "Inbox is pump up nu 11, as
-          previous testing msg" in his May 18 feedback. Set to 0 until
-          v4.16.1 (F2) wires the real per-user unread count from
-          /api/messages/inbox. */}
+          unreadCount wired to the real per-user total via
+          useUnreadCount (v4.15.5 / Tier F2). Polls /api/messages/inbox
+          every 10s + refreshes on tab visibility. Replaces the
+          hardcoded "11" Joze Kralj flagged in his May 18 feedback. */}
       {showNav && (
         <BottomNav
           activeTab={screenToTab(screen)}
           onTabChange={handleTabChange}
-          unreadCount={0}
+          unreadCount={unreadCount}
         />
       )}
 
