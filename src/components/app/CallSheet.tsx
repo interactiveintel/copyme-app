@@ -113,6 +113,43 @@ export default function CallSheet({
     onClose();
   };
 
+  // v4.15.11: also fire end on UNMOUNT (not just explicit Hang Up).
+  // Caught by gstack-browse acceptance test: if the user navigates
+  // away, an error overlay takes the call sheet's place, or React
+  // re-mounts for any reason, the call previously stayed in
+  // "ringing"/"accepted" status until the server's 45s missed-sweep
+  // — which left phantom "Calling…" bubbles haunting the thread.
+  // Server PATCH is idempotent — a second end after explicit Hang Up
+  // returns ALREADY_TERMINAL 422, which we swallow.
+  useEffect(() => {
+    return () => {
+      // Pull the latest access token straight from storage; the
+      // authFetch closure may be stale at unmount time.
+      let token: string | null = null;
+      if (typeof window !== "undefined") {
+        try {
+          const raw =
+            sessionStorage.getItem("copyme_auth") ??
+            localStorage.getItem("copyme_auth");
+          token = raw ? (JSON.parse(raw)?.accessToken ?? null) : null;
+        } catch {
+          /* ignore */
+        }
+      }
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      // Fire-and-forget. keepalive=true survives the page navigation
+      // window. Don't await — the component is already unmounting.
+      void fetch(`/api/calls/${callId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ action: "end" }),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+  }, [callId]);
+
   // Device-failure path takes priority — render the permission UI
   // even if the rest of the room connection succeeds, because no audio
   // means there's no call.

@@ -47,6 +47,76 @@ interface Conversation {
   };
 }
 
+/**
+ * Format a one-line preview of a Message's content for the inbox row.
+ *
+ * For text the message body is shown directly. For media types we show a
+ * type-specific label rather than the raw bytes (which would be a blob
+ * URL). For "call", "vap_transfer", and "vap_request" the `content` is
+ * JSON that the chat-bubble renders nicely — but in the inbox row we
+ * need a short label instead of leaking the JSON (Joze-style bug — fix
+ * v4.15.11).
+ */
+function previewFor(type: string, content: string | null): string {
+  switch (type) {
+    case "text":
+      return content || "";
+    case "image":
+      return "📷 Photo";
+    case "voice":
+      return "🎙 Voice message";
+    case "video":
+      return "🎬 Video message";
+    case "call": {
+      try {
+        const p = JSON.parse(content ?? "{}");
+        const kind = p?.callType === "video" ? "Video call" : "Voice call";
+        switch (p?.status) {
+          case "ended":    return `📞 ${kind}`;
+          case "missed":   return `📵 Missed ${kind.toLowerCase()}`;
+          case "declined": return `📵 ${kind} declined`;
+          case "failed":   return `⚠️ ${kind} failed`;
+          case "ringing":  return `📞 ${kind} (ringing)`;
+          case "accepted": return `📞 ${kind} (in progress)`;
+          default:         return `📞 ${kind}`;
+        }
+      } catch {
+        return "📞 Call";
+      }
+    }
+    case "vap_transfer": {
+      try {
+        const p = JSON.parse(content ?? "{}");
+        const cents = Number(p?.amountCents ?? 0);
+        const amount = (cents / 100).toLocaleString(undefined, {
+          style: "currency",
+          currency: p?.currency || "USD",
+          minimumFractionDigits: 2,
+        });
+        return `💸 ${amount}`;
+      } catch {
+        return "💸 Payment";
+      }
+    }
+    case "vap_request": {
+      try {
+        const p = JSON.parse(content ?? "{}");
+        const cents = Number(p?.amountCents ?? 0);
+        const amount = (cents / 100).toLocaleString(undefined, {
+          style: "currency",
+          currency: p?.currency || "USD",
+          minimumFractionDigits: 2,
+        });
+        return `🪙 Requested ${amount}`;
+      } catch {
+        return "🪙 Money request";
+      }
+    }
+    default:
+      return content || `[${type}]`;
+  }
+}
+
 // Dynamic AI-curated ad categories — CopyMe Agent refreshes daily
 interface AdItem {
   id: string;
@@ -579,7 +649,7 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
                   <div className="flex items-center justify-between mt-0.5">
                     <p className="text-xs truncate pr-4 text-slate-400">
                       {conv.lastMessage.direction === "sent" ? "You: " : ""}
-                      {conv.lastMessage.content || `[${conv.lastMessage.type}]`}
+                      {previewFor(conv.lastMessage.type, conv.lastMessage.content)}
                     </p>
                   </div>
                 </div>

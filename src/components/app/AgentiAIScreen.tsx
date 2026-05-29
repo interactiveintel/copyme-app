@@ -394,7 +394,7 @@ export default function YogiAIScreen() {
   });
 
   // Avatar state — Yogi has its own distinct DiceBear avatar
-  const defaultAvatar = "https://api.dicebear.com/7.x/bottts/svg?seed=yogi-copyme&backgroundColor=b6e3f4&eyes=bulging&mouth=smile01";
+  const defaultAvatar = "/api/avatars/yogi-copyme";
   const [yogiAvatarUrl, setYogiAvatarUrl] = useState<string>(defaultAvatar);
   const [yogiName, setYogiName] = useState<string>("Yogi");
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
