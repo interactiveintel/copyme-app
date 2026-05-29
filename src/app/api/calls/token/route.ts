@@ -93,6 +93,11 @@ export async function POST(req: NextRequest) {
         url,
         identity: auth.userId,
         room: call.room,
+        // v4.15.15: caller-only UI surfaces (mute-all, kick) need to
+        // know whether the local user is the host. Returning these
+        // here avoids a second fetch on CallSheet mount.
+        callerId: call.callerId,
+        isGroup: call.isGroup,
       },
     });
   } catch (err) {

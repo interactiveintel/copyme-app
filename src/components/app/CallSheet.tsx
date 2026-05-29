@@ -24,7 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Mic, MicOff, PhoneOff, Volume2, VolumeX, MicOff as MicDenied,
-  Video, VideoOff, RotateCcw,
+  Video, VideoOff, RotateCcw, X,
 } from "lucide-react";
 import {
   LiveKitRoom,
@@ -71,6 +71,10 @@ export default function CallSheet({
   // v4.15.3: track device-failure shape so we can render a tailored
   // error state (mic denied vs no mic at all vs unknown).
   const [deviceFailure, setDeviceFailure] = useState<MediaDeviceFailureType | null>(null);
+  // v4.15.15: caller-only UI surfaces (mute-all, kick) need to know
+  // whether the local user is the host. Both come back from the token
+  // mint response so we don't pay for a second fetch.
+  const [isCaller, setIsCaller] = useState(false);
 
   // Mint a join token on mount.
   useEffect(() => {
@@ -90,6 +94,13 @@ export default function CallSheet({
         }
         setToken(data.data.token);
         setServerUrl(data.data.url);
+        // v4.15.15: identity === callerId means the local user is the
+        // host. Drives the Mute All + per-tile Kick affordances.
+        setIsCaller(
+          typeof data.data.callerId === "string" &&
+          typeof data.data.identity === "string" &&
+          data.data.callerId === data.data.identity,
+        );
       } catch {
         if (alive) setError("Network error getting call token.");
       }
@@ -212,9 +223,12 @@ export default function CallSheet({
         className="flex-1 flex flex-col"
       >
         <CallInnerUI
+          callId={callId}
           peerName={peerName}
           peerAvatarUrl={peerAvatarUrl}
           callType={callType}
+          isCaller={isCaller}
+          authFetch={authFetch}
           onHangUp={endAndClose}
         />
         <RoomAudioRenderer />
@@ -224,16 +238,42 @@ export default function CallSheet({
 }
 
 function CallInnerUI({
+  callId,
   peerName,
   peerAvatarUrl,
   callType,
+  isCaller,
+  authFetch,
   onHangUp,
 }: {
+  callId: string;
   peerName: string;
   peerAvatarUrl?: string | null;
   callType: "voice" | "video";
+  isCaller: boolean;
+  authFetch: (url: string, init?: RequestInit) => Promise<Response>;
   onHangUp: () => void | Promise<void>;
 }) {
+  // v4.15.15: caller-only host actions.
+  const muteAll = async () => {
+    try {
+      await authFetch(`/api/calls/${callId}/mute-all`, { method: "POST" });
+    } catch {
+      /* best-effort */
+    }
+  };
+  const kickParticipant = async (userId: string) => {
+    if (!confirm("Remove this person from the call?")) return;
+    try {
+      await authFetch(`/api/calls/${callId}/kick`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+    } catch {
+      /* best-effort */
+    }
+  };
   const connectionState = useConnectionState();
   const { localParticipant } = useLocalParticipant();
   const [muted, setMuted] = useState(false);
@@ -344,6 +384,7 @@ function CallInnerUI({
                 track={rt}
                 label={rp.name?.trim() || rp.identity.slice(0, 6)}
                 isSpeaking={rp.isSpeaking}
+                onKick={isCaller ? () => kickParticipant(rp.identity) : undefined}
               />
             );
           })}
@@ -382,6 +423,7 @@ function CallInnerUI({
             </button>
             <CameraSwitch />
             <SpeakerToggle />
+            {isCaller && <HostMuteAllButton onClick={muteAll} />}
           </div>
         </div>
       </div>
@@ -416,6 +458,7 @@ function CallInnerUI({
               key={rp.identity}
               label={rp.name?.trim() || rp.identity.slice(0, 6)}
               isSpeaking={rp.isSpeaking}
+              onKick={isCaller ? () => kickParticipant(rp.identity) : undefined}
             />
           ))}
         </div>
@@ -441,6 +484,7 @@ function CallInnerUI({
               <PhoneOff size={26} />
             </button>
             <SpeakerToggle />
+            {isCaller && <HostMuteAllButton onClick={muteAll} />}
           </div>
         </div>
       </div>
@@ -622,6 +666,9 @@ interface GroupTileProps {
   label: string;
   isLocal?: boolean;
   isSpeaking: boolean;
+  /** v4.15.15: host-only kick affordance. Renders a small × button
+   *  in the top-right corner; tap → confirm → POST /api/calls/[id]/kick. */
+  onKick?: () => void;
 }
 
 /**
@@ -632,7 +679,7 @@ interface GroupTileProps {
  * no publication. Active-speaker highlight: emerald ring when
  * isSpeaking. Local self tile is mirrored (selfie convention).
  */
-function GroupTile({ track, label, isLocal, isSpeaking }: GroupTileProps) {
+function GroupTile({ track, label, isLocal, isSpeaking, onKick }: GroupTileProps) {
   const ringClass = isSpeaking
     ? "ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/30"
     : "ring-1 ring-white/15";
@@ -659,6 +706,23 @@ function GroupTile({ track, label, isLocal, isSpeaking }: GroupTileProps) {
       <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/60 text-[10px] font-medium text-white max-w-[80%] truncate">
         {label}
       </div>
+      {/* v4.15.15: host kick (×) — top-right corner. Stops at the
+          button so a tap doesn't also trigger any tile-level handlers
+          we add later. */}
+      {onKick && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onKick();
+          }}
+          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-rose-500 flex items-center justify-center text-white"
+          aria-label={`Remove ${label} from call`}
+          title={`Remove ${label} from call`}
+        >
+          <X size={12} />
+        </button>
+      )}
     </div>
   );
 }
@@ -666,6 +730,7 @@ function GroupTile({ track, label, isLocal, isSpeaking }: GroupTileProps) {
 interface VoiceAvatarTileProps {
   label: string;
   isSpeaking: boolean;
+  onKick?: () => void;
 }
 
 /**
@@ -673,9 +738,9 @@ interface VoiceAvatarTileProps {
  * a video track. Pulse is just opacity-based since not all browsers
  * honor animation in CSP-locked contexts the same way.
  */
-function VoiceAvatarTile({ label, isSpeaking }: VoiceAvatarTileProps) {
+function VoiceAvatarTile({ label, isSpeaking, onKick }: VoiceAvatarTileProps) {
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-2 relative">
       <div
         className={`relative rounded-full ${
           isSpeaking
@@ -684,11 +749,46 @@ function VoiceAvatarTile({ label, isSpeaking }: VoiceAvatarTileProps) {
         }`}
       >
         <Avatar name={label} size="xl" />
+        {onKick && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onKick();
+            }}
+            className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-black/60 hover:bg-rose-500 flex items-center justify-center text-white"
+            aria-label={`Remove ${label} from call`}
+            title={`Remove ${label} from call`}
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
       <p className="text-xs font-semibold text-white/90 max-w-[100%] truncate text-center">
         {label}
       </p>
     </div>
+  );
+}
+
+// ---- Host mute-all button (v4.15.15) --------------------------------------
+//
+// Caller-only quick action. Hits POST /api/calls/[id]/mute-all on the
+// server, which calls LiveKit's RoomService to mute every participant's
+// microphone track. Participants can immediately unmute themselves —
+// this isn't a hard mute lock.
+
+function HostMuteAllButton({ onClick }: { onClick: () => void | Promise<void> }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-14 h-14 rounded-full bg-amber-500/20 backdrop-blur text-amber-300 hover:bg-amber-500/30 flex items-center justify-center transition-colors"
+      aria-label="Mute everyone"
+      title="Mute everyone (host)"
+    >
+      <MicOff size={22} />
+    </button>
   );
 }
 
