@@ -30,6 +30,7 @@ import AppBrand from "./AppBrand";
 import ReferralBanner from "./ReferralBanner";
 import BlockedUsersSheet from "./BlockedUsersSheet";
 import CallHistorySheet from "./CallHistorySheet";
+import { compressImage } from "@/lib/image-compress";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 
@@ -318,6 +319,11 @@ export default function ProfileScreen() {
   // + EXIF-strips the bytes server-side and persists the Blob URL on
   // the user row. On success we refetch /api/users/me so the new URL
   // is reflected immediately without a page reload.
+  //
+  // v4.15.8 (F3): client-side compression. Joze couldn't upload his
+  // Samsung front-camera shot because it blew past the 2MB cap. Now
+  // we resize + recompress to fit ~1.8MB before posting, so the
+  // server only ever sees a friendly-sized image.
   const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setAvatarError("");
     const file = e.target.files?.[0];
@@ -326,14 +332,22 @@ export default function ProfileScreen() {
       setAvatarError("Sign in to upload a photo.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setAvatarError("Image must be under 2 MB.");
-      return;
-    }
     setAvatarUploading(true);
     try {
+      let uploadFile = file;
+      try {
+        uploadFile = await compressImage(file);
+      } catch {
+        // Decode/encode failed (corrupt image or unsupported format
+        // like raw HEIC on older Safari). Fall through to upload the
+        // original — the server's 2MB cap will still catch oversize.
+      }
+      if (uploadFile.size > 2 * 1024 * 1024) {
+        setAvatarError("Image is too large even after compression. Try a different photo.");
+        return;
+      }
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", uploadFile);
       const res = await authFetch("/api/uploads/avatar", {
         method: "POST",
         body: form,

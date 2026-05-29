@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ArrowLeft, Loader2, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import PhoneInput from "@/components/PhoneInput";
 import type { ValidationResult } from "@/lib/phone/validate";
+import { compressImage } from "@/lib/image-compress";
 
 // ---------------------------------------------------------------------------
 // /signup — phone-first three-step flow (S-101, S-105, S-110, S-104)
@@ -260,10 +261,20 @@ function SignupPageInner() {
       // Optional avatar upload (after session exists so /api/uploads/avatar
       // authenticates). Failure here is non-fatal — UI falls back to the
       // deterministic gradient.
+      //
+      // v4.15.8 (F3): client-side compress before upload so Samsung
+      // front-camera shots (>2MB) don't get rejected. compressImage
+      // returns the original if it's already small enough.
       if (avatarFile) {
         try {
+          let uploadFile = avatarFile;
+          try {
+            uploadFile = await compressImage(avatarFile);
+          } catch {
+            /* keep original on decode failure */
+          }
           const fd = new FormData();
-          fd.append("file", avatarFile);
+          fd.append("file", uploadFile);
           await fetch("/api/uploads/avatar", {
             method: "POST",
             headers: { Authorization: `Bearer ${data.accessToken}` },

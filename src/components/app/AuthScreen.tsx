@@ -354,16 +354,20 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  {/* Display Name */}
+                  {/* Display Name (required) */}
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs text-white/50">{t("auth.label.displayName")}</label>
+                      <label className="text-xs text-slate-500">
+                        {t("auth.label.displayName")} <span className="text-rose-400" aria-hidden="true">*</span>
+                      </label>
                       <WordCounter text={regName} maxWords={7} />
                     </div>
                     <div className="relative">
                       <UserRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
+                        required
+                        aria-required="true"
                         value={regName}
                         onChange={(e) => setRegName(e.target.value)}
                         placeholder={t("auth.placeholder.displayName")}
@@ -384,9 +388,11 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     </AnimatePresence>
                   </div>
 
-                  {/* Phone */}
+                  {/* Phone (required) */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.phone")}</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">
+                      {t("auth.label.phone")} <span className="text-rose-400" aria-hidden="true">*</span>
+                    </label>
                     <div className="flex gap-2">
                       <select
                         value={countryCode}
@@ -403,6 +409,8 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                         <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                           type="tel"
+                          required
+                          aria-required="true"
                           value={regPhone}
                           onChange={(e) => setRegPhone(e.target.value)}
                           placeholder={t("auth.placeholder.phoneNumber")}
@@ -417,13 +425,17 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     </AnimatePresence>
                   </div>
 
-                  {/* Email */}
+                  {/* Email (required — and the only way to receive password-reset emails). */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.email")}</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">
+                      {t("auth.label.email")} <span className="text-rose-400" aria-hidden="true">*</span>
+                    </label>
                     <div className="relative">
                       <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="email"
+                        required
+                        aria-required="true"
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
                         placeholder="you@email.com"
@@ -437,13 +449,18 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     </AnimatePresence>
                   </div>
 
-                  {/* Password */}
+                  {/* Password (required, min 8 chars). */}
                   <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block">{t("auth.label.password")}</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block">
+                      {t("auth.label.password")} <span className="text-rose-400" aria-hidden="true">*</span>
+                    </label>
                     <div className="relative">
                       <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type={showPassword ? "text" : "password"}
+                        required
+                        aria-required="true"
+                        minLength={8}
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
                         placeholder={t("auth.placeholder.minPassword")}

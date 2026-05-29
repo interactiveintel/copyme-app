@@ -26,6 +26,7 @@ import ChatAIAssistant from "./ChatAIAssistant";
 import ContactProfileSheet from "./ContactProfileSheet";
 import SmartReplyChips from "./SmartReplyChips";
 import VapMessageBubble, { type VapBubblePayload } from "./VapMessageBubble";
+import { compressImage } from "@/lib/image-compress";
 import VapActionSheet from "./VapActionSheet";
 import ReportUserSheet from "./ReportUserSheet";
 import CallMessageBubble, { type CallBubblePayload } from "./CallMessageBubble";
@@ -294,10 +295,25 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
       }
       setImageUploading(true);
       try {
+        // v4.15.8 (F3): client-side compress before upload. Larger
+        // target than the avatar path (4MB cap, 2048px max edge) so
+        // we don't degrade real photo content too aggressively, but
+        // still shaves typical phone shots from 8MB+ down to <2MB.
+        let uploadFile = file;
+        try {
+          uploadFile = await compressImage(file, {
+            targetBytes: 4 * 1024 * 1024,
+            maxDimension: 2048,
+            initialQuality: 0.88,
+          });
+        } catch {
+          // Decode failed (e.g. HEIC on older Safari) — fall through
+          // to upload the original; server-side 25MB cap still applies.
+        }
         const draftId = `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
         const form = new FormData();
         form.append("messageDraftId", draftId);
-        form.append("file_0", file);
+        form.append("file_0", uploadFile);
         const upRes = await authFetch("/api/uploads/message-media", {
           method: "POST",
           body: form,
@@ -799,20 +815,41 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
           </div>
         )}
 
-        <div className="flex items-center gap-1 mb-1.5 justify-between px-1">
-          {/* AI button */}
-          <motion.button
-            onClick={() => setShowAIAssist(!showAIAssist)}
-            whileTap={{ scale: 0.9 }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-              showAIAssist
-                ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white"
-                : "bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200"
-            }`}
-          >
-            <Sparkles size={10} />
-            AI
-          </motion.button>
+        <div className="flex items-center gap-1.5 mb-1.5 justify-between px-1">
+          <div className="flex items-center gap-1.5">
+            {/* AI button */}
+            <motion.button
+              onClick={() => setShowAIAssist(!showAIAssist)}
+              whileTap={{ scale: 0.9 }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                showAIAssist
+                  ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white"
+                  : "bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200"
+              }`}
+            >
+              <Sparkles size={10} />
+              AI
+            </motion.button>
+            {/* Translate toggle — promoted from a tiny invisible icon
+                inside the textarea (Joze couldn't find it in his
+                May 18 feedback) to a sibling pill of the AI button.
+                When on, incoming + outgoing messages render their
+                translated text. */}
+            <motion.button
+              onClick={() => setTranslateOn(!translateOn)}
+              whileTap={{ scale: 0.9 }}
+              aria-pressed={translateOn}
+              aria-label={translateOn ? "Translation on" : "Translation off"}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                translateOn
+                  ? "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white"
+                  : "bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200"
+              }`}
+            >
+              <Globe size={10} />
+              Translate
+            </motion.button>
+          </div>
           <WordCounter text={message} maxWords={70} />
         </div>
         <div className="flex items-end gap-2">
