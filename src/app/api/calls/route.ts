@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       const status =
         result.reason === "RECIPIENT_NOT_FOUND" ? 404 :
         result.reason === "INVALID_TARGET" ? 400 :
+        result.reason === "BLOCKED" ? 403 :
         500;
       return NextResponse.json(
         { success: false, error: { code: result.reason } },
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
     const status =
       result.reason === "RECIPIENT_NOT_FOUND" ? 404 :
       result.reason === "SAME_USER" ? 400 :
+      result.reason === "BLOCKED" ? 403 :
       result.reason === "RATE_LIMITED" ? 429 :
       500;
     return NextResponse.json(

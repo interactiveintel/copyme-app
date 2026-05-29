@@ -14,6 +14,7 @@ import { prisma } from "@/lib/db";
 import { roomNameFor } from "@/lib/livekit";
 import { addBreadcrumb, reportError } from "@/lib/observability";
 import { sendPush } from "@/lib/push";
+import { filterUnblocked, isBlockedEitherWay } from "@/lib/blocks";
 
 /**
  * v4.15.12 (Sprint 6): max participants in a group call. Rule of 7 —
@@ -33,7 +34,7 @@ export type CallStatus =
 
 export interface CallReason {
   ok: boolean;
-  reason: "OK" | "INVALID_TARGET" | "SAME_USER" | "RECIPIENT_NOT_FOUND" | "RATE_LIMITED" | "NOT_FOUND" | "FORBIDDEN" | "ALREADY_TERMINAL" | "ERROR";
+  reason: "OK" | "INVALID_TARGET" | "SAME_USER" | "RECIPIENT_NOT_FOUND" | "RATE_LIMITED" | "NOT_FOUND" | "FORBIDDEN" | "ALREADY_TERMINAL" | "BLOCKED" | "ERROR";
 }
 
 export interface CreateCallResult extends CallReason {
@@ -68,6 +69,16 @@ export async function createCall(args: {
     select: { id: true },
   });
   if (!recipient) return { ok: false, reason: "RECIPIENT_NOT_FOUND" };
+
+  // v4.15.13 (Sprint 7): block-list integration. If either user has
+  // blocked the other, the call simply doesn't happen. We return a
+  // generic BLOCKED reason rather than a more specific "they blocked
+  // you" / "you blocked them" so the caller can't infer who initiated
+  // the block (anti-enumeration; matches the pattern messages already
+  // use for filtered reads).
+  if (await isBlockedEitherWay(callerId, calleeId)) {
+    return { ok: false, reason: "BLOCKED" };
+  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -499,7 +510,7 @@ export async function createGroupCall(args: {
   const { callerId, callType } = args;
 
   // Dedupe + drop self + cap.
-  const calleeIds = Array.from(
+  let calleeIds = Array.from(
     new Set(args.calleeIds.filter((id) => id && id !== callerId)),
   );
 
@@ -507,6 +518,15 @@ export async function createGroupCall(args: {
     return { ok: false, reason: "INVALID_TARGET" };
   }
   if (calleeIds.length > MAX_CALL_PARTICIPANTS - 1) {
+    return { ok: false, reason: "INVALID_TARGET" };
+  }
+
+  // v4.15.13 (Sprint 7): block-list integration. Silently drop blocked
+  // users from the recipient list (either direction). If too few
+  // remain after filtering, reject as INVALID_TARGET — the caller may
+  // have built the picker from a stale contact list.
+  calleeIds = await filterUnblocked(callerId, calleeIds);
+  if (calleeIds.length < 2) {
     return { ok: false, reason: "INVALID_TARGET" };
   }
 

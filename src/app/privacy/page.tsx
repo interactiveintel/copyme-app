@@ -129,6 +129,12 @@ export default function PrivacyPage() {
                 be kept for up to 12 months.
               </li>
               <li>
+                <strong>Call records</strong> — call metadata (who, when, duration) is retained
+                for 90 days, then hard-deleted nightly. We do not record or store call audio or
+                video. Live media flows directly between participants through our calling
+                provider (LiveKit) and is never written to disk.
+              </li>
+              <li>
                 <strong>Security logs</strong> — up to 90 days.
               </li>
               <li>
@@ -151,6 +157,11 @@ export default function PrivacyPage() {
               <li>Resend (transactional email, US)</li>
               <li>Anthropic (Yogi AI, US) — processes only messages you choose to send to Yogi</li>
               <li>Twilio (SMS delivery, when SMS verification is enabled)</li>
+              <li>
+                LiveKit (real-time voice / video call routing) — handles call signaling and the
+                live audio/video stream between participants. No call media is recorded or
+                stored by us or by LiveKit.
+              </li>
               <li>PostHog or a comparable product-analytics processor (anonymized events only)</li>
             </ul>
             <p className="mt-2">
