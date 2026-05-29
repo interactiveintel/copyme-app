@@ -303,6 +303,11 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
   // search route as filters.withinDays and used to filter
   // suggestedConnections client-side as well.
   const [withinDays, setWithinDays] = useState<number | null>(null);
+  // v4.16.0 (F7): AI-mode results carry extras — a short reasoning
+  // blurb from the agent + a few ice-breaker prompts to help start
+  // a conversation. Both display in a banner above the results list.
+  const [aiIcebreakers, setAiIcebreakers] = useState<string[]>([]);
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
 
   // v4.15.14 (F4): real suggested connections from /api/users/suggested
   // instead of MOCK_PROFILES. The mock fallback only shows for
@@ -376,33 +381,90 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
     if (!trimmed) {
       setResults([]);
       setSearched(false);
+      setAiIcebreakers([]);
+      setAiResponse(null);
       return;
     }
     setLoading(true);
     setSearched(true);
     setLastQuery(trimmed);
+    setAiIcebreakers([]);
+    setAiResponse(null);
     try {
-      const res = await authFetch("/api/search/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: trimmed,
-          filters: {
-            nearMe: activeFilters.includes("near"),
-            sameInterests: activeFilters.includes("interests"),
-            category: activeFilters.includes("business")
-              ? "business"
-              : activeFilters.includes("education")
-                ? "education"
-                : undefined,
-            withinDays: withinDays ?? undefined,
-          },
-          aiMode,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setResults(data.data?.results ?? []);
+      if (aiMode) {
+        // v4.16.0 (F7): AI selective search. Routes through the
+        // smart-match agent (already in production since earlier
+        // sprints, exposed via /api/agents/smart-match). The agent
+        // pulls candidates from the DB, applies LLM ranking, and
+        // returns matches + icebreakers + a short reasoning blurb.
+        // Existing SearchResultCard renders the matches as-is once
+        // we map smart-match's `score` field onto `relevanceScore`.
+        const res = await authFetch("/api/agents/smart-match", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: trimmed,
+            // The agent accepts optional structured hints. Map filters →
+            // the shape it knows. Time-window filter (withinDays) isn't
+            // honored by the agent yet — F4's DB path covers that case
+            // when aiMode is off.
+            interests: activeFilters.includes("interests") ? [] : undefined,
+            location: activeFilters.includes("near") ? "near" : undefined,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const matches = ((data?.data?.matches ?? []) as Array<Record<string, unknown>>)
+            .map((m): SearchResult => ({
+              id: String(m.id ?? ""),
+              displayName: String(m.displayName ?? "Unknown"),
+              profileType: String(m.profileType ?? "personal"),
+              location: (m.location as SearchLocation | null) ?? null,
+              interests: Array.isArray(m.interests)
+                ? (m.interests as unknown[]).map((x) => String(x))
+                : [],
+              relevanceScore:
+                typeof m.score === "number"
+                  ? Math.round(m.score)
+                  : typeof m.relevanceScore === "number"
+                    ? Math.round(m.relevanceScore)
+                    : 50,
+              bio: typeof m.bio === "string" ? m.bio : undefined,
+            }))
+            .filter((m) => m.id);
+          setResults(matches);
+          setAiIcebreakers(
+            Array.isArray(data?.data?.icebreakers)
+              ? (data.data.icebreakers as unknown[]).map((s) => String(s)).slice(0, 5)
+              : [],
+          );
+          if (typeof data?.data?.agentResponse === "string") {
+            setAiResponse(data.data.agentResponse);
+          }
+        }
+      } else {
+        const res = await authFetch("/api/search/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: trimmed,
+            filters: {
+              nearMe: activeFilters.includes("near"),
+              sameInterests: activeFilters.includes("interests"),
+              category: activeFilters.includes("business")
+                ? "business"
+                : activeFilters.includes("education")
+                  ? "education"
+                  : undefined,
+              withinDays: withinDays ?? undefined,
+            },
+            aiMode,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setResults(data.data?.results ?? []);
+        }
       }
     } catch {
       // network error
@@ -542,6 +604,44 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto px-4 space-y-3">
+        {/* v4.16.0 (F7): AI agent's reasoning + icebreakers banner.
+            Only renders when aiMode is on AND we have either an
+            agent response or icebreakers to show. */}
+        {aiMode && searched && (aiResponse || aiIcebreakers.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-purple-500/20"
+          >
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Sparkles size={12} className="text-purple-500" />
+              <span className="text-[10px] uppercase tracking-wide text-purple-600 font-semibold">
+                AI match reasoning
+              </span>
+            </div>
+            {aiResponse && (
+              <p className="text-xs text-slate-700 leading-relaxed mb-2">
+                {aiResponse}
+              </p>
+            )}
+            {aiIcebreakers.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">
+                  Suggested openers
+                </p>
+                {aiIcebreakers.map((ice, i) => (
+                  <div
+                    key={i}
+                    className="text-xs text-slate-700 bg-white/60 rounded-lg px-2.5 py-1.5 border border-slate-200"
+                  >
+                    “{ice}”
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
