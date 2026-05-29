@@ -16,6 +16,9 @@ import {
   redeemInviteCode,
 } from "@/lib/invite-code";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
+// v4.16.6 (F6a follow-up): auto-default VAP currency by phone country
+// code so EU signups don't land in USD with no signal of why.
+import { currencyForPhone } from "@/lib/phone-currency";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -127,6 +130,10 @@ export async function POST(request: NextRequest) {
     const referredById = await resolveReferralCode(body.ref);
 
     // --- Create user --------------------------------------------------------
+    // v4.16.6 (F6a follow-up): seed preferredCurrency from the phone's
+    // E.164 country code. Eurozone phones → EUR; everything else stays
+    // USD. The user can still flip it later in Profile → Settings.
+    const seededCurrency = currencyForPhone(body.phone);
     const user = await prisma.user.create({
       data: {
         displayName: body.displayName,
@@ -134,6 +141,7 @@ export async function POST(request: NextRequest) {
         emailHash,
         passwordHash,
         referredById,
+        preferredCurrency: seededCurrency,
       },
       select: {
         id: true,

@@ -10,6 +10,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "node:crypto";
 import { consumeSignupTicket } from "@/lib/otp/signup-ticket";
+// v4.16.6 (F6a follow-up): auto-default VAP currency from the
+// captured ISO-2 country code so EU signups don't land in USD.
+import { currencyForCountryIso2 } from "@/lib/phone-currency";
 import { checkAge } from "@/lib/age-gate";
 import { issueSession } from "@/lib/sessions";
 import { prisma } from "@/lib/db";
@@ -127,6 +130,8 @@ export async function POST(req: NextRequest) {
       passwordHash: placeholderPassword,
       avatarUrl: avatarUrlClean,
       referredById,
+      // v4.16.6: Eurozone phones → EUR, everyone else → USD.
+      preferredCurrency: currencyForCountryIso2(countryIso2),
     },
     select: { id: true, displayName: true, avatarUrl: true },
   });
