@@ -210,7 +210,14 @@ function CallInnerUI({
   // call convention).
   const [swapped, setSwapped] = useState(false);
 
-  const { quality } = useConnectionQualityIndicator();
+  // v4.15.10 (bug fix): useConnectionQualityIndicator() without an
+  // explicit `participant` requires a <ParticipantContext.Provider>
+  // wrapper — which only exists inside <ParticipantTile>. We render
+  // a custom layout (no ParticipantTile), so the bare call threw
+  // "No participant provided" and crashed the entire app tree on
+  // tap-to-call. Pass localParticipant explicitly. Caught by
+  // gstack-browse acceptance test 2026-05-29.
+  const { quality } = useConnectionQualityIndicator({ participant: localParticipant });
   const remoteParticipants = useRemoteParticipants();
   const effectivePeerName = useMemo(() => {
     const remote = remoteParticipants[0];
