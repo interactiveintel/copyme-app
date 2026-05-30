@@ -23,6 +23,7 @@ import {
   ShieldOff,
   Phone,
   Wallet,
+  Lock,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
@@ -140,6 +141,14 @@ export default function ProfileScreen() {
   // surfaces under the row on failure.
   const [currencySaving, setCurrencySaving] = useState(false);
   const [currencyError, setCurrencyError] = useState<string | null>(null);
+  // v4.16.13 (Tier S Phase 2): E2E opt-in toggle in Settings. The
+  // toggle drives PUT/DELETE /api/e2e/bundle. Real key material lives
+  // client-side in the libsignal store; until a native client wires
+  // libsignal in the browser, the published bundle is a placeholder
+  // and the lock indicator is informational only.
+  const [e2eEnabled, setE2eEnabled] = useState(false);
+  const [e2eSaving, setE2eSaving] = useState(false);
+  const [e2eError, setE2eError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -158,6 +167,73 @@ export default function ProfileScreen() {
       }
     })();
   }, [user, authFetch]);
+
+  // v4.16.13: fetch E2E opt-in state on mount. 404 = not enrolled
+  // (toggle off); 200 = enrolled (toggle on). All other statuses
+  // leave the toggle in the default-off state.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await authFetch("/api/e2e/bundle");
+        if (!alive) return;
+        if (res.ok) setE2eEnabled(true);
+        else if (res.status === 404) setE2eEnabled(false);
+      } catch {
+        /* network — keep default */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user, authFetch]);
+
+  // Placeholder bundle for the E2E toggle. Browser libsignal isn't
+  // available (0.94 = native Node only), so the published bundle is
+  // a marker — a real key bundle gets published when a native client
+  // bundles libsignal and re-PUTs through this same endpoint.
+  function makePlaceholderBundle(): { bundle: string; registrationId: number } {
+    return {
+      bundle: JSON.stringify({
+        kind: "placeholder",
+        createdAt: new Date().toISOString(),
+        note: "Awaiting native-client key publication",
+      }),
+      // 32-bit unsigned random; matches libsignal's reg-ID space.
+      registrationId: Math.floor(Math.random() * 0xffff_ffff),
+    };
+  }
+
+  const handleE2EToggle = async (next: boolean) => {
+    if (!user) {
+      setE2eEnabled(next);
+      return;
+    }
+    setE2eError(null);
+    setE2eSaving(true);
+    const prev = e2eEnabled;
+    setE2eEnabled(next);
+    try {
+      const res = next
+        ? await authFetch("/api/e2e/bundle", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(makePlaceholderBundle()),
+          })
+        : await authFetch("/api/e2e/bundle", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setE2eEnabled(prev);
+        setE2eError(data?.error?.message || "Couldn't update encryption setting. Try again.");
+      }
+    } catch {
+      setE2eEnabled(prev);
+      setE2eError("Network error. Try again.");
+    } finally {
+      setE2eSaving(false);
+    }
+  };
 
   // Demo profile fallback when no real user data is available
   const demoProfile = useMemo<Profile>(() => ({
@@ -998,6 +1074,46 @@ export default function ProfileScreen() {
                         </div>
                       );
                     })()}
+                    {/* v4.16.13 (Tier S Phase 2): E2E opt-in toggle.
+                        Flips a placeholder bundle on the user row so
+                        pairE2EReady evaluates true and the lock
+                        indicator lights up in ChatScreen. Real key
+                        material lands when a native client publishes
+                        a libsignal bundle through the same endpoint. */}
+                    <div className="px-3 py-3 rounded-xl hover:bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2 text-sm text-slate-700">
+                          <Lock size={14} className="text-slate-500" />
+                          End-to-end encryption
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void handleE2EToggle(!e2eEnabled)}
+                          disabled={e2eSaving}
+                          className={`w-10 h-5 rounded-full relative transition-all ${
+                            e2eEnabled
+                              ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
+                              : "bg-slate-200"
+                          } ${e2eSaving ? "opacity-60" : ""}`}
+                          aria-pressed={e2eEnabled}
+                          aria-label="Toggle end-to-end encryption"
+                        >
+                          <motion.div
+                            className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm"
+                            animate={{ left: e2eEnabled ? 22 : 2 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                          />
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        {e2eEnabled
+                          ? "Lock icon shows in chats with peers who also enabled this. Native key material publishes when the mobile app installs."
+                          : "Opt into E2E to enable the lock indicator in compatible chats."}
+                      </p>
+                      {e2eError && (
+                        <p className="mt-1 text-[11px] text-rose-600">{e2eError}</p>
+                      )}
+                    </div>
                     {user && (
                       <button
                         onClick={() => {
