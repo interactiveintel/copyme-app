@@ -266,7 +266,13 @@ export async function POST(request: NextRequest) {
         // v4.16.10 (Tier S Phase 1): persist opt-in ciphertext alongside
         // the cleartext placeholder. Recipient client decides which to
         // render based on its own E2E capability (Phase 2 wiring).
-        e2eCiphertext: e2eCiphertextBuf ?? undefined,
+        // Prisma 7 types Bytes as Uint8Array<ArrayBuffer>; Node Buffer
+        // is Uint8Array<ArrayBufferLike>. The single-arg Uint8Array
+        // ctor copies the bytes into a fresh ArrayBuffer, satisfying
+        // Prisma's narrower type. Cheap — payloads are < 64 KB.
+        e2eCiphertext: e2eCiphertextBuf
+          ? new Uint8Array(e2eCiphertextBuf)
+          : undefined,
         languageOriginal,
         languageTranslated,
         translatedText,
