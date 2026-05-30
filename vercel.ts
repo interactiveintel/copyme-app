@@ -34,6 +34,16 @@ export const config: VercelConfig = {
       path: "/api/cron/messages-retention",
       schedule: "30 4 * * *",
     },
+    {
+      // v4.16.12: nightly recompute of users.last_activity_at from
+      // MAX(latest message sent, latest session lastUsedAt). Restores
+      // ground truth so search "active in" filters reflect reality
+      // even when the incremental bump paths missed an event. Runs
+      // 05:00 UTC — 30 min after the messages sweep so the message
+      // table is in its post-prune state.
+      path: "/api/cron/activity-stale",
+      schedule: "0 5 * * *",
+    },
   ],
 
   // SSE stream needs longer than the default per-route timeout. Stays
