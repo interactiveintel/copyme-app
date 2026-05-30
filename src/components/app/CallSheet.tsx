@@ -220,6 +220,12 @@ export default function CallSheet({
         // with the default front-facing constraint; user can flip
         // via the camera-switch button in CallControls.
         video={callType === "video"}
+        // v4.16.16: explicit connect options so iOS Safari behavior
+        // matches Chromium. autoSubscribe=true is the SDK default but
+        // documenting it here makes the contract obvious; if a future
+        // LiveKit release flips the default, our calls don't silently
+        // stop subscribing to remote media.
+        connectOptions={{ autoSubscribe: true }}
         // Catch mic OR camera permission failures so we can render a
         // friendly state instead of failing silently. The `kind`
         // narrows to "audioinput" or "videoinput".
@@ -299,6 +305,14 @@ function CallInnerUI({
   // Default: remote is full-screen, self is PiP (the standard video-
   // call convention).
   const [swapped, setSwapped] = useState(false);
+  // v4.16.16: after 5s with no remote video, switch from generic
+  // "Connecting video…" to a specific hint that points the user at
+  // the most likely cause (the OTHER side didn't share their camera).
+  // Real-device test caught this: Paul saw "Connecting video…"
+  // forever and assumed it was OUR bug; turned out Joze may have
+  // denied camera permission. Telling the user that explicitly
+  // shortcuts the "is the call broken?" panic loop.
+  const [remoteVideoTimedOut, setRemoteVideoTimedOut] = useState(false);
 
   // v4.15.10 (bug fix): useConnectionQualityIndicator() without an
   // explicit `participant` requires a <ParticipantContext.Provider>
@@ -328,6 +342,23 @@ function CallInnerUI({
   );
   const remoteVideoTrack = remoteVideoTracks[0]; // first remote for 1:1 layout
   const isGroupCall = remoteParticipants.length > 1;
+
+  // v4.16.16: 5s timer for the "no remote video" hint. Resets if a
+  // remote track appears OR if the participant list shrinks (call
+  // is winding down — don't shame a leaving peer).
+  useEffect(() => {
+    if (callType !== "video" || isGroupCall) return;
+    if (remoteVideoTrack) {
+      setRemoteVideoTimedOut(false);
+      return;
+    }
+    if (remoteParticipants.length === 0) {
+      setRemoteVideoTimedOut(false);
+      return;
+    }
+    const id = setTimeout(() => setRemoteVideoTimedOut(true), 5_000);
+    return () => clearTimeout(id);
+  }, [callType, isGroupCall, remoteVideoTrack, remoteParticipants.length]);
 
   const statusLabel =
     connectionState === ConnectionState.Connecting ? "Connecting…" :
@@ -535,8 +566,16 @@ function CallInnerUI({
                 <Avatar name={effectivePeerName} size="xl" />
               )}
               <p className="text-2xl font-bold">{effectivePeerName}</p>
-              <p className="text-xs text-white/50">
-                {remoteVideoTrack ? "Camera off" : "Connecting video…"}
+              {/* v4.16.16: after 5s with no remote video, point at the
+                  most likely cause instead of an indefinite "Connecting…"
+                  spinner-substitute. Saves the panic loop seen in
+                  real-device testing. */}
+              <p className="text-xs text-white/50 max-w-[260px] text-center">
+                {remoteVideoTrack
+                  ? "Camera off"
+                  : remoteVideoTimedOut
+                    ? `${effectivePeerName} hasn't shared their camera — they may need to allow camera access in their browser.`
+                    : "Connecting video…"}
               </p>
             </div>
           </div>
@@ -553,7 +592,10 @@ function CallInnerUI({
           </div>
         </div>
 
-        {/* PiP self-view — tap to swap which tile is full-screen. */}
+        {/* PiP self-view — tap to swap which tile is full-screen.
+            v4.16.16: explicit "You" / peer-name label so users don't
+            mistake their own selfie for the remote feed (real-device
+            test caught this confusion). */}
         {pipTrack && (
           <button
             type="button"
@@ -565,6 +607,9 @@ function CallInnerUI({
               trackRef={pipTrack}
               className={`w-full h-full object-cover ${pipIsLocal ? "scale-x-[-1]" : ""}`}
             />
+            <span className="absolute bottom-1 left-1.5 text-[10px] font-semibold text-white drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
+              {pipIsLocal ? "You" : effectivePeerName}
+            </span>
           </button>
         )}
 
