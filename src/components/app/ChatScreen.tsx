@@ -19,6 +19,7 @@ import {
   MoreVertical,
   ShieldOff,
   Flag,
+  Lock,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import WordCounter from "../ui/WordCounter";
@@ -61,6 +62,12 @@ interface ApiMessage {
   translatedText?: string | null;
   sender?: { id: string; displayName: string };
   receiver?: { id: string; displayName: string };
+  /** v4.16.11 (Tier S Phase 2): opt-in encrypted payload (base64).
+   *  Present when the sender published a ciphertext to messages.send.
+   *  Browser-side decryption isn't yet wired (libsignal lacks a wasm
+   *  port at 0.94); placeholder bubble renders until a native client
+   *  consumes it. Null for all legacy + cleartext messages. */
+  e2eCiphertext?: string | null;
 }
 
 function formatTime(dateStr: string): string {
@@ -101,6 +108,10 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     value: number;
     label: string;
   } | null>(null);
+  // v4.16.11 (Tier S Phase 2): pair E2E-readiness. True when both
+  // sides have published a Signal pre-key bundle. Drives the Lock
+  // icon in the header.
+  const [pairE2EReady, setPairE2EReady] = useState(false);
 
   const displayName = contactName || "Chat";
   const isMockContact = chatId.startsWith("mock_");
@@ -142,6 +153,8 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             label: String(data.policy.label),
           });
         }
+        // v4.16.11: server flag — true when both peers published bundles.
+        setPairE2EReady(Boolean(data.e2eReady));
       }
     } catch {
       // network error
@@ -452,7 +465,23 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                 <Avatar name={displayName} size="md" online showStatus />
               )}
               <div className="text-left">
-                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                  {/* v4.16.11 (Tier S Phase 2): lock icon when both
+                      peers have published Signal pre-key bundles. The
+                      indicator is informational only — actual encrypt/
+                      decrypt requires a native client that bundles
+                      libsignal (browser has no wasm port at 0.94). */}
+                  {pairE2EReady && (
+                    <span
+                      title="End-to-end encrypted with this contact"
+                      aria-label="End-to-end encrypted"
+                      className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100"
+                    >
+                      <Lock size={9} className="text-emerald-600" />
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-emerald-500">
                   {isMockContact ? "Tap to view profile" : "online"}
                 </p>
@@ -627,8 +656,22 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                           : "bg-slate-100 rounded-bl-md"
                       }`}
                     >
-                      <p className={`text-sm leading-relaxed ${isSent ? "text-white" : "text-slate-800"}`}>
-                        {translateOn && msg.translatedText ? msg.translatedText : msg.content}
+                      <p className={`text-sm leading-relaxed ${isSent ? "text-white" : "text-slate-800"} flex items-start gap-1.5`}>
+                        {/* v4.16.11 (Tier S Phase 2): per-bubble lock
+                            badge when this row arrived as encrypted
+                            ciphertext. The actual decrypt isn't browser-
+                            possible at libsignal 0.94, so the bubble
+                            text falls back to the cleartext placeholder
+                            the sender posted alongside the ciphertext. */}
+                        {msg.e2eCiphertext && (
+                          <Lock
+                            size={11}
+                            className={`mt-0.5 shrink-0 ${isSent ? "text-white/80" : "text-emerald-500"}`}
+                          />
+                        )}
+                        <span className="flex-1 min-w-0">
+                          {translateOn && msg.translatedText ? msg.translatedText : msg.content}
+                        </span>
                       </p>
                       {msg.translatedText && (
                         <button

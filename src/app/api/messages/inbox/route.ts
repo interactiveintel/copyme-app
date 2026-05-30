@@ -7,6 +7,10 @@ import { getInbox } from "@/lib/redis";
 // (7w / 70w). The Redis cache only ever stores 7 msgs, so we bypass
 // it for time-mode pairs to avoid truncating their active window.
 import { policyForPair, cutoffFor, TIME_FETCH_CAP } from "@/lib/messages-retention";
+// v4.16.11 (Tier S Phase 2): expose pair E2E-readiness so the
+// ChatScreen header can show a lock icon when both sides have
+// published bundles.
+import { pairE2EReady } from "@/lib/e2e/capability";
 
 // Auth-bound, per-user inbox. Defensive force-dynamic.
 export const dynamic = "force-dynamic";
@@ -37,7 +41,12 @@ export async function GET(request: NextRequest) {
     // pair" badge — letting users see WHY their window expanded.
     // -----------------------------------------------------------------
     if (contactId) {
-      const policy = await policyForPair(auth.userId, contactId);
+      // v4.16.11: resolve policy + E2E readiness in parallel. Both
+      // are small DB reads (≤2 users each) and both feed the response.
+      const [policy, e2eReady] = await Promise.all([
+        policyForPair(auth.userId, contactId),
+        pairE2EReady(auth.userId, contactId),
+      ]);
       // Public-safe slice of the policy (no tier raw string). The
       // header badge only needs mode + value + label.
       const policyPayload = {
@@ -52,7 +61,7 @@ export async function GET(request: NextRequest) {
       if (policy.mode === "count") {
         const cached = await getInbox(auth.userId, contactId).catch(() => null);
         if (cached) {
-          return NextResponse.json({ success: true, data: cached, policy: policyPayload });
+          return NextResponse.json({ success: true, data: cached, policy: policyPayload, e2eReady });
         }
       }
 
@@ -76,7 +85,18 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      return NextResponse.json({ success: true, data: messages, policy: policyPayload });
+      // v4.16.11: serialize Bytes → base64 string for JSON transport.
+      // The recipient client base64-decodes + feeds to libsignal (or
+      // shows the "[Encrypted]" placeholder when client-side decrypt
+      // isn't available, which is the entire browser surface today).
+      const serialized = messages.map((m) => ({
+        ...m,
+        e2eCiphertext: m.e2eCiphertext
+          ? Buffer.from(m.e2eCiphertext).toString("base64")
+          : null,
+      }));
+
+      return NextResponse.json({ success: true, data: serialized, policy: policyPayload, e2eReady });
     }
 
     // -----------------------------------------------------------------
