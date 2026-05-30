@@ -27,6 +27,12 @@ interface SendMessageBody {
   content?: string;
   mediaUrls?: string[];
   durationSeconds?: number;
+  /** v4.16.10 (Tier S Phase 1): opt-in E2E ciphertext, base64 (URL-safe
+   *  or standard — both accepted). When set, `content` SHOULD be a
+   *  placeholder string ("[Encrypted]" or empty) and the real payload
+   *  lives here. Server stores the bytes verbatim. Translation pipeline
+   *  is skipped because the server can't read the plaintext. */
+  e2eCiphertext?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -188,16 +194,46 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // --- v4.16.10 (Tier S Phase 1): decode opt-in E2E ciphertext ----------
+    // base64 → Bytes. Cap at 64 KB to defeat pathological payloads;
+    // a real Signal ciphertext for a single message is well under 1 KB.
+    // Treat invalid base64 as a 400 — better than silently dropping
+    // the ciphertext and shipping cleartext the user thought was safe.
+    const MAX_E2E_BYTES = 64 * 1024;
+    let e2eCiphertextBuf: Buffer | null = null;
+    if (typeof body.e2eCiphertext === "string" && body.e2eCiphertext.length > 0) {
+      try {
+        // Accept both standard and URL-safe base64.
+        const normalized = body.e2eCiphertext.replace(/-/g, "+").replace(/_/g, "/");
+        e2eCiphertextBuf = Buffer.from(normalized, "base64");
+        if (e2eCiphertextBuf.length === 0) throw new Error("empty");
+        if (e2eCiphertextBuf.length > MAX_E2E_BYTES) {
+          return NextResponse.json(
+            { success: false, error: { code: "E2E_PAYLOAD_TOO_LARGE", message: `Ciphertext exceeds ${MAX_E2E_BYTES} bytes` } },
+            { status: 400 },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { success: false, error: { code: "INVALID_E2E_CIPHERTEXT", message: "e2eCiphertext must be valid base64" } },
+          { status: 400 },
+        );
+      }
+    }
+
     // --- Translation (A3) ---------------------------------------------------
     // If the receiver prefers a different locale from the sender, ask
     // Claude Haiku for a translation. Helpers short-circuit on identical
     // locales, very short text, cache hit, or daily budget exhaustion —
     // failure path returns the original (translatedText=null).
+    // v4.16.10: skip translation when e2eCiphertext is set — the server
+    // can't read the plaintext, and emitting a translation of the
+    // placeholder string ("[Encrypted]" → "[Verschlüsselt]") is noise.
     let languageOriginal: string | null = null;
     let languageTranslated: string | null = null;
     let translatedText: string | null = null;
 
-    if (body.type === "text" && body.content && senderLocale !== receiverLocale) {
+    if (!e2eCiphertextBuf && body.type === "text" && body.content && senderLocale !== receiverLocale) {
       const { translate, detectLocaleHeuristic } = await import("@/lib/translation");
       languageOriginal = senderLocale === "auto" ? detectLocaleHeuristic(body.content) : senderLocale;
       const tr = await translate({
@@ -227,6 +263,10 @@ export async function POST(request: NextRequest) {
         mediaUrls: body.mediaUrls ?? undefined,
         durationSeconds: body.durationSeconds ?? null,
         deliveredAt: new Date(),
+        // v4.16.10 (Tier S Phase 1): persist opt-in ciphertext alongside
+        // the cleartext placeholder. Recipient client decides which to
+        // render based on its own E2E capability (Phase 2 wiring).
+        e2eCiphertext: e2eCiphertextBuf ?? undefined,
         languageOriginal,
         languageTranslated,
         translatedText,
