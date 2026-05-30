@@ -23,12 +23,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Mic, MicOff, PhoneOff, Volume2, VolumeX, MicOff as MicDenied,
+  Mic, MicOff, PhoneOff, Volume2, MicOff as MicDenied,
   Video, VideoOff, RotateCcw, X,
 } from "lucide-react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  // v4.16.15: <StartAudio> shows a tap-to-unblock button on iOS Safari
+  // (and any other browser where audio autoplay was blocked). Renders
+  // a no-op when audio plays fine — safe to mount unconditionally.
+  // Without this, iOS Safari users get "Connected" but no audible
+  // audio because RoomAudioRenderer's <audio> elements are blocked
+  // from autoplay outside a user gesture.
+  StartAudio,
   VideoTrack,
   useLocalParticipant,
   useConnectionState,
@@ -232,6 +239,12 @@ export default function CallSheet({
           onHangUp={endAndClose}
         />
         <RoomAudioRenderer />
+        {/* v4.16.15: tap-to-unblock for iOS Safari audio autoplay.
+            Renders a centered overlay button when remote audio can't
+            autoplay; auto-hides once unblocked or when autoplay works.
+            label="" hides the default label since we wrap with our
+            own gradient styling via the components-styles import. */}
+        <StartAudio label="Tap to enable audio" />
       </LiveKitRoom>
     </motion.div>
   );
@@ -891,7 +904,7 @@ function SpeakerToggle() {
 
   const disabled = supported === false || outputs.length < 2;
   const label = supported === false
-    ? "Speaker switch not supported in this browser"
+    ? "Output switching unavailable (your OS handles audio routing)"
     : outputs.length < 2
       ? "Only one audio output available"
       : `Switch output (currently ${outputs[active]?.label || "default"})`;
@@ -909,7 +922,11 @@ function SpeakerToggle() {
           : "bg-white/10 text-white hover:bg-white/20"
       }`}
     >
-      {disabled ? <VolumeX size={22} /> : <Volume2 size={22} />}
+      {/* v4.16.15: always use Volume2 (regular speaker) — never VolumeX,
+          which users read as "muted" and panic when they can't hear
+          audio. The disabled-state opacity already signals
+          unavailability; the icon shouldn't double-signal as muted. */}
+      <Volume2 size={22} />
     </button>
   );
 }
