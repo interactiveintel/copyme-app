@@ -57,8 +57,9 @@ class ResilientProvider implements LLMProvider {
       // v4.16.27: also degrade on a retired-model 404 (not_found_error).
       // Before this, a stale model id hard-errored the agent instead of
       // falling back to the mock — exactly how the Sonnet-4 retirement
-      // surfaced once the key was valid again.
-      const modelGone = status === 404 && /not_found|model/i.test(msg);
+      // surfaced once the key was valid again. Any Anthropic 404 is a
+      // not-found (model or endpoint) — treat all of them as degrade.
+      const modelGone = status === 404;
       if (status === 401 || status === 403 || /401|invalid x-api-key/i.test(msg) || modelGone) {
         console.warn(`[agents] Anthropic unavailable (${status}) — degrading to MockLLMProvider`);
         this.authFailed = true;

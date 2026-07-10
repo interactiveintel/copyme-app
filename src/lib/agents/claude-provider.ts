@@ -10,6 +10,7 @@ import type {
   LLMProvider,
   LLMResponse,
 } from "./types";
+import { AI_MODELS, modelAcceptsTemperature } from "@/lib/ai-models";
 
 /**
  * Maps our AgentToolParameter schema to Anthropic's JSON Schema format
@@ -105,7 +106,15 @@ function toAnthropicMessages(messages: AgentMessage[]): {
   const merged: Anthropic.MessageParam[] = [];
   for (const m of anthropicMessages) {
     const last = merged[merged.length - 1];
-    if (last && last.role === m.role) {
+    // Only string-content messages can be merged by concatenation; our
+    // producer always emits strings here, but the SDK type allows block
+    // arrays, so guard rather than stringify an array into "[object]".
+    if (
+      last &&
+      last.role === m.role &&
+      typeof last.content === "string" &&
+      typeof m.content === "string"
+    ) {
       last.content = `${last.content}\n\n${m.content}`;
     } else {
       merged.push({ role: m.role, content: m.content });
@@ -133,10 +142,9 @@ export class ClaudeLLMProvider implements LLMProvider {
     this.client = new Anthropic({
       apiKey: options?.apiKey || process.env.ANTHROPIC_API_KEY,
     });
-    // v4.16.27: claude-sonnet-4-20250514 was retired (404 not_found).
-    // Agents (smart-match, chat-assist, onboarding, moderation) run on
-    // Sonnet 5. Env override still honored.
-    this.model = options?.model || process.env.CLAUDE_MODEL || "claude-sonnet-5";
+    // Agents run on the current Sonnet (see lib/ai-models). Env
+    // override still honored.
+    this.model = options?.model || process.env.CLAUDE_MODEL || AI_MODELS.agent;
   }
 
   async complete(
@@ -147,17 +155,13 @@ export class ClaudeLLMProvider implements LLMProvider {
     const { system, messages: anthropicMessages } = toAnthropicMessages(messages);
     const anthropicTools = toAnthropicTools(tools);
 
-    // v4.16.27: `temperature` is deprecated on Sonnet 5 / current models
-    // (400 invalid_request_error). Only send it to legacy 3.x/4.x model
-    // ids that still accept it; omit for everything else and let the
-    // model use its default. Keeps the param wired for any pinned-legacy
-    // override via CLAUDE_MODEL.
-    const acceptsTemperature = /claude-(3|sonnet-4|opus-4-[0-7]|haiku-4)/.test(this.model);
-
+    // `temperature` is deprecated on current models (400
+    // invalid_request_error); only legacy model ids still accept it.
+    // Centralized in lib/ai-models so the rule lives in one place.
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      ...(acceptsTemperature ? { temperature } : {}),
+      ...(modelAcceptsTemperature(this.model) ? { temperature } : {}),
       system: system || undefined,
       messages: anthropicMessages,
       ...(anthropicTools.length > 0 && { tools: anthropicTools }),

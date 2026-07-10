@@ -14,10 +14,10 @@
 // ---------------------------------------------------------------------------
 
 import Anthropic from "@anthropic-ai/sdk";
+import { AI_MODELS } from "@/lib/ai-models";
 
-// v4.16.27: Opus 4.7 was retired — the account 404s on it. Yogi runs
-// on Opus 4.8 (current Opus). Env override still honored.
-const MODEL_ID = process.env.YOGI_MODEL || "claude-opus-4-8";
+// Yogi runs on the current Opus (see lib/ai-models). Env override wins.
+const MODEL_ID = process.env.YOGI_MODEL || AI_MODELS.yogi;
 const MAX_TOKENS = 1024; // Yogi replies are conversational, not essay-length.
 
 // Pricing per 1M tokens (USD). Used to estimate cost for the per-day cap.

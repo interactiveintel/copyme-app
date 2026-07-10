@@ -17,10 +17,11 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { addBreadcrumb, reportError } from "@/lib/observability";
+import { AI_MODELS } from "@/lib/ai-models";
 
 // Claude Haiku — fastest + cheapest. Pricing as of 2026-05: $0.25 / $1.25 per M
 // tokens input/output. A 70-word message round-trips in ~200 tokens → ~$0.0005.
-const TRANSLATION_MODEL = "claude-haiku-4-5-20251001";
+const TRANSLATION_MODEL = AI_MODELS.translation;
 const MAX_OUTPUT_TOKENS = 200;
 const DAILY_COST_CAP_MICRO_USD = Number(process.env.TRANSLATION_DAILY_COST_CAP_MICRO_USD ?? "100000"); // $0.10
 const CACHE_TTL_SECONDS = 24 * 60 * 60;
