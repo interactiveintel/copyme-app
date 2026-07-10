@@ -4,6 +4,33 @@ import { aiRateLimit } from "@/lib/redis";
 import { AgentEngine } from "@/lib/agents/engine";
 import { createChatAssistantConfig } from "@/lib/agents/chat-assistant";
 import type { AgentMessage } from "@/lib/agents/types";
+// v4.16.30: the "translate" action short-circuits to the real Haiku
+// translation pipeline (same one the message-send path uses) instead
+// of the agent's [lang]-prefix mock tool.
+import { translate } from "@/lib/translation";
+
+export const runtime = "nodejs";
+
+// Map the UI's language labels + ISO codes to the app's locale codes.
+// The picker sends full names ("Slovenian", "Spanish"); the composer
+// may send ISO ("es"). Everything unknown falls through unchanged.
+const LANG_TO_LOCALE: Record<string, string> = {
+  slovenian: "si", "slovenščina": "si", sl: "si", si: "si",
+  spanish: "es", "español": "es", es: "es",
+  german: "de", deutsch: "de", de: "de",
+  french: "fr", "français": "fr", fr: "fr",
+  english: "en", en: "en",
+  italian: "it", it: "it", portuguese: "pt", pt: "pt",
+  japanese: "ja", ja: "ja", chinese: "zh", zh: "zh",
+  korean: "ko", ko: "ko", arabic: "ar", ar: "ar",
+  hindi: "hi", hi: "hi", russian: "ru", ru: "ru", dutch: "nl", nl: "nl",
+};
+
+function toLocaleCode(raw: string | undefined): string {
+  if (!raw) return "es";
+  const k = raw.trim().toLowerCase();
+  return LANG_TO_LOCALE[k] ?? (k.length === 2 ? k : "es");
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/agents/chat-assist
@@ -48,6 +75,26 @@ export async function POST(request: NextRequest) {
         { success: false, error: { code: "MISSING_ACTION", message: "Action is required (suggest_reply, condense, translate, analyze_tone, detect_language, suggest_emoji)" } },
         { status: 400 },
       );
+    }
+
+    // v4.16.30: real translation for the draft-translate tab. Uses the
+    // Haiku pipeline (with Redis cache + per-user budget) instead of the
+    // agent's mock translate_message tool, which only prefixed "[lang]".
+    if (body.action === "translate") {
+      const text = (body.text ?? "").trim();
+      if (!text) {
+        return NextResponse.json({ success: true, data: { action: "translate", translation: null } });
+      }
+      const toLocale = toLocaleCode(body.targetLanguage);
+      const tr = await translate({ text, fromLocale: "auto", toLocale, userId: auth.userId });
+      return NextResponse.json({
+        success: true,
+        data: {
+          action: "translate",
+          translation: tr.text === text ? null : tr.text,
+          targetLanguage: toLocale,
+        },
+      });
     }
 
     // Build the user message based on action type
