@@ -11,6 +11,7 @@ import prisma from "@/lib/db";
 import { tFor } from "@/lib/i18n/server";
 import { isSupportedLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n";
+import { dialCodesForQuery } from "@/lib/search-country";
 
 // ---------------------------------------------------------------------------
 // Mock data — fallback user profiles when DB is empty
@@ -232,6 +233,9 @@ function makeSearchUsersTool(locale: Locale): AgentTool { return {
 
     // Try real database first
     try {
+      // v4.16.23: resolve country names in the query to dial codes so
+      // "United States" matches location.countryPhoneCode = "+1".
+      const dialCodes = dialCodesForQuery(query);
       const dbUsers = await prisma.user.findMany({
         where: {
           OR: [
@@ -240,6 +244,9 @@ function makeSearchUsersTool(locale: Locale): AgentTool { return {
             { location: { OR: [
               { globalArea: { contains: query, mode: "insensitive" } },
               { region: { contains: query, mode: "insensitive" } },
+              ...(dialCodes.length > 0
+                ? [{ countryPhoneCode: { in: dialCodes } }]
+                : []),
             ] } },
           ],
         },

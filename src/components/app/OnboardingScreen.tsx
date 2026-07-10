@@ -114,6 +114,32 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     { icon: UserRound, title: t("onboarding.step.about.title"), subtitle: t("onboarding.step.about.subtitle") },
   ];
 
+  // v4.16.23: required fields per step (Joze's product ask: "SHOULD BE
+  // OBLIGATORY TO FILL TXT INTO FIELDS WHEN REGISTER"). Profiles with
+  // empty location/interests are also invisible to search — the two
+  // complaints share a root. Step 0 needs the location basics; step 1
+  // needs at least 3 interests (7 slots stay optional beyond that);
+  // step 2 needs a description type. The Skip escape hatch is removed —
+  // completing the form IS onboarding now.
+  const [stepError, setStepError] = useState("");
+  const stepValid = (s: number): string | null => {
+    if (s === 0) {
+      if (!globalArea.trim()) return "Select your global area.";
+      if (!region.trim()) return "Enter your region or state.";
+      if (!cityZip.trim()) return "Enter your city.";
+      return null;
+    }
+    if (s === 1) {
+      const filled = interests.filter((i) => i.trim()).length;
+      return filled >= 3 ? null : "Add at least 3 interests so people can find you.";
+    }
+    if (s === 2) {
+      if (!descType.trim()) return "Describe what you do in a few words.";
+      return null;
+    }
+    return null;
+  };
+
   const updateInterest = (index: number, value: string) => {
     const next = [...interests];
     next[index] = value;
@@ -457,28 +483,38 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           }}
         />
 
-        {/* Navigation buttons */}
+        {/* Navigation buttons.
+            v4.16.23: Skip removed + per-step required-field gate. */}
+        {stepError && (
+          <p className="mt-4 text-xs text-rose-500 text-center">{stepError}</p>
+        )}
         <div className="flex items-center justify-between mt-8 gap-4">
           {step > 0 ? (
-            <GradientButton variant="secondary" onClick={() => setStep(step - 1)}>
+            <GradientButton variant="secondary" onClick={() => { setStepError(""); setStep(step - 1); }}>
               <ChevronLeft size={18} /> {t("cta.back")}
             </GradientButton>
           ) : (
             <div />
           )}
 
-          <button onClick={onComplete} className="text-sm text-slate-400 hover:text-slate-600 transition-colors">
-            {t("cta.skip")}
-          </button>
-
           {step < 2 ? (
-            <GradientButton onClick={() => setStep(step + 1)}>
+            <GradientButton
+              onClick={() => {
+                const err = stepValid(step);
+                if (err) { setStepError(err); return; }
+                setStepError("");
+                setStep(step + 1);
+              }}
+            >
               {t("cta.next")} <ChevronRight size={18} />
             </GradientButton>
           ) : (
             <GradientButton
               disabled={saving}
               onClick={async () => {
+                const err = stepValid(2);
+                if (err) { setStepError(err); return; }
+                setStepError("");
                 setSaving(true);
                 try {
                   const filledInterests = interests

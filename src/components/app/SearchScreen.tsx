@@ -798,7 +798,12 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
                   Upgrade to Premium for unlimited results and AI-powered
                   matching
                 </p>
-                <GradientButton size="sm" className="mx-auto">
+                {/* v4.16.23: was missing onClick (dead button). */}
+                <GradientButton
+                  size="sm"
+                  className="mx-auto"
+                  onClick={() => { window.location.href = "/pricing"; }}
+                >
                   Upgrade Now
                 </GradientButton>
               </div>

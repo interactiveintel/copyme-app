@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateRequest } from "@/lib/auth";
 import { getSearchLimit } from "@/lib/ruleOf7";
+import { dialCodesForQuery } from "@/lib/search-country";
 
 // ---------------------------------------------------------------------------
 // POST /api/search/users
@@ -79,6 +80,10 @@ export async function POST(request: NextRequest) {
         ? new Date(Date.now() - body.filters.withinDays * 86_400_000)
         : null;
 
+    // v4.16.23: does the query name a country? → dial codes to match
+    // against location.countryPhoneCode ("+1", "+386", ...).
+    const queryDialCodes = dialCodesForQuery(body.query);
+
     const users = await prisma.user.findMany({
       where: {
         id: { notIn: excludedIds }, // Exclude self + blocked
@@ -101,6 +106,13 @@ export async function POST(request: NextRequest) {
                 { region: { contains: body.query.trim(), mode: "insensitive" } },
                 { cityZip: { contains: body.query.trim(), mode: "insensitive" } },
                 { localDescription: { contains: body.query.trim(), mode: "insensitive" } },
+                // v4.16.23: country-name search. The DB stores the
+                // country as a dial code ("+1"), so "United States"
+                // can never string-match a column — resolve the query
+                // to dial codes first (lib/search-country.ts).
+                ...(queryDialCodes.length > 0
+                  ? [{ countryPhoneCode: { in: queryDialCodes } }]
+                  : []),
               ],
             },
           },

@@ -926,7 +926,16 @@ export default function ProfileScreen() {
             <Crown size={28} className="text-amber-400 mx-auto mb-2" />
             <p className="text-sm font-semibold text-slate-900 mb-1">{t("profile.upgrade.title")}</p>
             <p className="text-xs text-slate-500 mb-4">{t("profile.upgrade.subtitle")}</p>
-            <GradientButton className="mx-auto">{t("profile.upgrade.cta")}</GradientButton>
+            {/* v4.16.23: was rendered without onClick — tap played the
+                scale animation and did nothing ("IF I TRY TO UPGRADE
+                PLAN, NOTHING HAPPENS"). The full Stripe checkout flow
+                has existed at /pricing all along; link to it. */}
+            <GradientButton
+              className="mx-auto"
+              onClick={() => { window.location.href = "/pricing"; }}
+            >
+              {t("profile.upgrade.cta")}
+            </GradientButton>
           </div>
         </GlassCard>
 
