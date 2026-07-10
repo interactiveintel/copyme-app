@@ -109,12 +109,34 @@ export async function callYogi(input: YogiCallInput): Promise<YogiCallResult> {
     { role: "user" as const, content: input.userMessage },
   ];
 
-  const response = await client.messages.create({
-    model: MODEL_ID,
-    max_tokens: MAX_TOKENS,
-    system: systemBlocks,
-    messages,
-  });
+  let response: Anthropic.Message;
+  try {
+    response = await client.messages.create({
+      model: MODEL_ID,
+      max_tokens: MAX_TOKENS,
+      system: systemBlocks,
+      messages,
+    });
+  } catch (err) {
+    // v4.16.20: auth failures (revoked/rotated key) degrade to a canned
+    // companion reply instead of a 500. Every message erroring with
+    // "Yogi had a hiccup" is exactly how beta feedback read as "Yogi is
+    // not active". Non-auth errors still propagate — those are
+    // transient and the route's catch-all handles them.
+    const status = (err as { status?: number })?.status;
+    if (status === 401 || status === 403) {
+      console.warn("[yogi-claude] Anthropic auth failed — degraded reply served");
+      return {
+        text: degradedYogiReply(input.userMessage),
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        costMicroUsd: 0,
+      };
+    }
+    throw err;
+  }
 
   // Concatenate text blocks (skip thinking / tool blocks — Yogi doesn't use tools).
   const text = response.content
@@ -147,4 +169,24 @@ export async function callYogi(input: YogiCallInput): Promise<YogiCallResult> {
     cacheWriteTokens,
     costMicroUsd,
   };
+}
+
+// ---------------------------------------------------------------------------
+// v4.16.20: degraded-mode replies when Anthropic auth fails.
+//
+// Deliberately honest — Yogi says it's running in a limited mode rather
+// than pretending to be the full model. Varies by a cheap hash of the
+// user message so back-to-back sends don't repeat one string.
+// ---------------------------------------------------------------------------
+const DEGRADED_REPLIES = [
+  "I'm running in limited mode right now — my full brain is briefly offline while the team reconnects it. I can still keep you company! What's on your mind?",
+  "Heads up: I'm on backup power at the moment, so my replies are simpler than usual. The team is on it. Tell me what you're up to anyway?",
+  "My smart half is temporarily unreachable — the team is restoring it. Meanwhile: how's your day actually going?",
+  "I'm in lightweight mode right now (connection to my full model is being fixed). Happy to chat — what would you like to talk about?",
+] as const;
+
+function degradedYogiReply(userMessage: string): string {
+  let h = 0;
+  for (let i = 0; i < userMessage.length; i++) h = (h * 31 + userMessage.charCodeAt(i)) | 0;
+  return DEGRADED_REPLIES[Math.abs(h) % DEGRADED_REPLIES.length];
 }

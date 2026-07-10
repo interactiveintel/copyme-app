@@ -17,14 +17,51 @@ import { ClaudeLLMProvider } from "./claude-provider";
 
 /**
  * Creates the best available LLM provider:
- * - If ANTHROPIC_API_KEY is set → ClaudeLLMProvider (real AI)
+ * - If ANTHROPIC_API_KEY is set → ClaudeLLMProvider (real AI), wrapped
+ *   so runtime auth failures degrade to the mock instead of erroring.
  * - Otherwise → MockLLMProvider (pattern-matching demo)
  */
 export function createProvider(): LLMProvider {
   if (process.env.ANTHROPIC_API_KEY) {
-    return new ClaudeLLMProvider();
+    return new ResilientProvider(new ClaudeLLMProvider());
   }
   return new MockLLMProvider();
+}
+
+// ---------------------------------------------------------------------------
+// v4.16.20: ResilientProvider — a key that is SET but INVALID (revoked,
+// rotated, typo'd in Vercel env) used to make every engine-based agent
+// (smart-match, chat-assist, onboarding, moderate) return "Agent
+// encountered an error: 401…". The env-var check above only covers the
+// UNSET case. This wrapper catches auth errors at call time and flips
+// to the mock provider for the remainder of the process lifetime, so
+// agents keep answering — degraded, not dead.
+// ---------------------------------------------------------------------------
+class ResilientProvider implements LLMProvider {
+  private authFailed = false;
+  private mock = new MockLLMProvider();
+
+  constructor(private readonly real: LLMProvider) {}
+
+  async complete(
+    messages: AgentMessage[],
+    tools: AgentTool[],
+    temperature: number,
+  ): Promise<LLMResponse> {
+    if (this.authFailed) return this.mock.complete(messages, tools, temperature);
+    try {
+      return await this.real.complete(messages, tools, temperature);
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (status === 401 || status === 403 || /401|invalid x-api-key/i.test(msg)) {
+        console.warn("[agents] Anthropic auth failed — degrading to MockLLMProvider");
+        this.authFailed = true;
+        return this.mock.complete(messages, tools, temperature);
+      }
+      throw err;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
