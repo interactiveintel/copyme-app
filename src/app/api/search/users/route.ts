@@ -139,6 +139,10 @@ export async function POST(request: NextRequest) {
             globalArea: true,
             region: true,
             cityZip: true,
+            // v4.16.26: needed for dial-code scoring below. Not echoed
+            // to the client — the response's location object still
+            // exposes only globalArea/region/cityZip.
+            countryPhoneCode: true,
             locationVisible: true,
           },
         },
@@ -173,7 +177,17 @@ export async function POST(request: NextRequest) {
           user.location.region,
           user.location.cityZip,
         ];
-        if (locationFields.some((f: string | null | undefined) => f?.toLowerCase().includes(queryLower))) {
+        const textHit = locationFields.some(
+          (f: string | null | undefined) => f?.toLowerCase().includes(queryLower),
+        );
+        // v4.16.26: dial-code hit ("United States" → "+1") counts the
+        // same as a location text hit — rows matched only by country
+        // were returning with 0% MATCH badges (looked broken in QA).
+        const countryHit =
+          queryDialCodes.length > 0 &&
+          typeof user.location.countryPhoneCode === "string" &&
+          queryDialCodes.includes(user.location.countryPhoneCode);
+        if (textHit || countryHit) {
           relevanceScore += 3;
         }
       }
