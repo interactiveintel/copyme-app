@@ -303,6 +303,18 @@ export class MockLLMProvider implements LLMProvider {
       return { name: "adapt_style", args: { aspect, direction } };
     }
 
+    // v4.16.25: smart-match default. AI-mode search sends the raw query
+    // ("photography", "Slovenia hiking") as the whole user message —
+    // none of the verb keywords above appear, so the mock fell through
+    // to text and AI search returned zero results despite matching
+    // users existing. For the smart-match toolset, the user's intent
+    // IS ALWAYS a search — default to search_users with the raw query.
+    // search_users only exists in smart-match's toolset, so other
+    // agents are unaffected.
+    if (toolMap.has("search_users") && msg.trim().length > 0) {
+      return { name: "search_users", args: { query: userMessage, limit: 7 } };
+    }
+
     return null;
   }
 
