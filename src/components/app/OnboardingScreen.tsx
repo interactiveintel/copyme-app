@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Sparkles, UserRound, ChevronLeft, ChevronRight, Eye, EyeOff, Upload } from "lucide-react";
+import { MapPin, Sparkles, UserRound, ChevronLeft, ChevronRight, Eye, EyeOff, Upload, Check } from "lucide-react";
 import GlassCard from "../ui/GlassCard";
 import GradientButton from "../ui/GradientButton";
 import WordCounter from "../ui/WordCounter";
 import OnboardingAI from "./OnboardingAI";
+import { compressImage } from "@/lib/image-compress";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/client";
 import { COUNTRIES } from "@/lib/phone/countries";
@@ -61,6 +62,51 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [descLocation, setDescLocation] = useState("");
   const [descInstitution, setDescInstitution] = useState("");
   const [descType, setDescType] = useState("");
+
+  // v4.16.21: avatar upload during onboarding. The circle used to be a
+  // decorative div — cursor-pointer, no input, no handler — so "I
+  // SELECTED NEW PHOTO, NOTHING HAPPENS" (Joze, June 23). Registration
+  // stores tokens BEFORE onboarding mounts, so authFetch works here;
+  // this mirrors ProfileScreen.handleAvatarPick (the post-signup path
+  // that has worked since v4.14.1).
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+
+  const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAvatarError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      let uploadFile = file;
+      try {
+        uploadFile = await compressImage(file);
+      } catch {
+        // Decode failed (e.g. raw HEIC) — try the original; the server
+        // 2MB cap still applies.
+      }
+      if (uploadFile.size > 2 * 1024 * 1024) {
+        setAvatarError("Image is too large even after compression. Try a different photo.");
+        return;
+      }
+      const form = new FormData();
+      form.append("file", uploadFile);
+      const res = await authFetch("/api/uploads/avatar", { method: "POST", body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setAvatarError(data?.error === "TOO_LARGE" ? "Image must be under 2 MB." : "Upload failed. Try a different image.");
+        return;
+      }
+      setAvatarUrl(String(data.url ?? ""));
+    } catch {
+      setAvatarError("Network error. Try again.");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
 
   const steps = [
     { icon: MapPin, title: t("onboarding.step.location.title"), subtitle: t("onboarding.step.location.subtitle") },
@@ -267,12 +313,42 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             >
               <GlassCard gradient className="overflow-hidden">
                 <div className="p-5 space-y-4">
-                  {/* Avatar upload */}
-                  <div className="flex justify-center mb-2">
-                    <div className="w-24 h-24 rounded-full border-2 border-dashed border-purple-500/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-purple-400/70 transition-colors">
-                      <Upload size={20} className="text-purple-400/60" />
-                      <span className="text-[10px] text-white/40">{t("onboarding.uploadPhoto")}</span>
-                    </div>
+                  {/* Avatar upload — wired in v4.16.21 (was decorative). */}
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarPick}
+                  />
+                  <div className="flex flex-col items-center mb-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      aria-label={t("onboarding.uploadPhoto")}
+                      className="w-24 h-24 rounded-full border-2 border-dashed border-purple-500/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-purple-400/70 transition-colors overflow-hidden disabled:opacity-60"
+                    >
+                      {avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatarUrl} alt="Your photo" className="w-full h-full object-cover" />
+                      ) : avatarUploading ? (
+                        <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Upload size={20} className="text-purple-400/60" />
+                          <span className="text-[10px] text-slate-500">{t("onboarding.uploadPhoto")}</span>
+                        </>
+                      )}
+                    </button>
+                    {avatarUrl && !avatarUploading && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600">
+                        <Check size={11} /> Photo saved
+                      </span>
+                    )}
+                    {avatarError && (
+                      <span className="text-[11px] text-rose-500 text-center max-w-[240px]">{avatarError}</span>
+                    )}
                   </div>
 
                   {/* Category */}
