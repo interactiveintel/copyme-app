@@ -89,7 +89,36 @@ function toAnthropicMessages(messages: AgentMessage[]): {
     anthropicMessages.push({ role: "user", content: "Begin." });
   }
 
-  return { system, messages: anthropicMessages };
+  // v4.16.29: normalize to a valid Anthropic turn sequence. The agent
+  // engine represents each tool result as a trailing `assistant`
+  // message, which produces (a) consecutive same-role messages when
+  // multiple tools run and (b) a conversation ending on `assistant`.
+  // Sonnet 5 (and current models generally) reject both: roles must
+  // alternate and the last turn must be `user`. Older models tolerated
+  // it, which is why this only surfaced after the model bump.
+  //
+  // Fix: merge consecutive same-role messages, then if the sequence
+  // ends on `assistant` (i.e. the last thing the engine did was stash a
+  // tool result), append a `user` turn asking the model to continue.
+  // Anthropic's own convention is that tool results live in a user
+  // turn, so this is semantically faithful, not a hack.
+  const merged: Anthropic.MessageParam[] = [];
+  for (const m of anthropicMessages) {
+    const last = merged[merged.length - 1];
+    if (last && last.role === m.role) {
+      last.content = `${last.content}\n\n${m.content}`;
+    } else {
+      merged.push({ role: m.role, content: m.content });
+    }
+  }
+  if (merged[merged.length - 1]!.role === "assistant") {
+    merged.push({
+      role: "user",
+      content: "Continue based on the results above. If you have enough information, give your final answer.",
+    });
+  }
+
+  return { system, messages: merged };
 }
 
 // ---------------------------------------------------------------------------
