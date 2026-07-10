@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import prisma from "@/lib/db";
-import {
-  verifyPassword,
-  generateAccessToken,
-  generateRefreshToken,
-} from "@/lib/auth";
+import { verifyPassword } from "@/lib/auth";
+// v4.16.18 (stay-signed-in root fix): mint DB-backed sessions instead
+// of bare JWTs. The v4.3.0 refresh rewrite (S-107 single-use rotation)
+// only accepts tokens with a matching `sessions` row — bare JWTs from
+// this route could never refresh, so every password login hard-died
+// ~15 minutes in (access TTL), wiping storage and bouncing the user
+// back to the sign-in form no matter what "stay signed in" said.
+import { issueSession } from "@/lib/sessions";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 import { bumpStreak } from "@/lib/streak";
+
+// Prisma + bcryptjs — must stay on the Node runtime (AGENTS.md).
+export const runtime = "nodejs";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/login
@@ -105,9 +111,12 @@ export async function POST(request: NextRequest) {
     // --- Update last activity + streak --------------------------------------
     await bumpStreak(user.id);
 
-    // --- Generate tokens ----------------------------------------------------
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
+    // --- Mint a DB-backed session (refresh-rotation compatible) -------------
+    const tokens = await issueSession({
+      userId: user.id,
+      userAgent: request.headers.get("user-agent") ?? undefined,
+      ip,
+    });
 
     return NextResponse.json({
       success: true,
@@ -117,8 +126,8 @@ export async function POST(request: NextRequest) {
           displayName: user.displayName,
           accountTier: user.accountTier,
         },
-        accessToken,
-        refreshToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       },
     });
   } catch (error) {

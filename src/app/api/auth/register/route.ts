@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import prisma from "@/lib/db";
-import { hashPassword, generateAccessToken, generateRefreshToken } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+import { issueSession } from "@/lib/sessions";
 import { validateDisplayName } from "@/lib/ruleOf7";
 import { issueEmailVerification } from "@/lib/email-verification";
 // Welcome email is now sent by /api/auth/email/verify on first
@@ -177,9 +178,15 @@ export async function POST(request: NextRequest) {
       accountTier: user.accountTier,
     });
 
-    // --- Generate tokens ----------------------------------------------------
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
+    // --- Mint a DB-backed session (v4.16.18) --------------------------------
+    // Same fix as /api/auth/login: bare JWTs can't pass the S-107
+    // refresh rotation (no sessions row), so registered users were
+    // silently logged out ~15 minutes after signup.
+    const tokens = await issueSession({
+      userId: user.id,
+      userAgent: request.headers.get("user-agent") ?? undefined,
+      ip,
+    });
 
     return NextResponse.json(
       {
@@ -189,8 +196,8 @@ export async function POST(request: NextRequest) {
             id: user.id,
             displayName: user.displayName,
           },
-          accessToken,
-          refreshToken,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
         },
       },
       { status: 201 },

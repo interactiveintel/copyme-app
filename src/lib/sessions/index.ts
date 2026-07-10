@@ -100,10 +100,26 @@ export async function rotateRefresh(
   }
 
   if (!match) {
-    // The token is structurally valid but no live session matches it. That
-    // is the textbook replay symptom: the row was rotated, and someone is
-    // presenting the old token. Mark all of this user's live sessions for
-    // user notification.
+    // v4.16.18: distinguish two very different no-match cases.
+    //
+    // A structurally-valid refresh token with ZERO session rows for the
+    // user (live or revoked) is an ORPHAN — a bare JWT minted before
+    // login/register/password-reset were migrated to issueSession, or
+    // a token from a wiped database. Not a replay: there was never a
+    // row to rotate. Returning REPLAY here stamped false "token replay
+    // detected" security banners on every legacy password-login user.
+    //
+    // Only when the user HAS session history does a non-matching token
+    // mean someone is presenting a rotated-away credential — the
+    // textbook replay symptom worth alerting on.
+    const anySessionRows = await prisma.session.count({
+      where: { userId: payload.userId },
+    });
+    if (anySessionRows === 0) {
+      addBreadcrumb("auth.orphan_refresh", { userId: payload.userId });
+      return { error: "INVALID" };
+    }
+
     await prisma.session.updateMany({
       where: { userId: payload.userId, revokedAt: null },
       data: { replayDetectedAt: new Date() },

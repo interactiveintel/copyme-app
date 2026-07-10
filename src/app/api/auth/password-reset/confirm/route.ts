@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import prisma from "@/lib/db";
-import {
-  hashPassword,
-  generateAccessToken,
-  generateRefreshToken,
-} from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+// v4.16.18: DB-backed session, not bare JWTs — see login/route.ts.
+import { issueSession } from "@/lib/sessions";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
+
+export const runtime = "nodejs";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/password-reset/confirm
@@ -112,15 +112,18 @@ export async function POST(request: NextRequest) {
       }),
     ]);
 
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
+    const tokens = await issueSession({
+      userId: user.id,
+      userAgent: request.headers.get("user-agent") ?? undefined,
+      ip: clientIpFromRequest(request),
+    });
 
     return NextResponse.json({
       success: true,
       data: {
         user: { id: user.id, displayName: user.displayName, accountTier: user.accountTier },
-        accessToken,
-        refreshToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       },
     });
   } catch (error) {
