@@ -104,7 +104,10 @@ export class ClaudeLLMProvider implements LLMProvider {
     this.client = new Anthropic({
       apiKey: options?.apiKey || process.env.ANTHROPIC_API_KEY,
     });
-    this.model = options?.model || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
+    // v4.16.27: claude-sonnet-4-20250514 was retired (404 not_found).
+    // Agents (smart-match, chat-assist, onboarding, moderation) run on
+    // Sonnet 5. Env override still honored.
+    this.model = options?.model || process.env.CLAUDE_MODEL || "claude-sonnet-5";
   }
 
   async complete(

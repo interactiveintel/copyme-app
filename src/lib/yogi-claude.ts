@@ -15,20 +15,22 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const MODEL_ID = process.env.YOGI_MODEL || "claude-opus-4-7";
+// v4.16.27: Opus 4.7 was retired — the account 404s on it. Yogi runs
+// on Opus 4.8 (current Opus). Env override still honored.
+const MODEL_ID = process.env.YOGI_MODEL || "claude-opus-4-8";
 const MAX_TOKENS = 1024; // Yogi replies are conversational, not essay-length.
 
 // Pricing per 1M tokens (USD). Used to estimate cost for the per-day cap.
 // Update if YOGI_MODEL changes.
 const PRICING_BY_MODEL: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+  "claude-opus-4-8": { input: 5.0, output: 25.0, cacheRead: 0.5, cacheWrite: 6.25 },
   "claude-opus-4-7": { input: 5.0, output: 25.0, cacheRead: 0.5, cacheWrite: 6.25 },
-  "claude-opus-4-6": { input: 5.0, output: 25.0, cacheRead: 0.5, cacheWrite: 6.25 },
-  "claude-sonnet-4-6": { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite: 3.75 },
-  "claude-haiku-4-5": { input: 1.0, output: 5.0, cacheRead: 0.1, cacheWrite: 1.25 },
+  "claude-sonnet-5": { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite: 3.75 },
+  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0, cacheRead: 0.1, cacheWrite: 1.25 },
 };
 
 function pricing() {
-  return PRICING_BY_MODEL[MODEL_ID] ?? PRICING_BY_MODEL["claude-opus-4-7"]!;
+  return PRICING_BY_MODEL[MODEL_ID] ?? PRICING_BY_MODEL["claude-opus-4-8"]!;
 }
 
 // ---------------------------------------------------------------------------

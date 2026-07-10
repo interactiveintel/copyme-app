@@ -19,7 +19,9 @@ import prisma from "@/lib/db";
 const ROLLUP_TRIGGER = 60; // total messages before a rollup is run
 const KEEP_VERBATIM = 10; // most-recent messages preserved verbatim
 const SUMMARY_MAX_TOKENS = 400;
-const SUMMARY_MODEL = process.env.YOGI_SUMMARY_MODEL || "claude-haiku-4-5";
+// v4.16.27: pin the dated Haiku 4.5 id (the bare "claude-haiku-4-5"
+// alias isn't guaranteed to resolve). Matches translation.ts.
+const SUMMARY_MODEL = process.env.YOGI_SUMMARY_MODEL || "claude-haiku-4-5-20251001";
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {

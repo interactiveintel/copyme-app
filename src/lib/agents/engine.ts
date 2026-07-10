@@ -54,8 +54,13 @@ class ResilientProvider implements LLMProvider {
     } catch (err) {
       const status = (err as { status?: number })?.status;
       const msg = err instanceof Error ? err.message : String(err);
-      if (status === 401 || status === 403 || /401|invalid x-api-key/i.test(msg)) {
-        console.warn("[agents] Anthropic auth failed — degrading to MockLLMProvider");
+      // v4.16.27: also degrade on a retired-model 404 (not_found_error).
+      // Before this, a stale model id hard-errored the agent instead of
+      // falling back to the mock — exactly how the Sonnet-4 retirement
+      // surfaced once the key was valid again.
+      const modelGone = status === 404 && /not_found|model/i.test(msg);
+      if (status === 401 || status === 403 || /401|invalid x-api-key/i.test(msg) || modelGone) {
+        console.warn(`[agents] Anthropic unavailable (${status}) — degrading to MockLLMProvider`);
         this.authFailed = true;
         return this.mock.complete(messages, tools, temperature);
       }
