@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CreditCard, ArrowRight, Loader2, AlertTriangle } from "lucide-react";
+import { getAccessToken } from "@/lib/client-token";
 
 interface MeResponse {
   success: boolean;
@@ -35,13 +36,9 @@ export default function ProfileBillingPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"portal" | "cancel" | null>(null);
-  // Stripe customer id is currently NOT persisted on the User row (no schema
-  // changes per the sprint plan). The Manage / Cancel actions therefore ask
-  // the user for it inline. Once we add `stripeCustomerId` we can drop this.
-  const [customerId, setCustomerId] = useState<string>("");
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("copyme.access") : null;
+    const token = getAccessToken();
     if (!token) {
       router.replace("/signup?next=/profile/billing");
       return;
@@ -65,11 +62,9 @@ export default function ProfileBillingPage() {
 
   async function openPortal() {
     setError(null);
-    if (!customerId) {
-      setError("Enter your Stripe customer id (cus_...) to open the portal.");
-      return;
-    }
-    const token = localStorage.getItem("copyme.access");
+    // v4.16.33: portal now resolves the Stripe customer id server-side
+    // from the signed-in user — no hand-typed cus_ id.
+    const token = getAccessToken();
     if (!token) {
       router.replace("/signup?next=/profile/billing");
       return;
@@ -79,7 +74,6 @@ export default function ProfileBillingPage() {
       const res = await fetch("/api/billing/portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -96,14 +90,12 @@ export default function ProfileBillingPage() {
 
   async function downgradeToFree() {
     setError(null);
-    if (!customerId) {
-      setError("Enter your Stripe customer id to cancel your subscription.");
-      return;
-    }
     if (!window.confirm("Cancel your paid plan and return to Free? This takes effect immediately.")) {
       return;
     }
-    const token = localStorage.getItem("copyme.access");
+    // v4.16.33: cancel resolves the subscription server-side from the
+    // signed-in user — no hand-typed cus_ id.
+    const token = getAccessToken();
     if (!token) {
       router.replace("/signup?next=/profile/billing");
       return;
@@ -113,7 +105,7 @@ export default function ProfileBillingPage() {
       const res = await fetch("/api/billing/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId, when: "now" }),
+        body: JSON.stringify({ when: "now" }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -189,21 +181,6 @@ export default function ProfileBillingPage() {
               <p className="mt-1 text-sm text-slate-500">
                 Update payment method, change plan, or download invoices in Stripe&rsquo;s
                 customer portal.
-              </p>
-
-              <label className="mt-4 block text-xs font-medium text-slate-600">
-                Stripe customer id
-              </label>
-              <input
-                type="text"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value.trim())}
-                placeholder="cus_..."
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-100"
-              />
-              <p className="mt-1 text-[10px] text-slate-400">
-                Look this up on a Stripe receipt email — we&rsquo;ll auto-link it once we
-                ship customer-id storage in a follow-up task.
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">

@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, ArrowRight, Zap, Crown, Briefcase } from "lucide-react";
+import { getAccessToken } from "@/lib/client-token";
 
 interface Tier {
   name: string;
@@ -129,7 +130,7 @@ export default function PricingPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("copyme.access") : null;
+    const token = getAccessToken();
     if (!token) {
       setAuth("anon");
       return;
@@ -155,7 +156,7 @@ export default function PricingPage() {
       window.location.href = `/signup?next=/pricing`;
       return;
     }
-    const token = localStorage.getItem("copyme.access");
+    const token = getAccessToken();
     if (!token) {
       window.location.href = `/signup?next=/pricing`;
       return;

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { stripeWebhookConfigured, verifyStripeSignature } from "@/lib/stripe";
 
+// Reads the raw body for HMAC signature verification + writes via Prisma.
+// AGENTS.md requires the Node runtime for both; every sibling billing
+// route declares it (v4.16.33 — this one was missing it).
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // POST /api/webhooks/stripe
 //
@@ -149,7 +155,9 @@ async function handleSubscriptionCheckout(
 
     await prisma.user.update({
       where: { id: userId },
-      data: { accountTier: targetTier, ...stripeIdUpdate },
+      // v4.16.33: light up the VAP wallet on any paid upgrade — it was
+      // never set here, so paid users kept the schema default (false).
+      data: { accountTier: targetTier, vapEnabled: true, ...stripeIdUpdate },
     });
     console.log(`[stripe webhook] user ${userId} upgraded to ${targetTier} (plan=${plan}, customer=${customerId ?? "n/a"}, sub=${subscriptionId ?? "n/a"})`);
     return NextResponse.json({
@@ -253,10 +261,18 @@ export async function POST(request: NextRequest) {
   const sig = request.headers.get("stripe-signature");
 
   if (!stripeWebhookConfigured()) {
-    // Stripe is sending us events but we haven't set the secret. Log and
-    // ignore; do NOT 500 (Stripe would retry forever).
-    console.warn("[stripe webhook] STRIPE_WEBHOOK_SECRET not set; ignoring event");
-    return NextResponse.json({ success: true, data: { ignored: "not_configured" } });
+    // v4.16.33: FAIL LOUD. The webhook is the ONLY path that upgrades a
+    // paid account (verify-session is read-only). If the secret is
+    // missing, silently 200-acking meant Stripe marked the event
+    // delivered and the customer was charged but never upgraded — with
+    // zero signal. Returning 503 surfaces the misconfig in Stripe's
+    // dashboard (failed deliveries) and lets Stripe retry once the
+    // secret is set. Configure STRIPE_WEBHOOK_SECRET before go-live.
+    console.error("[stripe webhook] STRIPE_WEBHOOK_SECRET not set — event NOT processed");
+    return NextResponse.json(
+      { success: false, error: { code: "WEBHOOK_NOT_CONFIGURED" } },
+      { status: 503 },
+    );
   }
 
   if (!verifyStripeSignature(rawBody, sig)) {

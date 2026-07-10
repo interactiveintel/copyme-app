@@ -23,7 +23,11 @@ export function stripeWebhookConfigured(): boolean {
   return Boolean(process.env.STRIPE_WEBHOOK_SECRET);
 }
 
-function appBase(): string {
+// Exported (v4.16.33) so the subscription checkout route uses the same
+// absolute-URL fallback as the rest of the billing lib. Stripe rejects
+// relative success/cancel URLs, so an empty NEXT_PUBLIC_APP_URL must
+// still resolve to a real host.
+export function appBase(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   }

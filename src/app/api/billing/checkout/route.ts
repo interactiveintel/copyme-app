@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { appBase } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -39,18 +40,28 @@ export async function POST(req: NextRequest) {
     .includes(String(countryIso2 ?? "").toLowerCase());
   const deferActivation = isEu && !waiveCancellation;
 
+  // v4.16.33: absolute URLs via the shared appBase() fallback. Stripe
+  // 400s on relative URLs, so an empty NEXT_PUBLIC_APP_URL used to make
+  // session creation fail with a 502 before checkout even opened.
+  const base = appBase();
+
   const params = new URLSearchParams();
   params.append("mode", "subscription");
   params.append("line_items[0][price]", priceId);
   params.append("line_items[0][quantity]", "1");
   params.append("client_reference_id", auth.userId);
-  params.append("success_url", `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/billing/success?session_id={CHECKOUT_SESSION_ID}`);
-  params.append("cancel_url", `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/pricing?canceled=1`);
+  params.append("success_url", `${base}/billing/success?session_id={CHECKOUT_SESSION_ID}`);
+  params.append("cancel_url", `${base}/pricing?canceled=1`);
   params.append("metadata[plan]", plan);
   params.append("metadata[period]", period);
   params.append("metadata[deferActivation]", String(deferActivation));
-  // S-245 — Stripe Tax handles SI VAT + US sales-tax nexus when enabled.
-  params.append("automatic_tax[enabled]", "true");
+  // v4.16.33: Stripe Tax hard-fails session creation (→502) unless Tax
+  // is configured on the account (origin address + registrations). Gate
+  // it behind an env flag so checkout works out of the box; flip
+  // STRIPE_AUTOMATIC_TAX=1 once Tax is set up in the dashboard.
+  if (process.env.STRIPE_AUTOMATIC_TAX === "1" || process.env.STRIPE_AUTOMATIC_TAX === "true") {
+    params.append("automatic_tax[enabled]", "true");
+  }
 
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
