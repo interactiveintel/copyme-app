@@ -57,6 +57,13 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState("");
+  // v4.16.19: phone path now completes in-app. After the request
+  // succeeds for a phone number, we hold the normalized E.164 and show
+  // a code + new-password step that POSTs /password-reset/verify-otp.
+  // Email path keeps the "check your inbox" terminal state.
+  const [forgotPhoneE164, setForgotPhoneE164] = useState<string | null>(null);
+  const [forgotCode, setForgotCode] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
 
   // Detect whether the user typed a phone number or an email. Cheap
   // heuristic: contains "@" → email; otherwise treat as phone (and
@@ -93,11 +100,58 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
       // The endpoint returns a generic success regardless of whether
       // the account exists — anti-enumeration. Just reflect it.
       if (res.ok) {
-        setForgotSent(true);
+        if (body.phone) {
+          // v4.16.19: phone path — advance to the SMS-code step.
+          setForgotPhoneE164(body.phone);
+        } else {
+          setForgotSent(true);
+        }
       } else {
         const data = await res.json().catch(() => null);
         setForgotError(data?.error?.message || "Something went wrong. Try again.");
       }
+    } catch {
+      setForgotError("Network error. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // v4.16.19: complete the phone-path reset — verify the SMS code, set
+  // the new password, then sign in with it (fresh DB-backed session).
+  const handleForgotVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    if (!forgotPhoneE164) return;
+    if (!/^\d{4,8}$/.test(forgotCode.trim())) {
+      setForgotError("Enter the code from the SMS.");
+      return;
+    }
+    if (forgotNewPassword.length < 8) {
+      setForgotError("New password must be at least 8 characters.");
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const res = await fetch("/api/auth/password-reset/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: forgotPhoneE164,
+          code: forgotCode.trim(),
+          password: forgotNewPassword,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setForgotError(data?.error?.message || "Couldn't verify the code. Try again.");
+        return;
+      }
+      // Password is reset — sign in with it so the user lands in the
+      // app instead of retyping credentials they just created.
+      await login(forgotPhoneE164, forgotNewPassword, staySignedIn);
+      setForgotOpen(false);
+      onLogin();
     } catch {
       setForgotError("Network error. Please try again.");
     } finally {
@@ -533,6 +587,52 @@ export default function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                     link has been sent. Check your inbox or text messages.
                   </p>
                 </div>
+              ) : forgotPhoneE164 ? (
+                /* v4.16.19: phone path step 2 — SMS code + new password. */
+                <form onSubmit={handleForgotVerify} className="space-y-3">
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <p className="text-xs text-emerald-700">
+                      If an account exists for {forgotPhoneE164}, a code was
+                      just texted to it. Enter it below with your new password.
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={forgotCode}
+                    onChange={(e) => setForgotCode(e.target.value)}
+                    placeholder="SMS code"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm tracking-widest placeholder:text-slate-400 focus:outline-none focus:border-purple-400"
+                    autoFocus
+                  />
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={forgotNewPassword}
+                    onChange={(e) => setForgotNewPassword(e.target.value)}
+                    placeholder="New password (min 8 characters)"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-purple-400"
+                  />
+                  {forgotError && (
+                    <p className="text-xs text-rose-500">{forgotError}</p>
+                  )}
+                  <GradientButton
+                    type="submit"
+                    className="w-full"
+                    size="md"
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading ? "Verifying…" : "Set new password"}
+                  </GradientButton>
+                  <button
+                    type="button"
+                    onClick={() => { setForgotPhoneE164(null); setForgotCode(""); setForgotNewPassword(""); setForgotError(""); }}
+                    className="w-full text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    Use a different number
+                  </button>
+                </form>
               ) : (
                 <form onSubmit={handleForgotSubmit} className="space-y-3">
                   {/* Single input accepts phone OR email (v4.15.2).

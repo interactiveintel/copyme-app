@@ -7,6 +7,10 @@ import {
   buildPasswordResetUrl,
 } from "@/lib/mailer";
 import { rateLimit, clientIpFromRequest } from "@/lib/rate-limit";
+// v4.16.19: SMS OTP delivery for the phone path (Twilio Verify).
+import { sendOtp } from "@/lib/otp";
+
+export const runtime = "nodejs";
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/password-reset/request
@@ -119,14 +123,17 @@ export async function POST(request: NextRequest) {
          
         console.warn("[password-reset] mail send failed:", result.error);
       }
-    } else {
-      // Phone-only path: log the raw link for developer / operator use.
-      // Once SMS is integrated (Sprint 1.x), we'll send the link via SMS.
-       
-      console.log(
-        `[password-reset] phone-only request for user ${user.id}. ` +
-        `Reset link (deliver via SMS in a later sprint):\n  ${buildPasswordResetUrl(raw)}`,
-      );
+    } else if (body.phone) {
+      // v4.16.19: phone path now delivers a real SMS OTP via the same
+      // Twilio Verify plumbing signup uses (src/lib/otp). The client
+      // collects code + new password and POSTs
+      // /api/auth/password-reset/verify-otp. Previously this branch
+      // only console.logged the reset link — Joze's "NEITHER EMAIL NOR
+      // SMS" report was this exact gap.
+      const sms = await sendOtp(body.phone, ip);
+      if (!sms.ok) {
+        console.warn("[password-reset] OTP send failed:", sms.reason);
+      }
     }
 
     return GENERIC_RESPONSE;
