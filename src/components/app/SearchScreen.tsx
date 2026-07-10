@@ -347,10 +347,18 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
         if (!res.ok) return;
         const data = await res.json();
         if (!alive) return;
+        // v4.16.17 (P0 crash fix): /api/users/suggested returns interest
+        // ROWS ({slotNumber, interestText}), not strings. The old cast
+        // said string[] and passed rows straight into the card render —
+        // React error #31 ("Objects are not valid as a React child")
+        // took down the whole Search tab with "Application error" the
+        // moment real users loaded. This was Joze's June-23 blocker.
+        // Normalize defensively: accept both shapes so a future server
+        // change to plain strings can't re-crash the client.
         const items = (data?.data?.suggestions ?? []) as Array<{
           id?: string;
           displayName?: string;
-          interests?: string[];
+          interests?: Array<string | { interestText?: string }>;
           location?: SearchResult["location"];
         }>;
         setSuggestedReal(
@@ -360,7 +368,9 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
               id: String(u.id),
               displayName: String(u.displayName),
               profileType: "personal",
-              interests: u.interests ?? [],
+              interests: (u.interests ?? [])
+                .map((x) => (typeof x === "string" ? x : x?.interestText ?? ""))
+                .filter(Boolean),
               location: u.location ?? null,
               avatarUrl: null,
               online: false,
