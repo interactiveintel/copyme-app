@@ -118,10 +118,17 @@ export class ClaudeLLMProvider implements LLMProvider {
     const { system, messages: anthropicMessages } = toAnthropicMessages(messages);
     const anthropicTools = toAnthropicTools(tools);
 
+    // v4.16.27: `temperature` is deprecated on Sonnet 5 / current models
+    // (400 invalid_request_error). Only send it to legacy 3.x/4.x model
+    // ids that still accept it; omit for everything else and let the
+    // model use its default. Keeps the param wired for any pinned-legacy
+    // override via CLAUDE_MODEL.
+    const acceptsTemperature = /claude-(3|sonnet-4|opus-4-[0-7]|haiku-4)/.test(this.model);
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      temperature,
+      ...(acceptsTemperature ? { temperature } : {}),
       system: system || undefined,
       messages: anthropicMessages,
       ...(anthropicTools.length > 0 && { tools: anthropicTools }),
