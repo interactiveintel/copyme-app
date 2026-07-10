@@ -9,6 +9,10 @@ interface ChatAIAssistantProps {
   conversationContext: string;
   onInsertReply: (text: string) => void;
   onClose: () => void;
+  /** v4.16.22: auth-wrapped fetch for the real translate call. Optional
+   *  for backwards compat — without it the Translate tab explains that
+   *  translation needs a signed-in session. */
+  authFetch?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 const mockReplies = [
@@ -27,15 +31,10 @@ const mockLanguages = [
   "Hindi",
 ];
 
-const mockTranslations: Record<string, string> = {
-  Spanish: "Suena perfecto! Emocionado por el lanzamiento",
-  French: "Ca a l'air parfait ! Enthousiaste pour le lancement",
-  German: "Klingt perfekt! Freue mich auf den Launch",
-  Japanese: "完璧ですね！ローンチが楽しみです",
-  Portuguese: "Parece perfeito! Empolgado para o lancamento",
-  Arabic: "يبدو رائعا! متحمس للإطلاق",
-  Hindi: "बिल्कुल सही लग रहा है! लॉन्च के लिए उत्साहित",
-};
+// v4.16.22: hardcoded mockTranslations removed — tapping the preview
+// used to insert a canned sentence unrelated to the user's draft
+// ("could not do it" — Joze). The tab now POSTs the actual draft to
+// /api/agents/chat-assist { action: "translate" }.
 
 type TabType = "replies" | "condense" | "translate";
 
@@ -51,10 +50,47 @@ export default function ChatAIAssistant({
   conversationContext,
   onInsertReply,
   onClose,
+  authFetch,
 }: ChatAIAssistantProps) {
   const [activeTab, setActiveTab] = useState<TabType>("replies");
   const [selectedLang, setSelectedLang] = useState("Spanish");
   const [showLangDropdown, setShowLangDropdown] = useState(false);
+  // v4.16.22: real translation state.
+  const [translating, setTranslating] = useState(false);
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+
+  const runTranslate = async (lang: string) => {
+    setTranslateError(null);
+    setTranslation(null);
+    if (!currentMessage.trim()) {
+      setTranslateError("Type a message in the composer first, then translate it here.");
+      return;
+    }
+    if (!authFetch) {
+      setTranslateError("Sign in to use translation.");
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await authFetch("/api/agents/chat-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "translate", text: currentMessage, targetLanguage: lang }),
+      });
+      const data = await res.json().catch(() => null);
+      const out = data?.data?.translation;
+      if (!res.ok || typeof out !== "string" || !out.trim()) {
+        setTranslateError("Translation didn't come back — try again in a moment.");
+        return;
+      }
+      setTranslation(out);
+    } catch {
+      setTranslateError("Network error. Try again.");
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const currentTone = "Friendly" as keyof typeof toneConfig;
   const tone = toneConfig[currentTone];
@@ -222,6 +258,7 @@ export default function ChatAIAssistant({
                           onClick={() => {
                             setSelectedLang(lang);
                             setShowLangDropdown(false);
+                            void runTranslate(lang);
                           }}
                           className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
                             selectedLang === lang
@@ -237,19 +274,31 @@ export default function ChatAIAssistant({
                 </AnimatePresence>
               </div>
 
-              {/* Translated preview */}
-              <motion.button
-                onClick={() =>
-                  onInsertReply(
-                    mockTranslations[selectedLang] || "Translation unavailable"
-                  )
-                }
-                className="w-full text-left px-3 py-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100 hover:border-purple-500/20 transition-all"
-              >
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {mockTranslations[selectedLang] || "Translation unavailable"}
-                </p>
-              </motion.button>
+              {/* v4.16.22: real translation of the current draft. */}
+              {translating ? (
+                <div className="flex items-center gap-2 px-3 py-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-3.5 h-3.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs text-slate-500">Translating to {selectedLang}…</p>
+                </div>
+              ) : translation ? (
+                <motion.button
+                  onClick={() => onInsertReply(translation)}
+                  className="w-full text-left px-3 py-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100 hover:border-purple-500/20 transition-all"
+                >
+                  <p className="text-xs text-slate-600 leading-relaxed">{translation}</p>
+                  <p className="text-[10px] text-purple-500 mt-1">Tap to use this translation</p>
+                </motion.button>
+              ) : (
+                <button
+                  onClick={() => void runTranslate(selectedLang)}
+                  className="w-full px-3 py-3 rounded-xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-purple-500/20 text-xs font-medium text-purple-600 hover:border-purple-500/40 transition-all"
+                >
+                  Translate my draft to {selectedLang}
+                </button>
+              )}
+              {translateError && (
+                <p className="mt-2 text-[11px] text-rose-500">{translateError}</p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

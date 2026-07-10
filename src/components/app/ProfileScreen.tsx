@@ -24,6 +24,7 @@ import {
   Phone,
   Wallet,
   Lock,
+  Globe,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import GlassCard from "../ui/GlassCard";
@@ -106,7 +107,7 @@ function CircularProgress({ value, max, label, color }: { value: number; max: nu
 
 export default function ProfileScreen() {
   const { user, authFetch, logout } = useAuth();
-  const { t } = useLocale();
+  const { t, locale, setLocale } = useLocale();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationVisible, setLocationVisible] = useState(true);
@@ -149,6 +150,13 @@ export default function ProfileScreen() {
   const [e2eEnabled, setE2eEnabled] = useState(false);
   const [e2eSaving, setE2eSaving] = useState(false);
   const [e2eError, setE2eError] = useState<string | null>(null);
+  // v4.16.22: language picker. preferredLocale drives BOTH the UI
+  // strings AND the send-time auto-translation gate (messages
+  // translate when sender/receiver locales differ). Until this row
+  // existed, no UI could change it — every account stayed "en" and
+  // translation never fired for anyone.
+  const [langSaving, setLangSaving] = useState(false);
+  const [langError, setLangError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -204,6 +212,31 @@ export default function ProfileScreen() {
       registrationId: Math.floor(Math.random() * 0xffff_ffff),
     };
   }
+
+  // v4.16.22: change app + translation language. Updates the client
+  // strings immediately (setLocale writes localStorage) and persists
+  // to the User row so the send-time translation gate sees it.
+  const handleLanguageChange = async (next: "en" | "si" | "es" | "de" | "fr") => {
+    setLangError(null);
+    setLocale(next);
+    if (!user) return; // demo mode — client-only flip
+    setLangSaving(true);
+    try {
+      const res = await authFetch("/api/users/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredLocale: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setLangError(data?.error?.message || "Couldn't save language. Try again.");
+      }
+    } catch {
+      setLangError("Network error. Try again.");
+    } finally {
+      setLangSaving(false);
+    }
+  };
 
   const handleE2EToggle = async (next: boolean) => {
     if (!user) {
@@ -1074,6 +1107,37 @@ export default function ProfileScreen() {
                         </div>
                       );
                     })()}
+                    {/* v4.16.22: language picker. Drives UI strings AND
+                        the send-time translation gate — messages auto-
+                        translate when you and your contact have
+                        different languages set here. */}
+                    <div className="px-3 py-3 rounded-xl hover:bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2 text-sm text-slate-700">
+                          <Globe size={14} className="text-slate-500" />
+                          Language
+                        </span>
+                        <select
+                          value={locale}
+                          disabled={langSaving}
+                          onChange={(e) => void handleLanguageChange(e.target.value as "en" | "si" | "es" | "de" | "fr")}
+                          className="bg-slate-100 rounded-full px-3 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-400 disabled:opacity-60"
+                          aria-label="App and translation language"
+                        >
+                          <option value="en">English</option>
+                          <option value="si">Slovenščina</option>
+                          <option value="es">Español</option>
+                          <option value="de">Deutsch</option>
+                          <option value="fr">Français</option>
+                        </select>
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        Messages auto-translate when your contact uses a different language.
+                      </p>
+                      {langError && (
+                        <p className="mt-1 text-[11px] text-rose-600">{langError}</p>
+                      )}
+                    </div>
                     {/* v4.16.13 (Tier S Phase 2): E2E opt-in toggle.
                         Flips a placeholder bundle on the user row so
                         pairE2EReady evaluates true and the lock

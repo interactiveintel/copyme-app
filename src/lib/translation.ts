@@ -130,6 +130,30 @@ async function bumpCost(
   });
 }
 
+// v4.16.22: locale-code → prompt-facing language name. Uses the APP's
+// code convention (si = Slovenian per STRINGS.si), not raw ISO-639.
+const LOCALE_NAMES: Record<string, string> = {
+  en: "English",
+  si: "Slovenian",
+  sl: "Slovenian",
+  es: "Spanish",
+  de: "German",
+  fr: "French",
+  it: "Italian",
+  pt: "Portuguese",
+  ja: "Japanese",
+  zh: "Chinese",
+  ko: "Korean",
+  ar: "Arabic",
+  hi: "Hindi",
+  ru: "Russian",
+  nl: "Dutch",
+};
+
+function localeName(code: string): string {
+  return LOCALE_NAMES[code.toLowerCase().slice(0, 2)] ?? code;
+}
+
 /**
  * Translate `text` from `fromLocale` to `toLocale`.
  *
@@ -169,10 +193,17 @@ export async function translate(opts: TranslateOpts): Promise<TranslateResult> {
   const client = getClient();
   if (!client) return { text, modelCalled: false, cached: false };
 
+  // v4.16.22: name languages in full for the prompt. The app's locale
+  // codes follow its own convention — notably "si" means SLOVENIAN here
+  // (STRINGS.si since S-254), while ISO-639 "si" is Sinhala. Passing
+  // the raw code would make the model translate Joze's messages into
+  // Sinhala. Unknown codes fall through as-is.
+  const toName = localeName(toLocale);
+  const fromName = localeName(fromLocale);
   const prompt =
     fromLocale === "auto"
-      ? `Translate the following message into ${toLocale}. Return ONLY the translation, no preamble, no quotes. Preserve emoji and tone.\n\nMessage:\n${text}`
-      : `Translate the following ${fromLocale} message into ${toLocale}. Return ONLY the translation, no preamble, no quotes. Preserve emoji and tone.\n\nMessage:\n${text}`;
+      ? `Translate the following message into ${toName}. Return ONLY the translation, no preamble, no quotes. Preserve emoji and tone.\n\nMessage:\n${text}`
+      : `Translate the following ${fromName} message into ${toName}. Return ONLY the translation, no preamble, no quotes. Preserve emoji and tone.\n\nMessage:\n${text}`;
 
   try {
     const resp = await client.messages.create({

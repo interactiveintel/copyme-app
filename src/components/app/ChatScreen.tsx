@@ -866,6 +866,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             <ChatAIAssistant
               currentMessage={message}
               conversationContext={messages.map((m) => m.content || "").join(" ")}
+              authFetch={authFetch}
               onInsertReply={(text) => {
                 setMessage(text);
                 setShowAIAssist(false);
@@ -912,7 +913,21 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
                 When on, incoming + outgoing messages render their
                 translated text. */}
             <motion.button
-              onClick={() => setTranslateOn(!translateOn)}
+              onClick={() => {
+                const next = !translateOn;
+                setTranslateOn(next);
+                // v4.16.22: honest feedback. The toggle only re-renders
+                // messages that ALREADY carry a translation (server
+                // translates on send when the two users' preferred
+                // languages differ). With no translated messages in the
+                // thread, flipping it used to do visibly nothing —
+                // Joze's "nothing happens, NOT OPERATING". Explain it.
+                if (next && !messages.some((m) => m.translatedText)) {
+                  setReportToast(
+                    "Messages translate automatically when you and your contact use different languages. Set yours in Profile → Settings → Language.",
+                  );
+                }
+              }}
               whileTap={{ scale: 0.9 }}
               aria-pressed={translateOn}
               aria-label={translateOn ? "Translation on" : "Translation off"}
