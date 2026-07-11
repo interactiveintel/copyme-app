@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import {
-  sendMail,
+  // sendMail intentionally not imported — the digest can't resolve a
+  // real recipient email yet, so it renders but does not send (v4.16.34).
   digestTemplate,
   buildDigestUnsubscribeUrl,
   signDigestUnsubscribeToken,
@@ -33,7 +34,12 @@ function isCronAuthorized(request: NextRequest): boolean {
   const header = request.headers.get("authorization");
   if (header === `Bearer ${secret}`) return true;
   // Vercel also sends a dedicated header for cron triggers.
-  return request.headers.get("x-vercel-cron") === "1";
+  // v4.16.34: removed the `x-vercel-cron: 1` fallback — that header is
+  // spoofable (Vercel doesn't strip inbound copies), so any external
+  // caller could trigger this cron. Vercel authenticates real cron
+  // invocations by sending `Authorization: Bearer $CRON_SECRET` when
+  // CRON_SECRET is set, which the check above already covers.
+  return false;
 }
 
 function appHref(): string {
@@ -132,7 +138,9 @@ export async function GET(request: NextRequest) {
     // NOTE: when the plaintext-email migration lands (slated for after
     // v3.5.0), update the `recipientEmail` line below to decrypt it.
 
-    let sent = 0;
+    // v4.16.34: always 0 until a decryptable recipient email exists —
+    // the digest renders but does not send (see the loop below).
+    const sent = 0;
     let skippedNoEmail = 0;
     let skippedOptedOut = 0;
 
@@ -191,13 +199,17 @@ export async function GET(request: NextRequest) {
         unsubscribeUrl,
       });
 
-      // TODO: resolve the recipient's plaintext email from emailEncrypted
-      // once that migration is in. For now, the mailer will log the
-      // rendered email to server console in dev.
-      const recipientEmail = "recipient-plaintext-email-not-yet-decryptable@example.invalid";
-
-      await sendMail({ to: recipientEmail, subject, html, text }).catch(() => {});
-      sent += 1;
+      // v4.16.34: DO NOT send. The plaintext-email column
+      // (emailEncrypted → decrypt) was never wired, so there is no real
+      // recipient address here. Sending to the old hardcoded
+      // "@example.invalid" placeholder POSTed a bounce to Resend for
+      // every user with unread messages — a bounce-storm that can get
+      // the copyme1.com sending domain flagged/suspended, which would
+      // also kill the real verification + password-reset emails. Skip
+      // the send until a decryptable recipient email exists; count it
+      // as skipped, not sent (the old code fabricated the `sent` metric).
+      skippedNoEmail += 1;
+      void subject; void html; void text; // rendered but intentionally not sent yet
     }
 
     return NextResponse.json({

@@ -39,7 +39,10 @@ function isCronAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   if (request.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return request.headers.get("x-vercel-cron") === "1";
+  // v4.16.34: dropped the spoofable `x-vercel-cron: 1` fallback — this
+  // cron deletes messages past the retention window. Vercel sends
+  // Bearer CRON_SECRET (checked above).
+  return false;
 }
 
 export async function GET(request: NextRequest) {

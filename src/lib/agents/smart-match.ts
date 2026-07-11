@@ -12,70 +12,6 @@ import { tFor } from "@/lib/i18n/server";
 import { isSupportedLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n";
 import { dialCodesForQuery } from "@/lib/search-country";
-
-// ---------------------------------------------------------------------------
-// Mock data — fallback user profiles when DB is empty
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = [
-  {
-    id: "usr_a1b2c3",
-    displayName: "Maria Santos",
-    interests: ["photography", "hiking", "coffee culture", "travel writing", "yoga", "sustainability", "film"],
-    location: { globalArea: "Americas", region: "Brazil", cityZip: "Sao Paulo" },
-    profileType: "personal" as const,
-    bio: "Visual storyteller exploring the world one frame at a time.",
-  },
-  {
-    id: "usr_d4e5f6",
-    displayName: "James Chen",
-    interests: ["machine learning", "rock climbing", "board games", "cooking", "jazz", "open source", "reading"],
-    location: { globalArea: "Americas", region: "United States", cityZip: "San Francisco" },
-    profileType: "personal" as const,
-    bio: "Engineer by day, chef by night. Building things that matter.",
-  },
-  {
-    id: "usr_g7h8i9",
-    displayName: "Aisha Patel",
-    interests: ["UX design", "watercolor painting", "meditation", "podcasting", "cycling", "veganism", "architecture"],
-    location: { globalArea: "Europe", region: "United Kingdom", cityZip: "London" },
-    profileType: "personal" as const,
-    bio: "Designing experiences that make people smile.",
-  },
-  {
-    id: "usr_j1k2l3",
-    displayName: "Luca Romano",
-    interests: ["entrepreneurship", "wine tasting", "football", "classical music", "history", "mentoring", "startups"],
-    location: { globalArea: "Europe", region: "Italy", cityZip: "Milan" },
-    profileType: "social" as const,
-    bio: "Startup founder connecting creators across borders.",
-  },
-  {
-    id: "usr_m4n5o6",
-    displayName: "Yuki Tanaka",
-    interests: ["anime art", "game development", "tea ceremony", "calligraphy", "robotics", "music production", "cats"],
-    location: { globalArea: "Asia", region: "Japan", cityZip: "Tokyo" },
-    profileType: "personal" as const,
-    bio: "Blending tradition with technology, one pixel at a time.",
-  },
-  {
-    id: "usr_p7q8r9",
-    displayName: "Fatima Al-Hassan",
-    interests: ["data science", "Arabic poetry", "marathon running", "volunteering", "astronomy", "baking", "chess"],
-    location: { globalArea: "Middle East", region: "UAE", cityZip: "Dubai" },
-    profileType: "personal" as const,
-    bio: "Finding patterns in data and stars in the sky.",
-  },
-  {
-    id: "usr_s1t2u3",
-    displayName: "Green Valley Co-op",
-    interests: ["organic farming", "community building", "sustainability", "local markets", "education", "composting", "beekeeping"],
-    location: { globalArea: "Americas", region: "United States", cityZip: "Portland" },
-    profileType: "legal_entity" as const,
-    bio: "Growing food, growing community.",
-  },
-];
-
 const ICEBREAKERS = [
   "I noticed we both love {interest} — what got you into it?",
   "Your profile caught my eye! I'm also passionate about {interest}. What's your favorite aspect of it?",
@@ -89,38 +25,6 @@ const ICEBREAKERS = [
 // ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
-
-function scoreUserMatch(
-  user: (typeof MOCK_USERS)[number],
-  query: string,
-  userInterests?: string[],
-  userLocation?: string,
-): number {
-  const q = query.toLowerCase();
-  let score = 0;
-
-  // Interest overlap
-  const matchedInterests = user.interests.filter(
-    (i) => q.includes(i.toLowerCase()) || (userInterests ?? []).some((ui) => ui.toLowerCase() === i.toLowerCase()),
-  );
-  score += matchedInterests.length * 15;
-
-  // Name match
-  if (user.displayName.toLowerCase().includes(q)) score += 20;
-
-  // Location match
-  const locFields = [user.location.globalArea, user.location.region, user.location.cityZip];
-  if (locFields.some((f) => f.toLowerCase().includes(q))) score += 10;
-  if (userLocation && locFields.some((f) => f.toLowerCase().includes(userLocation.toLowerCase()))) score += 12;
-
-  // Bio keyword match
-  const qWords = q.split(/\s+/);
-  const bioWords = user.bio.toLowerCase();
-  score += qWords.filter((w) => w.length > 3 && bioWords.includes(w)).length * 3;
-
-  // Clamp to 0-100
-  return Math.min(100, Math.max(0, score));
-}
 
 // ---------------------------------------------------------------------------
 // v4.16.1 (Tier F7 polish): per-result reasoning.
@@ -293,58 +197,15 @@ function makeSearchUsersTool(locale: Locale): AgentTool { return {
         };
       }
     } catch {
-      // DB unavailable — fall through to mock
+      // DB unavailable — return an honest empty result below.
     }
 
-    // Fallback to mock data
-    const interests = (params.interests as string[]) ?? [];
-    const location = (params.location as string) ?? "";
-    const scored = MOCK_USERS.map((user) => ({
-      ...user,
-      score: scoreUserMatch(user, query, interests, location),
-    }))
-      .filter((u) => u.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-
-    if (scored.length === 0) {
-      const suggestions = MOCK_USERS.slice(0, 3).map((u) => ({
-        id: u.id,
-        displayName: u.displayName,
-        interests: u.interests.slice(0, 3),
-        location: u.location,
-        score: 25,
-        reason: "Suggested based on popularity",
-      }));
-      return { results: suggestions, total: suggestions.length, query, noExactMatch: true, source: "mock" };
-    }
-
-    return {
-      results: scored.map((u) => ({
-        id: u.id,
-        displayName: u.displayName,
-        interests: u.interests,
-        location: u.location,
-        profileType: u.profileType,
-        score: u.score,
-        bio: u.bio,
-        // v4.16.1: per-result reasoning (see buildReason).
-        // v4.16.7: localized via per-request locale.
-        reason: buildReason({
-          query,
-          displayName: u.displayName,
-          interests: u.interests,
-          location: u.location,
-          bio: u.bio,
-          hintInterests: interests,
-          hintLocation: location,
-          locale,
-        }),
-      })),
-      total: scored.length,
-      query,
-      source: "mock",
-    };
+    // v4.16.34: NO fabricated users. Previously an empty DB result (or a
+    // DB error) fell through to MOCK_USERS — presenting 7 invented
+    // people (Maria Santos, James Chen, …) to a real user as genuine
+    // matches. On a young/small user base that fired constantly. Return
+    // an honest "no matches yet" instead; the UI shows its empty state.
+    return { results: [], total: 0, query, noExactMatch: true, source: "database" };
   },
 }; }
 
@@ -493,33 +354,12 @@ const findNearbyTool: AgentTool = {
         };
       }
     } catch {
-      // DB unavailable — fall through to mock
+      // DB unavailable — return an honest empty result below.
     }
 
-    // Fallback to mock data
-    const nearby = MOCK_USERS.filter((u) => {
-      const locFields = [u.location.globalArea, u.location.region, u.location.cityZip];
-      return locFields.some((f) => f.toLowerCase().includes(location));
-    }).map((u) => ({
-      id: u.id,
-      displayName: u.displayName,
-      interests: u.interests.slice(0, 3),
-      location: u.location,
-      distance: u.location.cityZip.toLowerCase().includes(location) ? "same city" : "same region",
-    }));
-
-    if (nearby.length === 0) {
-      const globalMatches = MOCK_USERS.slice(0, 3).map((u) => ({
-        id: u.id,
-        displayName: u.displayName,
-        interests: u.interests.slice(0, 3),
-        location: u.location,
-        distance: "global",
-      }));
-      return { nearby: globalMatches, total: globalMatches.length, searchedLocation: location, expanded: true, source: "mock" };
-    }
-
-    return { nearby, total: nearby.length, searchedLocation: location, source: "mock" };
+    // v4.16.34: no fabricated nearby users (see search_users). Honest
+    // empty when the DB has no real people in the searched location.
+    return { nearby: [], total: 0, searchedLocation: location, source: "database" };
   },
 };
 
@@ -594,4 +434,3 @@ The search_users tool already attaches a deterministic per-result \`reason\` str
   };
 }
 
-export { MOCK_USERS };

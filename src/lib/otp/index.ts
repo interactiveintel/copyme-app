@@ -40,6 +40,20 @@ class MockProvider implements OtpProvider {
   }
 }
 
+// v4.16.34: fail-CLOSED default for production. The old default for an
+// unset OTP_PROVIDER was MockProvider, which returns ok:true and logs
+// the code — so in prod a misconfig faked "code sent" while no SMS
+// went out, stranding every new signup at the OTP screen with no
+// signal. This provider returns a clean ok:false so the caller surfaces
+// a real error. (Twilio Verify, when configured, is used UPSTREAM of
+// the provider layer, so this only triggers when nothing is set.)
+class DisabledProvider implements OtpProvider {
+  name = "disabled";
+  async send() {
+    return { ok: false as const, reason: "OTP_NOT_CONFIGURED" };
+  }
+}
+
 class TwilioProvider implements OtpProvider {
   name = "twilio";
   async send(phoneE164: string, code: string) {
@@ -109,10 +123,15 @@ function pick(name: string | undefined): OtpProvider {
   switch (name) {
     case "twilio": return new TwilioProvider();
     case "messagebird": return new MessageBirdProvider();
-    case "mock":
+    case "mock": return new MockProvider();
     case undefined:
     default:
-      return new MockProvider();
+      // v4.16.34: no explicit provider. Mock (fake success) only in
+      // non-production; fail-closed in prod so a missing OTP_PROVIDER
+      // can't silently strand signups.
+      return process.env.NODE_ENV === "production"
+        ? new DisabledProvider()
+        : new MockProvider();
   }
 }
 

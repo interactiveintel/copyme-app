@@ -23,7 +23,10 @@ function isCronAuthorized(request: NextRequest): boolean {
   if (!secret) return false;
   const header = request.headers.get("authorization");
   if (header === `Bearer ${secret}`) return true;
-  return request.headers.get("x-vercel-cron") === "1";
+  // v4.16.34: dropped the spoofable `x-vercel-cron: 1` fallback — this
+  // cron hard-deletes call records, so external triggerability was a
+  // real risk. Vercel sends Bearer CRON_SECRET (checked above).
+  return false;
 }
 
 export async function GET(request: NextRequest) {

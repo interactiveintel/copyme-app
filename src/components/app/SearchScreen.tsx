@@ -389,8 +389,11 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
 
   const suggestedConnections = useMemo<SearchResult[]>(() => {
     if (suggestedReal && suggestedReal.length > 0) return suggestedReal;
-    // Unauthenticated / no real users available — fall back to demo
-    // profiles so the screen isn't empty.
+    // v4.16.34: a signed-in user never sees fabricated suggestions with
+    // random match scores. Real suggestions or nothing (the screen's
+    // own empty/suggested-section simply shows no cards). MOCK_PROFILES
+    // are for the unauthenticated landing/demo preview only.
+    if (user) return [];
     return Object.values(MOCK_PROFILES).map<SearchResult>((p) => ({
       id: p.id,
       displayName: p.displayName,
@@ -402,7 +405,7 @@ export default function SearchScreen({ onContact }: SearchScreenProps = {}) {
       online: p.online,
       relevanceScore: Math.round(70 + Math.random() * 25),
     }));
-  }, [suggestedReal]);
+  }, [suggestedReal, user]);
 
   const toggleFilter = (id: string) => {
     setActiveFilters((prev) =>

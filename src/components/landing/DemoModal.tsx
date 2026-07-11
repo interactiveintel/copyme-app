@@ -138,8 +138,12 @@ const scenes = [
     color: "from-violet-500 to-purple-600",
     phone: {
       type: "yogi" as const,
-      avatarUrl: "/avatars/paul-1.jpg",
-      name: "Paul",
+      // v4.16.34: was "/avatars/paul-1.jpg" + name "Paul" — the founder's
+      // real face + name shown to every public visitor who plays the
+      // landing-page demo. Swapped to a neutral generated avatar + a
+      // sample name so the marketing surface carries no real identity.
+      avatarUrl: "/api/avatars/Yogi",
+      name: "Yogi",
       traits: ["Friendly", "Creative", "Direct"],
       stats: { chats: 47, learned: 12, adapted: 8 },
     },

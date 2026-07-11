@@ -436,11 +436,15 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
   }, [user, authFetch]);
 
   const displayedAds: AdItem[] = useMemo(() => {
+    // v4.16.34: signed-in users see only REAL ads. The mock array
+    // carried fabricated per-user personalization ("3 of your contacts
+    // shared travel plans") that is false and misleading for a real
+    // user. The demo mocks are only for the unauthenticated preview.
+    if (user) return liveAds;
     if (liveAds.length === 0) return allAds;
-    // Real ads first, then mocks (deduped by id).
     const liveIds = new Set(liveAds.map((a) => a.id));
     return [...liveAds, ...allAds.filter((a) => !liveIds.has(a.id))];
-  }, [liveAds]);
+  }, [liveAds, user]);
 
   // Pending surveys (Tier C5). Calls /api/surveys/pending which returns
   // surveys the user hasn't responded to that match their interests.
@@ -504,8 +508,12 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
     !!user,
   );
 
-  // Use real conversations if available, otherwise show mock data
-  const displayConversations = conversations.length > 0 ? conversations : MOCK_CONVERSATIONS;
+  // v4.16.34: a signed-in user ALWAYS sees their real conversations
+  // (an empty list → the empty state below), never fabricated ones.
+  // MOCK_CONVERSATIONS is only for the unauthenticated landing/demo
+  // preview. Previously every new user's first inbox showed fake
+  // people (Sarah Chen, Alex Rivera…) as if they were real threads.
+  const displayConversations = user ? conversations : MOCK_CONVERSATIONS;
 
   // v4.15.14 (F4): combined text + time-window filter. Time window is
   // client-side against lastMessage.createdAt — cheap because the
@@ -665,8 +673,19 @@ export default function InboxScreen({ onOpenChat }: InboxScreenProps) {
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-4">
               <Search size={32} className="text-slate-300" />
             </div>
-            <p className="text-slate-400 text-sm">{t("inbox.empty.title")}</p>
-            <p className="text-slate-300 text-xs mt-1">{t("inbox.empty.subtitle")}</p>
+            {/* v4.16.34: distinguish "no conversations yet" (new user,
+                no search) from "no search results". */}
+            {search || withinDays ? (
+              <>
+                <p className="text-slate-400 text-sm">{t("inbox.empty.title")}</p>
+                <p className="text-slate-300 text-xs mt-1">{t("inbox.empty.subtitle")}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-400 text-sm">No conversations yet</p>
+                <p className="text-slate-300 text-xs mt-1">Head to Search to find people and send the first message.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-1">

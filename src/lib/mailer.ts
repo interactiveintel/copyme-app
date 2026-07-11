@@ -38,7 +38,11 @@ function appUrl(): string {
 }
 
 function fromAddress(): string {
-  return process.env.MAIL_FROM || `${appName()} <noreply@copyme.app>`;
+  // v4.16.34: default to the verified product domain (copyme1.com), not
+  // the stale copyme.app. Resend would 403 a send from an unverified
+  // domain — MAIL_FROM is set in prod, but the fallback must be a real
+  // verified sender too.
+  return process.env.MAIL_FROM || `${appName()} <noreply@copyme1.com>`;
 }
 
 // ---------------------------------------------------------------------------
