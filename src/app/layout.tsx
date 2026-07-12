@@ -15,20 +15,86 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = (
+  process.env.NEXT_PUBLIC_APP_URL || "https://copyme1.com"
+)
+  .trim()
+  .replace(/\/+$/, "");
+const SITE_TITLE = "CopyMe — Communication That Matters";
+const SITE_DESCRIPTION =
+  "Your World's heart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning. Chat with anyone, anywhere, across 100+ languages.";
+
 export const metadata: Metadata = {
-  title: "CopyMe — Communication That Matters",
-  description:
-    "Your World's heart of Communication. Rule of 7 — a revolutionary constraint system that replaces noise with meaning.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  applicationName: "CopyMe",
   manifest: "/manifest.json",
-  icons: [
-    { rel: "icon", url: "/icon.svg", type: "image/svg+xml" },
-  ],
+  alternates: { canonical: "/" },
+  icons: [{ rel: "icon", url: "/icon.svg", type: "image/svg+xml" }],
   themeColor: "#4F46E5",
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "CopyMe",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "CopyMe",
   },
+};
+
+// AEO/SEO: structured data so search + answer engines understand what CopyMe
+// is. Rendered server-side into the initial HTML (crawlable without JS).
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#org`,
+      name: "CopyMe",
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      logo: `${SITE_URL}/icon.svg`,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: "CopyMe",
+      description: SITE_DESCRIPTION,
+      publisher: { "@id": `${SITE_URL}/#org` },
+      inLanguage: "en",
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "CopyMe",
+      applicationCategory: "CommunicationApplication",
+      operatingSystem: "Web, iOS, Android",
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      inLanguage: "en",
+      offers: {
+        "@type": "Offer",
+        category: "SaaS",
+        priceCurrency: "USD",
+      },
+      featureList: [
+        "Rule of 7 intentional-messaging constraint",
+        "Real-time translation across 100+ languages",
+        "Cross-platform chat",
+      ],
+      publisher: { "@id": `${SITE_URL}/#org` },
+    },
+  ],
 };
 
 export default async function RootLayout({
@@ -51,6 +117,10 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-white text-slate-900">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {children}
         <CookieBanner />
         <ServiceWorkerRegistration />

@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://copyme1.com";
+// Trim whitespace/newlines before stripping trailing slashes — a stray
+// newline in NEXT_PUBLIC_APP_URL was producing malformed <loc> values like
+// "https://copyme1.com\n/pricing", which Google rejects (only the homepage
+// was getting indexed as a result).
+const BASE = (process.env.NEXT_PUBLIC_APP_URL || "https://copyme1.com").trim().replace(/\/+$/, "");
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

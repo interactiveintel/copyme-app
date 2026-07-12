@@ -1,0 +1,28 @@
+# CopyMe
+
+> CopyMe is a messaging platform built around intentionality. Its "Rule of 7" is a constraint system that replaces communication noise with meaning, so every message is deliberate. Chat with anyone, anywhere, across 100+ languages.
+
+## What CopyMe is
+
+- A cross-platform messaging app for intentional communication — the opposite of infinite-feed, notification-driven chat.
+- The Rule of 7: a deliberate constraint system that limits noise and forces meaning into each exchange.
+- Real-time translation across 100+ languages, so people communicate across language barriers.
+
+## Plans
+
+- Free, Pro, and Business tiers. Pro and Business are distinct — Business adds team/organization features.
+- Pricing: https://copyme1.com/pricing
+
+## Key pages
+
+- Home: https://copyme1.com/
+- Pricing: https://copyme1.com/pricing
+- Business: https://copyme1.com/business
+- Press: https://copyme1.com/press
+- Privacy: https://copyme1.com/privacy
+- Terms: https://copyme1.com/terms
+
+## Contact
+
+- Company: CopyMe
+- Web: https://copyme1.com

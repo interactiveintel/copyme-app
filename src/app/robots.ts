@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://copyme1.com";
+// Trim before stripping slashes — see sitemap.ts: a trailing newline in
+// NEXT_PUBLIC_APP_URL corrupted the emitted sitemap/host URLs.
+const BASE = (process.env.NEXT_PUBLIC_APP_URL || "https://copyme1.com").trim().replace(/\/+$/, "");
 
 export default function robots(): MetadataRoute.Robots {
   return {
