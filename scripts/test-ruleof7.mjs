@@ -68,12 +68,13 @@ test("word cap — emoji counts as 1 word", () => {
   assert.equal(validateMessageContent(text).valid, true);
 });
 
-test("word cap — Pro tier raises to 700", () => {
+test("word cap — Business (business_7) raises to 700", () => {
   const text = Array.from({ length: 600 }, (_, i) => `w${i}`).join(" ");
   // BASIC fails …
   assert.equal(validateMessageContent(text, "basic").valid, false);
-  // … BUSINESS allows it
-  assert.equal(validateMessageContent(text, "business_3").valid, true);
+  // … BUSINESS (business_7) allows it. (business_3 = Pro caps at 140 —
+  // v4.16.36 fixed the Pro/Business collapse; see the Pro tests below.)
+  assert.equal(validateMessageContent(text, "business_7").valid, true);
 });
 
 // ----- Media cap (S-113) --------------------------------------------------
@@ -122,4 +123,28 @@ test("LIMITS — basic tier shape (the canonical Rule of 7 table)", () => {
   assert.equal(LIMITS.BASIC.contactsAtOnce, 7);
   assert.equal(LIMITS.BASIC.inboxPerContact, 7);
   assert.equal(LIMITS.BASIC.groupSize, 7);
+});
+
+// ----- Pro tier is distinct from Business (v4.16.36) -----------------------
+
+test("Pro (business_3 slot) allows 140 words, rejects 141", () => {
+  const at140 = Array.from({ length: 140 }, (_, i) => `w${i}`).join(" ");
+  const at141 = Array.from({ length: 141 }, (_, i) => `w${i}`).join(" ");
+  assert.equal(validateMessageContent(at140, "business_3").valid, true);
+  assert.equal(validateMessageContent(at141, "business_3").valid, false);
+});
+
+test("Business (business_7) still allows 700 words — NOT collapsed with Pro", () => {
+  const at700 = Array.from({ length: 700 }, (_, i) => `w${i}`).join(" ");
+  const at141 = Array.from({ length: 141 }, (_, i) => `w${i}`).join(" ");
+  assert.equal(validateMessageContent(at700, "business_7").valid, true);
+  // 141 words would FAIL on Pro but PASS on Business — proves they differ.
+  assert.equal(validateMessageContent(at141, "business_7").valid, true);
+});
+
+test("LIMITS — Pro sits strictly between Basic and Business", () => {
+  assert.equal(LIMITS.PRO.maxMessageWords, 140);
+  assert.equal(LIMITS.PRO.contactsAtOnce, 30);
+  assert.ok(LIMITS.BASIC.maxMessageWords < LIMITS.PRO.maxMessageWords);
+  assert.ok(LIMITS.PRO.maxMessageWords < LIMITS.BUSINESS.maxMessageWords);
 });

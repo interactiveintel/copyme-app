@@ -29,6 +29,28 @@ export const LIMITS = {
     adRotationHours: 7,
     displayNameChars: 45,
   },
+  // v4.16.36: distinct Pro tier. Previously the pricing page SOLD Pro
+  // and Business at different prices, but tierKey() collapsed both to
+  // the BUSINESS bucket — so a Pro buyer got full Business entitlements.
+  // These intermediate values mirror the (formerly dead) PRO spec in
+  // lib/tiers.ts: 2× Basic on messaging, 30 contacts, ~4× search.
+  PRO: {
+    inboxPerContact: 30,
+    maxMessageWords: 140,
+    maxImages: 14,
+    maxVoiceSeconds: 140,
+    maxVideoSeconds: 140,
+    maxVideoSizeMB: 140,
+    searchResults: 30,
+    contactsAtOnce: 30,
+    contactsPerWeek: 210, // 30 * 7
+    groupSize: 14,
+    interestSlots: 7,
+    profileNameWords: 7,
+    adSlots: 30,
+    adRotationHours: 7,
+    displayNameChars: 45,
+  },
   BUSINESS: {
     inboxPerContact: 70,
     maxMessageWords: 700,
@@ -77,8 +99,13 @@ function wordCount(text: string): number {
 
 function tierKey(tier: string): TierName {
   const normalized = tier.toLowerCase();
-  if (normalized.startsWith("business")) return "BUSINESS";
   if (normalized === "ecommerce") return "ECOMMERCE";
+  // v4.16.36: the billing webhook stores the "pro" plan as the
+  // business_3 enum slot (there is no `pro` enum value) and "business"
+  // as business_7. Map business_3 / a literal "pro" to the PRO bucket;
+  // business_7 / business_50 remain full BUSINESS.
+  if (normalized === "business_3" || normalized === "pro") return "PRO";
+  if (normalized.startsWith("business")) return "BUSINESS";
   return "BASIC";
 }
 
